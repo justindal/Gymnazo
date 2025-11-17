@@ -5,6 +5,10 @@ import PackageDescription
 
 let package = Package(
     name: "ExploreRLCore",
+    platforms: [
+        .macOS(.v14),
+        .iOS(.v16)
+    ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
@@ -12,11 +16,19 @@ let package = Package(
             targets: ["ExploreRLCore"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.29.1")
+    ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "ExploreRLCore"
+            name: "ExploreRLCore",
+            dependencies: [.product(name: "MLX", package: "mlx-swift"),
+                           .product(name: "MLXNN", package: "mlx-swift"),
+                           .product(name: "MLXOptimizers", package: "mlx-swift"),
+                           .product(name: "MLXRandom", package: "mlx-swift")
+            ]
         ),
         .testTarget(
             name: "ExploreRLCoreTests",
