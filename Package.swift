@@ -33,6 +33,10 @@ let package = Package(
                 .process("Gymnasium/Resources")
             ]
         ),
+        .executableTarget(
+            name: "ExploreRLCoreExamples",
+            dependencies: ["ExploreRLCore"]
+        ),
         .testTarget(
             name: "ExploreRLCoreTests",
             dependencies: ["ExploreRLCore"]

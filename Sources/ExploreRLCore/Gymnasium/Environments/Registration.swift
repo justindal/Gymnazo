@@ -108,13 +108,21 @@ public final class GymnasiumRegistrations {
 
         Gymnasium.register(id: envId, entryPoint: { kwargs in
             let renderMode = kwargs["render_mode"] as? String
-            let desc = kwargs["desc"] as? [String]
             let mapName = kwargs["map_name"] as? String ?? "4x4"
             let isSlippery = kwargs["is_slippery"] as? Bool ?? true
             let successRate = GymnasiumRegistrations.floatValue(
                 from: kwargs["success_rate"],
                 default: Float(1.0 / 3.0)
             )
+
+            // allow either a user-provided desc or a random map
+            var desc = kwargs["desc"] as? [String]
+            let useRandomMap = kwargs["generate_random_map"] as? Bool ?? false
+            if desc == nil && useRandomMap {
+                let size = (kwargs["size"] as? Int) ?? (mapName == "8x8" ? 8 : 4)
+                let p = GymnasiumRegistrations.floatValue(from: kwargs["p"], default: 0.8)
+                desc = FrozenLake.generateRandomMap(size: size, p: p)
+            }
 
             return FrozenLake(
                 render_mode: renderMode,
