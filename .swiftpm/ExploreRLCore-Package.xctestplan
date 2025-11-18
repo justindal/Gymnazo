@@ -1,0 +1,29 @@
+{
+  "configurations" : [
+    {
+      "id" : "57E30496-4028-45FD-AFB3-5794890D212D",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:",
+      "identifier" : "ExploreRLCoreExamples",
+      "name" : "ExploreRLCoreExamples"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:",
+        "identifier" : "ExploreRLCoreTests",
+        "name" : "ExploreRLCoreTests"
+      }
+    }
+  ],
+  "version" : 1
+}
