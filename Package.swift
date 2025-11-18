@@ -28,6 +28,9 @@ let package = Package(
                            .product(name: "MLXNN", package: "mlx-swift"),
                            .product(name: "MLXOptimizers", package: "mlx-swift"),
                            .product(name: "MLXRandom", package: "mlx-swift")
+            ],
+            resources: [
+                .process("Gymnasium/Resources")
             ]
         ),
         .testTarget(
