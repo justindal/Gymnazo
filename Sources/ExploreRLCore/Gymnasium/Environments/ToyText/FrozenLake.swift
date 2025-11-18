@@ -41,7 +41,7 @@ public final class FrozenLake: Environment {
     ]
 
     /// DFS to check if the map is valid
-     func isValid(board: [[String]], maxSize: Int) -> Bool {
+    private static func isValid(board: [[String]], maxSize: Int) -> Bool {
         var frontier: [Coord] = [Coord(row: 0, col: 0)]
         var discovered: Set<Coord> = []
         while !frontier.isEmpty {
@@ -73,7 +73,9 @@ public final class FrozenLake: Environment {
         return false
     }
 
-    private func generateRandomMap(
+    /// generate a random frozen lake map like gymnasium's generate_random_map
+    /// by sampling frozen vs hole tiles with probability `p` and checking connectivity.
+    public static func generateRandomMap(
         size: Int = 8,
         p: Float = 0.8,
         seed: Int? = nil
@@ -111,7 +113,7 @@ public final class FrozenLake: Environment {
 
             board[0][0] = "S"
             board[size - 1][size - 1] = "G"
-            valid = isValid(board: board, maxSize: size)
+            valid = Self.isValid(board: board, maxSize: size)
 
         }
         return board.map { $0.joined() }
@@ -139,7 +141,6 @@ public final class FrozenLake: Environment {
     private let ncol: Int
 
 #if canImport(SwiftUI)
-    private let cellSize: CGSize = CGSize(width: 64, height: 64)
     private var lastRGBFrame: CGImage?
 #endif
 
@@ -342,6 +343,11 @@ public final class FrozenLake: Environment {
         return (obs: self.s, reward: r, terminated: t, truncated: false, info: ["prob": p])
     }
 
+    /// returns an ansi representation of the current grid, independent of `render_mode`.
+    public func renderAnsi() -> String {
+        _renderText()
+    }
+
     @MainActor
     public func render() {
         guard let mode = render_mode else {
@@ -418,10 +424,12 @@ public final class FrozenLake: Environment {
     }
 
 #if canImport(SwiftUI)
+    /// last rendered rgb frame when using the "rgb_array" render mode.
     public var latestRGBFrame: CGImage? {
         lastRGBFrame
     }
 
+    /// snapshot of the current grid state for use with `FrozenLakeCanvasView`.
     public var currentSnapshot: FrozenLakeRenderSnapshot {
         FrozenLakeRenderSnapshot(
             rows: nrow,
@@ -430,6 +438,12 @@ public final class FrozenLake: Environment {
             playerIndex: s,
             lastAction: lastAction
         )
+    }
+
+    /// convenience for embedding the environment into a swiftui hierarchy.
+    @MainActor
+    public func humanView() -> FrozenLakeCanvasView {
+        FrozenLakeCanvasView(snapshot: currentSnapshot)
     }
 #endif
 
