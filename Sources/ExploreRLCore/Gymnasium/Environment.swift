@@ -37,6 +37,14 @@ public protocol Environment {
         seed: UInt64?,
         options: [String: Any]?
     ) -> ResetResult
+    
+    /// renders the environment.
+    /// the return value depends on the `render_mode`.
+    /// - "ansi": returns a `String`
+    /// - "rgb_array": returns a `CGImage` (or platform equivalent)
+    /// - "human": returns `nil`
+    @discardableResult
+    func render() -> Any?
 }
 
 public extension Environment {
@@ -54,8 +62,9 @@ public extension Environment {
         self
     }
 
-    func render() {
-        // do nothing
+    @discardableResult
+    func render() -> Any? {
+        return nil
     }
     
     func close() {
