@@ -9,6 +9,10 @@ import MLX
 /// this wrapper maintains a running mean and variance of the observations.
 public struct NormalizeObservation<InnerEnv: Environment>: Wrapper where InnerEnv.Observation == MLXArray {
     public typealias InnerEnv = InnerEnv
+    public typealias Observation = InnerEnv.Observation
+    public typealias Action = InnerEnv.Action
+    public typealias ObservationSpace = InnerEnv.ObservationSpace
+    public typealias ActionSpace = InnerEnv.ActionSpace
     
     public var env: InnerEnv
     public let epsilon: Float = 1e-8
@@ -25,7 +29,7 @@ public struct NormalizeObservation<InnerEnv: Environment>: Wrapper where InnerEn
         }
         
         func update(_ x: MLXArray) {
-            let batchMean = x
+
             count += 1
             let delta = x - mean
             mean = mean + delta / count
@@ -53,7 +57,7 @@ public struct NormalizeObservation<InnerEnv: Environment>: Wrapper where InnerEn
         self.rms = RunningMeanStd(shape: shape)
     }
     
-    public func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
         let result = env.step(action)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)

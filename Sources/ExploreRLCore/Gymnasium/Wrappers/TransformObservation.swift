@@ -7,6 +7,10 @@ import MLX
 
 public struct TransformObservation<InnerEnv: Environment>: Wrapper {
     public typealias InnerEnv = InnerEnv
+    public typealias Observation = InnerEnv.Observation
+    public typealias Action = InnerEnv.Action
+    public typealias ObservationSpace = InnerEnv.ObservationSpace
+    public typealias ActionSpace = InnerEnv.ActionSpace
     
     public var env: InnerEnv
     public let transform: (InnerEnv.Observation) -> InnerEnv.Observation
@@ -22,7 +26,7 @@ public struct TransformObservation<InnerEnv: Environment>: Wrapper {
         fatalError("Must provide transform function")
     }
     
-    public func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
         let result = env.step(action)
         return (
             obs: transform(result.obs),

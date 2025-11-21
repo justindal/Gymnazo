@@ -2,6 +2,7 @@
 // FrozenLake.swift
 //
 
+import Foundation
 import MLXRandom
 import MLX
 import Playgrounds
@@ -348,7 +349,6 @@ public final class FrozenLake: Environment {
         _renderText()
     }
 
-    @MainActor
     @discardableResult
     public func render() -> Any? {
         guard let mode = render_mode else {
@@ -362,7 +362,18 @@ public final class FrozenLake: Environment {
         case "ansi":
             return _renderText()
         case "human", "rgb_array":
-            return _renderGUI(mode: mode)
+            #if canImport(SwiftUI)
+            let snapshot = self.currentSnapshot
+            let result = DispatchQueue.main.sync {
+                FrozenLake._renderGUI(snapshot: snapshot, mode: mode)
+            }
+            if mode == "rgb_array" {
+                self.lastRGBFrame = result as! CGImage?
+            }
+            return result
+            #else
+            return nil
+            #endif
         default:
             print("[Gymnasium] Unsupported render_mode \(mode).")
             return nil
@@ -387,15 +398,8 @@ public final class FrozenLake: Environment {
     }
 
     @MainActor
-    private func _renderGUI(mode: String) -> Any? {
+    private static func _renderGUI(snapshot: FrozenLakeRenderSnapshot, mode: String) -> Any? {
 #if canImport(SwiftUI)
-        let snapshot = FrozenLakeRenderSnapshot(
-            rows: nrow,
-            cols: ncol,
-            tiles: descMatrix,
-            playerIndex: s,
-            lastAction: lastAction
-        )
         let view = FrozenLakeCanvasView(snapshot: snapshot)
 
         switch mode {
@@ -414,7 +418,6 @@ public final class FrozenLake: Environment {
 #else
                 renderer.scale = UIScreen.main.scale
 #endif
-                self.lastRGBFrame = renderer.cgImage
                 return renderer.cgImage
             } else {
                 print("[Gymnasium] rgb_array rendering requires macOS 13/iOS 16.")
@@ -425,7 +428,7 @@ public final class FrozenLake: Environment {
         }
 #else
         print("[Gymnasium] SwiftUI is not available; falling back to ANSI render.")
-        return mode == "ansi" ? _renderText() : nil
+        return nil
 #endif
     }
 
@@ -457,7 +460,7 @@ public final class FrozenLake: Environment {
 
 #if canImport(SwiftUI)
 /// Snapshot of the lake grid used by SwiftUI renderers.
-public struct FrozenLakeRenderSnapshot {
+public struct FrozenLakeRenderSnapshot: Sendable {
     let rows: Int
     let cols: Int
     let tiles: [[Character]]

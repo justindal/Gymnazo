@@ -28,7 +28,7 @@ public struct Tuple: Space {
     }
     
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> [Any] {
-        let keys = MLXRandom.split(key: key, num: spaces.count)
+        let keys = MLXRandom.split(key: key, into: spaces.count)
         var sample: [Any] = []
         
         for (i, space) in spaces.enumerated() {

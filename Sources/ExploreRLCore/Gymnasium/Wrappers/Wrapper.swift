@@ -49,7 +49,7 @@ public extension Wrapper {
         return env.unwrapped
     }
     
-    func step(_ action: Action) -> StepResult {
+    mutating func step(_ action: Action) -> StepResult {
         return env.step(action)
     }
 

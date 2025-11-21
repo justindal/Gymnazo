@@ -29,7 +29,7 @@ public protocol Environment {
 
     var unwrapped: any Environment { get }
     
-    func step(_ action: Action) -> StepResult
+    mutating func step(_ action: Action) -> StepResult
 
     /// resets the environment to an initial state, returning an initial observation and info.
     /// this generates a new starting state, often with some randomness controlled by the optional seed parameter.
