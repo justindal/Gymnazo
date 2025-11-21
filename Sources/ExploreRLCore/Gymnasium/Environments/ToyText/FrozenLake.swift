@@ -349,21 +349,23 @@ public final class FrozenLake: Environment {
     }
 
     @MainActor
-    public func render() {
+    @discardableResult
+    public func render() -> Any? {
         guard let mode = render_mode else {
             if let specId = spec?.id {
                 print("[Gymnasium] render() called without render_mode. Set render_mode when creating \(specId).")
             }
-            return
+            return nil
         }
 
         switch mode {
         case "ansi":
-            print(_renderText())
+            return _renderText()
         case "human", "rgb_array":
-            _renderGUI(mode: mode)
+            return _renderGUI(mode: mode)
         default:
             print("[Gymnasium] Unsupported render_mode \(mode).")
+            return nil
         }
     }
 
@@ -385,7 +387,7 @@ public final class FrozenLake: Environment {
     }
 
     @MainActor
-    private func _renderGUI(mode: String) {
+    private func _renderGUI(mode: String) -> Any? {
 #if canImport(SwiftUI)
         let snapshot = FrozenLakeRenderSnapshot(
             rows: nrow,
@@ -403,6 +405,7 @@ public final class FrozenLake: Environment {
 #else
             print("[Gymnasium] SwiftUI Canvas available via FrozenLakeCanvasView; integrate it into your app UI.")
 #endif
+            return nil
         case "rgb_array":
             if #available(macOS 13.0, iOS 16.0, *) {
                 let renderer = ImageRenderer(content: view)
@@ -412,14 +415,17 @@ public final class FrozenLake: Environment {
                 renderer.scale = UIScreen.main.scale
 #endif
                 self.lastRGBFrame = renderer.cgImage
+                return renderer.cgImage
             } else {
                 print("[Gymnasium] rgb_array rendering requires macOS 13/iOS 16.")
+                return nil
             }
         default:
-            break
+            return nil
         }
 #else
         print("[Gymnasium] SwiftUI is not available; falling back to ANSI render.")
+        return mode == "ansi" ? _renderText() : nil
 #endif
     }
 
