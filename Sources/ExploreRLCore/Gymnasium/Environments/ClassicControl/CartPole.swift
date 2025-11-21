@@ -40,7 +40,7 @@ public struct CartPole: Environment {
         self.polemass_length = masspole * length
         
         // Action Space: 0 = push left, 1 = push right
-        self.action_space = Discrete(2)
+        self.action_space = Discrete(n: 2)
         
         // Observation Space: [x, x_dot, theta, theta_dot]
         let high: [Float] = [
@@ -51,9 +51,8 @@ public struct CartPole: Environment {
         ]
         
         self.observation_space = Box(
-            low: MLXArray(high).map { -$0 },
+            low: -MLXArray(high),
             high: MLXArray(high),
-            shape: [4],
             dtype: .float32
         )
     }
@@ -134,7 +133,7 @@ public struct CartPole: Environment {
         let key = MLXRandom.key(seed ?? 0)
         
         // Random state between -0.05 and 0.05
-        self.state = MLXRandom.uniform(low: -0.05, high: 0.05, shape: [4], key: key)
+        self.state = MLXRandom.uniform(low: -0.05, high: 0.05, [4], key: key)
         self.steps_beyond_terminated = nil
         
         return (obs: self.state!, info: [:])

@@ -24,8 +24,8 @@ public struct MultiDiscrete: Space {
     }
     
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
-        let rand = MLXRandom.uniform(low: 0, high: 1, shape: self.shape!, key: key)
-        return (rand * self.nvec).astype(.int32)
+        let rand = MLXRandom.uniform(low: 0, high: 1, self.shape!, key: key)
+        return (rand * self.nvec).asType(.int32)
     }
     
     public func contains(_ x: MLXArray) -> Bool {
