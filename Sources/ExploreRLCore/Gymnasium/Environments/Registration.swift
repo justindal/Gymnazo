@@ -103,35 +103,54 @@ public final class GymnasiumRegistrations {
     }
 
     private func registerFrozenLake() {
-        let envId: String = "FrozenLake-v1"
-        guard Gymnasium.registry[envId] == nil else { return }
+        // register FrozenLake-v1 (4x4)
+        if Gymnasium.registry["FrozenLake-v1"] == nil {
+            Gymnasium.register(id: "FrozenLake-v1", entryPoint: { kwargs in
+                self.createFrozenLake(kwargs: kwargs, defaultMap: "4x4")
+            }, maxEpisodeSteps: 100)
+        }
 
-        Gymnasium.register(id: envId, entryPoint: { kwargs in
-            let renderMode = kwargs["render_mode"] as? String
-            let mapName = kwargs["map_name"] as? String ?? "4x4"
-            let isSlippery = kwargs["is_slippery"] as? Bool ?? true
-            let successRate = GymnasiumRegistrations.floatValue(
-                from: kwargs["success_rate"],
-                default: Float(1.0 / 3.0)
-            )
+        // register FrozenLake8x8-v1 (8x8)
+        if Gymnasium.registry["FrozenLake8x8-v1"] == nil {
+            Gymnasium.register(id: "FrozenLake8x8-v1", entryPoint: { kwargs in
+                self.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
+            }, maxEpisodeSteps: 200)
+        }
 
-            // allow either a user-provided desc or a random map
-            var desc = kwargs["desc"] as? [String]
-            let useRandomMap = kwargs["generate_random_map"] as? Bool ?? false
-            if desc == nil && useRandomMap {
-                let size = (kwargs["size"] as? Int) ?? (mapName == "8x8" ? 8 : 4)
-                let p = GymnasiumRegistrations.floatValue(from: kwargs["p"], default: 0.8)
-                desc = FrozenLake.generateRandomMap(size: size, p: p)
-            }
+        // register CartPole-v1
+        if Gymnasium.registry["CartPole-v1"] == nil {
+            Gymnasium.register(id: "CartPole-v1", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                return CartPole(render_mode: renderMode)
+            }, maxEpisodeSteps: 500)
+        }
+    }
+    
+    private func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
+        let renderMode = kwargs["render_mode"] as? String
+        let mapName = kwargs["map_name"] as? String ?? defaultMap
+        let isSlippery = kwargs["is_slippery"] as? Bool ?? true
+        let successRate = GymnasiumRegistrations.floatValue(
+            from: kwargs["success_rate"],
+            default: Float(1.0 / 3.0)
+        )
 
-            return FrozenLake(
-                render_mode: renderMode,
-                desc: desc,
-                map_name: mapName,
-                isSlippery: isSlippery,
-                successRate: successRate
-            )
-        }, maxEpisodeSteps: 100)
+        // allow either a user-provided desc or a random map
+        var desc = kwargs["desc"] as? [String]
+        let useRandomMap = kwargs["generate_random_map"] as? Bool ?? false
+        if desc == nil && useRandomMap {
+            let size = (kwargs["size"] as? Int) ?? (mapName == "8x8" ? 8 : 4)
+            let p = GymnasiumRegistrations.floatValue(from: kwargs["p"], default: 0.8)
+            desc = FrozenLake.generateRandomMap(size: size, p: p)
+        }
+
+        return FrozenLake(
+            render_mode: renderMode,
+            desc: desc,
+            map_name: mapName,
+            isSlippery: isSlippery,
+            successRate: successRate
+        )
     }
 
     private static func floatValue(from value: Any?, default defaultValue: Float) -> Float {
