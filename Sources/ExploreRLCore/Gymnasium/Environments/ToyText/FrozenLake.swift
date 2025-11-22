@@ -27,7 +27,7 @@ public final class FrozenLake: Env {
         case up = 3
     }
 
-    private static let MAPS: [String : [String]] = [
+    public static let MAPS: [String : [String]] = [
         "4x4": ["SFFF", "FHFH", "FFFH", "HFFG"],
         "8x8": [
             "SFFFFFFF",
