@@ -27,7 +27,7 @@ public struct QLearningAgent {
         action: Int,
         reward: Float,
         nextState: Int
-    ) -> Float {
+    ) -> (newQ: Float, tdError: Float) {
         precondition(state >= 0 && state < stateSize, "state out of bounds")
         precondition(action >= 0 && action < actionSize, "action out of bounds")
         precondition(nextState >= 0 && nextState < stateSize, "next state out of bounds")
@@ -38,11 +38,12 @@ public struct QLearningAgent {
         let currentValue = currentRow[action]
         let maxNext = nextRow.max() ?? 0
         let target = reward + gamma * maxNext
-        let updatedValue = currentValue + learningRate * (target - currentValue)
+        let tdError = target - currentValue
+        let updatedValue = currentValue + learningRate * tdError
         currentRow[action] = updatedValue
 
         qTable[state, 0...] = MLXArray(currentRow)
-        return updatedValue
+        return (updatedValue, tdError)
     }
 
     public mutating func resetTable() {
@@ -59,9 +60,12 @@ public struct QLearningAgent {
 
         let (newKey, rollKey) = MLXRandom.split(key: key)
         key = newKey
-        let roll = MLXRandom.uniform(0 ..< 1, key: rollKey).item() as Float
+        
+        let (epsilonKey, actionKey) = MLXRandom.split(key: rollKey)
+        
+        let roll = MLXRandom.uniform(0 ..< 1, key: epsilonKey).item() as Float
         if roll < epsilon {
-            return actionSpace.sample(key: rollKey)
+            return actionSpace.sample(key: actionKey)
         }
 
         let row: [Float] = qTable[state, 0...].asArray(Float.self)
