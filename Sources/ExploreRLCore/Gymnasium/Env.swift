@@ -1,8 +1,8 @@
 //
-//  Environment.swift
+//  Env.swift
 //
 
-public protocol Environment {
+public protocol Env<Observation, Action> {
     associatedtype Observation
     associatedtype Action
 
@@ -27,7 +27,7 @@ public protocol Environment {
     var spec: EnvSpec? { get set }
     var render_mode: String? { get set }
 
-    var unwrapped: any Environment { get }
+    var unwrapped: any Env { get }
     
     mutating func step(_ action: Action) -> StepResult
 
@@ -47,7 +47,7 @@ public protocol Environment {
     func render() -> Any?
 }
 
-public extension Environment {
+public extension Env {
     /// override for `reset`
     mutating func reset(seed: UInt64) -> ResetResult {
         return self.reset(seed: seed, options: nil)
@@ -58,7 +58,7 @@ public extension Environment {
         return self.reset(seed: nil, options: nil)
     }
 
-    var unwrapped: any Environment {
+    var unwrapped: any Env {
         self
     }
 

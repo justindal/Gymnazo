@@ -31,12 +31,12 @@ public struct Gymnasium {
         func make(
             kwargs: [String: Any],
             config: WrapperConfig
-        ) -> any Environment {
+        ) -> any Env {
             fatalError("EnvFactory.make(kwargs:config:) must be overridden")
         }
     }
 
-    private final class EnvFactory<EnvType: Environment>: AnyEnvFactory {
+    private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
         private let builder: ([String: Any]) -> EnvType
 
         init(builder: @escaping ([String: Any]) -> EnvType) {
@@ -47,13 +47,13 @@ public struct Gymnasium {
         override func make(
             kwargs: [String: Any],
             config: WrapperConfig
-        ) -> any Environment {
+        ) -> any Env {
             let env = builder(kwargs)
             return Gymnasium.applyDefaultWrappers(env: env, config: config)
         }
     }
 
-    public static func register<EnvType: Environment>(
+    public static func register<EnvType: Env>(
         id: String,
         entryPoint: @escaping ([String: Any]) -> EnvType,
         maxEpisodeSteps: Int? = nil,
@@ -83,7 +83,7 @@ public struct Gymnasium {
         recordBufferLength: Int = 100,
         recordStatsKey: String = "episode",
         kwargs: [String: Any] = [:]
-    ) -> any Environment {
+    ) -> any Env {
 
         guard let spec: EnvSpec = Self.registry[id] else {
             fatalError("No environment registered with id \(id)")
@@ -110,7 +110,7 @@ public struct Gymnasium {
         recordBufferLength: Int = 100,
         recordStatsKey: String = "episode",
         kwargs: [String: Any] = [:]
-    ) -> any Environment {
+    ) -> any Env {
 
         guard let factory = Self.factories[spec.id] else {
             fatalError("No factory registered for id \(spec.id)")
@@ -169,17 +169,17 @@ public struct Gymnasium {
         return env
     }
 
-    private static func applyDefaultWrappers<E: Environment>(
+    private static func applyDefaultWrappers<E: Env>(
         env: E,
         config: WrapperConfig
-    ) -> any Environment {
+    ) -> any Env {
         applyPassiveChecker(env: env, config: config)
     }
 
-    private static func applyPassiveChecker<E: Environment>(
+    private static func applyPassiveChecker<E: Env>(
         env: E,
         config: WrapperConfig
-    ) -> any Environment {
+    ) -> any Env {
         if config.applyPassiveChecker {
             let wrapped = PassiveEnvChecker(env: env)
             return applyOrderEnforcing(env: wrapped, config: config)
@@ -187,10 +187,10 @@ public struct Gymnasium {
         return applyOrderEnforcing(env: env, config: config)
     }
 
-    private static func applyOrderEnforcing<E: Environment>(
+    private static func applyOrderEnforcing<E: Env>(
         env: E,
         config: WrapperConfig
-    ) -> any Environment {
+    ) -> any Env {
         if config.enforceOrder {
             let wrapped = OrderEnforcing(
                 env: env,
@@ -201,10 +201,10 @@ public struct Gymnasium {
         return applyTimeLimit(env: env, config: config)
     }
 
-    private static func applyTimeLimit<E: Environment>(
+    private static func applyTimeLimit<E: Env>(
         env: E,
         config: WrapperConfig
-    ) -> any Environment {
+    ) -> any Env {
         guard let steps = config.maxEpisodeSteps else {
             return applyRecordEpisodeStatistics(env: env, config: config)
         }
@@ -213,10 +213,10 @@ public struct Gymnasium {
         return applyRecordEpisodeStatistics(env: wrapped, config: config)
     }
 
-    private static func applyRecordEpisodeStatistics<E: Environment>(
+    private static func applyRecordEpisodeStatistics<E: Env>(
         env: E,
         config: WrapperConfig
-    ) -> any Environment {
+    ) -> any Env {
         guard config.recordEpisodeStatistics else {
             return env
         }

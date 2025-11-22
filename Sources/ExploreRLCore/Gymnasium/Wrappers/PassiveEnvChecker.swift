@@ -4,7 +4,7 @@
 
 /// Wrapper that runs passive validation on the first reset/step/render call to ensure
 /// the environment conforms to Gymnasium's API expectations.
-public final class PassiveEnvChecker<InnerEnv: Environment>: Wrapper {
+public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
     public typealias Observation = InnerEnv.Observation
     public typealias Action = InnerEnv.Action
     public typealias ObservationSpace = InnerEnv.ObservationSpace

@@ -4,7 +4,7 @@
 
 /// wrapper that enforces a maximum number of steps per episode by emitting the
 /// truncation signal once the configured limit is reached.
-public final class TimeLimit<InnerEnv: Environment>: Wrapper {
+public final class TimeLimit<InnerEnv: Env>: Wrapper {
     public typealias Observation = InnerEnv.Observation
     public typealias Action = InnerEnv.Action
     public typealias ObservationSpace = InnerEnv.ObservationSpace

@@ -7,7 +7,7 @@ import MLX
 
 /// normalize observation to mean 0 and variance 1.
 /// this wrapper maintains a running mean and variance of the observations.
-public struct NormalizeObservation<InnerEnv: Environment>: Wrapper where InnerEnv.Observation == MLXArray {
+public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observation == MLXArray {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
     public typealias Action = InnerEnv.Action
