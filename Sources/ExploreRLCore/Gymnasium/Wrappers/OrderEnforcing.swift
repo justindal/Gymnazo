@@ -3,7 +3,7 @@
 //
 
 /// Ensures `reset()` is called before `step()` or `render()`.
-public final class OrderEnforcing<InnerEnv: Environment>: Wrapper {
+public final class OrderEnforcing<InnerEnv: Env>: Wrapper {
     public typealias Observation = InnerEnv.Observation
     public typealias Action = InnerEnv.Action
     public typealias ObservationSpace = InnerEnv.ObservationSpace

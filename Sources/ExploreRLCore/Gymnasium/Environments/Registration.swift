@@ -2,12 +2,12 @@
 // Registration.swift
 //
 
-public typealias EnvCreator = ([String: Any]) -> any Environment
+public typealias EnvCreator = ([String: Any]) -> any Env
 
 public struct WrapperSpec {
     public let id: String
     /// entry point that, given an inner environment and kwargs, returns a wrapped environment.
-    public let entryPoint: (any Environment, [String: Any]) -> any Environment
+    public let entryPoint: (any Env, [String: Any]) -> any Env
     public var kwargs: [String: Any] = [:]
 }
 

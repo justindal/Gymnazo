@@ -19,7 +19,7 @@ import UIKit
 import PlaygroundSupport
 #endif
 
-public final class FrozenLake: Environment {
+public final class FrozenLake: Env {
     private enum Direction: Int, CaseIterable {
         case left = 0
         case down = 1

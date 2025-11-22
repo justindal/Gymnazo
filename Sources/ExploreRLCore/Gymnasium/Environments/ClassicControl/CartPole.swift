@@ -6,7 +6,7 @@ import Foundation
 import MLX
 import MLXRandom
 
-public struct CartPole: Environment {
+public struct CartPole: Env {
     public typealias Observation = MLXArray
     public typealias Action = Int
     
@@ -14,10 +14,10 @@ public struct CartPole: Environment {
     public let masscart: Float = 1.0
     public let masspole: Float = 0.1
     public let total_mass: Float
-    public let length: Float = 0.5 // actually half the pole's length
+    public let length: Float = 0.5
     public let polemass_length: Float
     public let force_mag: Float = 10.0
-    public let tau: Float = 0.02 // seconds between state updates
+    public let tau: Float = 0.02
     public let kinematics_integrator: String = "euler"
     
     // Angle at which to fail the episode
@@ -62,8 +62,6 @@ public struct CartPole: Environment {
             fatalError("Call reset() before step()")
         }
         
-        // Unpack state
-        // Note: MLX doesn't support easy unpacking like Python, so we index
         let x = currentState[0].item(Float.self)
         let x_dot = currentState[1].item(Float.self)
         let theta = currentState[2].item(Float.self)

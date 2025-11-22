@@ -7,13 +7,13 @@ import MLXRandom
 
 /// protocol for environment wrappers.
 /// is generic over the `InnerEnv` it wraps for better type safety.
-public protocol Wrapper: Environment where
+public protocol Wrapper: Env where
     Observation == InnerEnv.Observation,
     Action == InnerEnv.Action,
     ObservationSpace == InnerEnv.ObservationSpace,
     ActionSpace == InnerEnv.ActionSpace
 {
-    associatedtype InnerEnv: Environment
+    associatedtype InnerEnv: Env
     
     /// "inner" environment instance.
     var env: InnerEnv { get set }
@@ -45,7 +45,7 @@ public extension Wrapper {
         set { env.render_mode = newValue }
     }
 
-    var unwrapped: any Environment {
+    var unwrapped: any Env {
         return env.unwrapped
     }
     

@@ -5,7 +5,7 @@
 import Foundation
 import MLX
 
-public struct TransformObservation<InnerEnv: Environment>: Wrapper {
+public struct TransformObservation<InnerEnv: Env>: Wrapper {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
     public typealias Action = InnerEnv.Action

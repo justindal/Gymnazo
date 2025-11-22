@@ -2,7 +2,7 @@
 // FunctionalWrappers.swift
 //
 
-open class ObservationWrapper<InnerEnv: Environment>: Wrapper {
+open class ObservationWrapper<InnerEnv: Env>: Wrapper {
     public var env: InnerEnv
 
     public required init(env: InnerEnv) {
@@ -37,7 +37,7 @@ open class ObservationWrapper<InnerEnv: Environment>: Wrapper {
     }
 }
 
-open class RewardWrapper<InnerEnv: Environment>: Wrapper {
+open class RewardWrapper<InnerEnv: Env>: Wrapper {
     public var env: InnerEnv
 
     public required init(env: InnerEnv) {
@@ -67,7 +67,7 @@ open class RewardWrapper<InnerEnv: Environment>: Wrapper {
     }
 }
 
-open class ActionWrapper<InnerEnv: Environment>: Wrapper {
+open class ActionWrapper<InnerEnv: Env>: Wrapper {
     public var env: InnerEnv
 
     public required init(env: InnerEnv) {

@@ -6,7 +6,7 @@ import Foundation
 
 /// Tracks cumulative rewards, episode lengths, and elapsed time, attaching an "episode"
 /// entry to the `info` dictionary when an episode terminates or truncates.
-public final class RecordEpisodeStatistics<InnerEnv: Environment>: Wrapper {
+public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
     public typealias Observation = InnerEnv.Observation
     public typealias Action = InnerEnv.Action
     public typealias ObservationSpace = InnerEnv.ObservationSpace

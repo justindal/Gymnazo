@@ -3,7 +3,7 @@ import MLX
 @testable import ExploreRLCore
 
 /// minimal continuous env whose step returns the action it received as the observation.
-final class DummyBoxEnv: Environment {
+final class DummyBoxEnv: Env {
     typealias Observation = MLXArray
     typealias Action = MLXArray
     typealias ObservationSpace = Box
