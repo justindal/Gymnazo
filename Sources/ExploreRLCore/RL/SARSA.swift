@@ -1,8 +1,12 @@
+//
+//  SARSA.swift
+//
+
 import Foundation
 import MLX
 
-/// Minimal Q-Learning agent storing a tabular value function backed by MLXArray.
-public final class QLearningAgent: DiscreteRLAgent {
+/// SARSA (State-Action-Reward-State-Action) agent.
+public final class SARSAAgent: DiscreteRLAgent {
     public var learningRate: Float
     public var gamma: Float
     public let stateSize: Int
@@ -19,7 +23,7 @@ public final class QLearningAgent: DiscreteRLAgent {
         self.qTable = MLXArray.zeros([stateSize, actionSize], type: Float.self)
     }
 
-    /// Update Q(s,a):= Q(s,a) + lr [R(s,a) + gamma * max Q(s',a') - Q(s,a)]
+    /// Update Q(s,a) := Q(s,a) + alpha * [R + gamma * Q(s',a') - Q(s,a)]
     @discardableResult
     public func update(
         state: Int,
@@ -32,19 +36,23 @@ public final class QLearningAgent: DiscreteRLAgent {
         precondition(state >= 0 && state < stateSize, "state out of bounds")
         precondition(action >= 0 && action < actionSize, "action out of bounds")
         precondition(nextState >= 0 && nextState < stateSize, "next state out of bounds")
+        precondition(nextAction >= 0 && nextAction < actionSize, "next action out of bounds")
 
+        let currentValue = qTable[state, action]
+        
         let target: MLXArray
         if terminated {
             target = MLXArray(reward)
         } else {
-            // target = MLXArray(reward) + MLXArray(gamma) * qTable[nextState, 0...].max()
-            target = MLXArray(reward + gamma * qTable[nextState, 0...].max().item(Float.self))
+            let nextValue = qTable[nextState, nextAction]
+            target = MLXArray(reward) + MLXArray(gamma) * nextValue
         }
-
-        let currentValue = qTable[state, action]
+        
         let tdError = target - currentValue
         let updatedValue = currentValue + MLXArray(learningRate) * tdError
+        
         qTable[state, action] = updatedValue
+
         return (updatedValue.item(Float.self), tdError.item(Float.self))
     }
 
@@ -59,7 +67,6 @@ public final class QLearningAgent: DiscreteRLAgent {
         self.qTable = table
     }
 
-    /// epsilon-greedy action selection supporting discrete action spaces.
     public func chooseAction(
         actionSpace: Discrete,
         state: Int,
@@ -87,6 +94,7 @@ public final class QLearningAgent: DiscreteRLAgent {
         let logits = MLX.which(mask, zero, negInf)
         
         let choiceIndex = MLX.categorical(logits, key: actionKey)
+        
         let chosen = choiceIndex.item(Int.self)
         return chosen + actionSpace.start
     }
