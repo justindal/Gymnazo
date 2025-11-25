@@ -3,7 +3,6 @@
 //
 
 import Foundation
-import MLXRandom
 import MLX
 import Playgrounds
 import CoreGraphics
@@ -87,16 +86,16 @@ public final class FrozenLake: Env {
         var master: MLXArray
 
         if let seed = seed {
-            master = MLXRandom.key(UInt64(seed))
+            master = MLX.key(UInt64(seed))
         } else {
-            master = MLXRandom.key(UInt64.random(in: 0...UInt64.max))
+            master = MLX.key(UInt64.random(in: 0...UInt64.max))
         }
 
         while !valid {
-            let loopKey: (MLXArray, MLXArray) = MLXRandom.split(key: master)
+            let loopKey: (MLXArray, MLXArray) = MLX.split(key: master)
             master = loopKey.1
 
-            let uniform: MLXArray = MLXRandom.uniform(0 ..< 1, [size, size], key: loopKey.0)
+            let uniform: MLXArray = MLX.uniform(0 ..< 1, [size, size], key: loopKey.0)
 
             let boardML: MLXArray = MLX.which(uniform .< p, MLXArray(0), MLXArray(1))
             eval(boardML)
@@ -159,11 +158,11 @@ public final class FrozenLake: Env {
     private func prepareKey(with seed: UInt64?) -> MLXArray {
         if let seed {
             self._seed = seed
-            self._key = MLXRandom.key(seed)
+            self._key = MLX.key(seed)
         } else if self._key == nil {
             let randomSeed = UInt64.random(in: 0...UInt64.max)
             self._seed = randomSeed
-            self._key = MLXRandom.key(randomSeed)
+            self._key = MLX.key(randomSeed)
         }
 
         guard let key = self._key else {
@@ -300,14 +299,13 @@ public final class FrozenLake: Env {
         let key = self.prepareKey(with: seed)
         
         // 2. Split key
-        let (resetKey, nextKey) = MLXRandom.split(key: key)
+        let (resetKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
         
         // 3. Sample initial state
         // Python: `self.s = categorical_sample(self.initial_state_distrib, ...)`
-        let s_ml: MLXArray = MLXRandom.categorical(self.initial_state_logits, key: resetKey)
-        let sampledState: Int32 = s_ml.item() as Int32
-        self.s = Int(sampledState)
+        let s_ml: MLXArray = MLX.categorical(self.initial_state_logits, key: resetKey)
+        self.s = s_ml.item(Int.self)
         self.lastAction = nil
         
         return (obs: self.s, info: ["prob": 1.0])
@@ -322,18 +320,14 @@ public final class FrozenLake: Env {
         guard let key = self._key else {
             fatalError("Env must be seeded with reset(seed:)")
         }
-        let (stepKey, nextKey) = MLXRandom.split(key: key)
+        let (stepKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
         
-        // 3. Sample an outcome
-        // Python: `i = categorical_sample([t[0] for t in transitions], ...)`
         let probs = transitions.map { Float($0.prob) }
         let epsilon = MLXArray(1e-9, dtype: .float32)
         let prob_logits = MLX.log(MLXArray(probs) + epsilon)
         
-        let i_ml = MLXRandom.categorical(prob_logits, key: stepKey)
-        let sampledIndex: Int32 = i_ml.item() as Int32
-        let i = Int(sampledIndex)
+        let i = MLX.categorical(prob_logits, key: stepKey).item(Int.self)
         
         let (p, s, r, t) = transitions[i]
         

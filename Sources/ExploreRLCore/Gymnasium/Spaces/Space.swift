@@ -4,7 +4,6 @@
 
 import Foundation
 import MLX
-import MLXRandom
 
 public typealias MaskMLXArray = MLXArray
 
