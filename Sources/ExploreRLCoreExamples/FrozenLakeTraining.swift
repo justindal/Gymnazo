@@ -14,7 +14,7 @@ struct FrozenLakeTrainingExample {
         let nStates = env.observation_space.n
         let nActions = env.action_space.n
 
-        var agent = QLearningAgent(
+        let agent = QLearningAgent(
             learningRate: 0.1,
             gamma: 0.99,
             stateSize: nStates,
@@ -39,17 +39,27 @@ struct FrozenLakeTrainingExample {
                 let step = env.step(action)
                 let nextObs = step.obs
                 let reward = Float(step.reward)
+                let terminated = step.terminated
+
+                // Choose next action for the update (Q-learning ignores this, but API requires it)
+                let nextAction = agent.chooseAction(
+                    actionSpace: env.action_space,
+                    state: nextObs,
+                    key: &key
+                )
 
                 _ = agent.update(
                     state: obs,
                     action: action,
                     reward: reward,
-                    nextState: nextObs
+                    nextState: nextObs,
+                    nextAction: nextAction,
+                    terminated: terminated
                 )
 
                 obs = nextObs
                 totalReward += step.reward
-                done = step.terminated || step.truncated
+                done = terminated || step.truncated
             }
 
             print("episode: \(episode), return: \(totalReward)")
