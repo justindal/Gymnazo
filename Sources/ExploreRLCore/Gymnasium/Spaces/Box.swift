@@ -3,7 +3,6 @@
 //
 
 import MLX
-import MLXRandom
 
 /// continuous space with per-dimension lower and upper bounds.
 public struct Box: Space {
@@ -57,8 +56,8 @@ public struct Box: Space {
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
         // mask and probability not applicable to Box
         let shp = shape ?? low.shape
-        let (k, _) = MLXRandom.split(key: key)
-        let u01 = MLXRandom.uniform(0 ..< 1, shp, key: k).asType(dtype ?? .float32)
+        let (k, _) = MLX.split(key: key)
+        let u01 = MLX.uniform(0 ..< 1, shp, key: k).asType(dtype ?? .float32)
         let span = high - low
         let sample = low + u01 * span
         return sample

@@ -4,7 +4,6 @@
 
 import Foundation
 import MLX
-import MLXRandom
 
 public struct Dict: Space {
     public typealias T = [String: Any]
@@ -24,7 +23,7 @@ public struct Dict: Space {
     }
     
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> [String: Any] {
-        let keys = MLXRandom.split(key: key, into: spaces.count)
+        let keys = MLX.split(key: key, into: spaces.count)
         var sample: [String: Any] = [:]
         
         let sortedKeys = spaces.keys.sorted()

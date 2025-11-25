@@ -3,7 +3,6 @@
 //
 
 import MLX
-import MLXRandom
 
 /// protocol for environment wrappers.
 /// is generic over the `InnerEnv` it wraps for better type safety.

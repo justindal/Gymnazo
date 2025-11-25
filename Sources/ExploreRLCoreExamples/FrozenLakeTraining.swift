@@ -1,5 +1,5 @@
 import ExploreRLCore
-import MLXRandom
+import MLX
 
 @main
 struct FrozenLakeTrainingExample {
@@ -22,7 +22,7 @@ struct FrozenLakeTrainingExample {
             epsilon: 0.1
         )
 
-        var key = MLXRandom.key(0)
+        var key = MLX.key(0)
 
         for episode in 0..<100 {
             var (obs, _) = env.reset(seed: UInt64(episode))
