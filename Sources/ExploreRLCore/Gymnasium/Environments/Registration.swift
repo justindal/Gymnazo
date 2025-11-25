@@ -100,6 +100,7 @@ public final class GymnasiumRegistrations {
     /// registers every environment bundled with ExploreRLCore.
     public func registerDefaultEnvironments() {
         registerFrozenLake()
+        registerClassicControl()
     }
 
     private func registerFrozenLake() {
@@ -116,13 +117,36 @@ public final class GymnasiumRegistrations {
                 self.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
             }, maxEpisodeSteps: 200)
         }
-
-        // register CartPole-v1
+    }
+    
+    private func registerClassicControl() {
         if Gymnasium.registry["CartPole-v1"] == nil {
             Gymnasium.register(id: "CartPole-v1", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 return CartPole(render_mode: renderMode)
             }, maxEpisodeSteps: 500)
+        }
+        
+        if Gymnasium.registry["MountainCar-v0"] == nil {
+            Gymnasium.register(id: "MountainCar-v0", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let goalVelocity = GymnasiumRegistrations.floatValue(
+                    from: kwargs["goal_velocity"],
+                    default: 0.0
+                )
+                return MountainCar(render_mode: renderMode, goal_velocity: goalVelocity)
+            }, maxEpisodeSteps: 200)
+        }
+        
+        if Gymnasium.registry["MountainCarContinuous-v0"] == nil {
+            Gymnasium.register(id: "MountainCarContinuous-v0", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let goalVelocity = GymnasiumRegistrations.floatValue(
+                    from: kwargs["goal_velocity"],
+                    default: 0.0
+                )
+                return MountainCarContinuous(render_mode: renderMode, goal_velocity: goalVelocity)
+            }, maxEpisodeSteps: 999)
         }
     }
     
