@@ -74,14 +74,14 @@ public struct MountainCarContinuous: Env {
         
         // Continuous action space: force in [-1.0, 1.0]
         self.action_space = Box(
-            low: MLXArray([-1.0]),
-            high: MLXArray([1.0]),
+            low: MLXArray([-1.0] as [Float32]),
+            high: MLXArray([1.0] as [Float32]),
             dtype: .float32
         )
         
         // Observation Space: [position, velocity]
-        let low = MLXArray([minPosition, -maxSpeed])
-        let high = MLXArray([maxPosition, maxSpeed])
+        let low = MLXArray([minPosition, -maxSpeed] as [Float32])
+        let high = MLXArray([maxPosition, maxSpeed] as [Float32])
         
         self.observation_space = Box(
             low: low,
@@ -111,7 +111,7 @@ public struct MountainCarContinuous: Env {
             velocity = 0
         }
         
-        self.state = MLXArray([position, velocity])
+        self.state = MLXArray([position, velocity] as [Float32])
         
         let terminated = position >= goalPosition && velocity >= goalVelocity
         
@@ -142,10 +142,10 @@ public struct MountainCarContinuous: Env {
         self._key = nextKey
         
         // Random starting position in [-0.6, -0.4], velocity = 0
-        let position = MLX.uniform(low: -0.6, high: -0.4, [1], key: stepKey)[0].item(Float.self)
+        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(Float.self)
         let velocity: Float = 0.0
         
-        self.state = MLXArray([position, velocity])
+        self.state = MLXArray([position, velocity] as [Float32])
         
         return (obs: self.state!, info: [:])
     }
