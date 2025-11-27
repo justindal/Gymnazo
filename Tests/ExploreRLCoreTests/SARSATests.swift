@@ -48,7 +48,7 @@ struct SARSATests {
         )
         
         // Set up Q-values for next state
-        var customTable = MLXArray.zeros([4, 2], type: Float.self)
+        let customTable = MLXArray.zeros([4, 2], type: Float.self)
         customTable[1, 0] = MLXArray(10.0) // Q(s=1, a=0) = 10
         customTable[1, 1] = MLXArray(5.0)  // Q(s=1, a=1) = 5
         agent.loadQTable(customTable)
@@ -89,7 +89,7 @@ struct SARSATests {
         )
         
         // Same Q-table for both
-        var table = MLXArray.zeros([4, 2], type: Float.self)
+        let table = MLXArray.zeros([4, 2], type: Float.self)
         table[1, 0] = MLXArray(10.0) // max action
         table[1, 1] = MLXArray(2.0)  // suboptimal action
         
@@ -186,7 +186,7 @@ struct SARSATests {
             epsilon: 0.0
         )
         
-        var customTable = MLXArray.zeros([4, 3], type: Float.self)
+        let customTable = MLXArray.zeros([4, 3], type: Float.self)
         customTable[0, 1] = MLXArray(10.0) // action 1 is best
         agent.loadQTable(customTable)
         
@@ -209,7 +209,7 @@ struct SARSATests {
             epsilon: 1.0
         )
         
-        var customTable = MLXArray.zeros([4, 4], type: Float.self)
+        let customTable = MLXArray.zeros([4, 4], type: Float.self)
         customTable[0, 0] = MLXArray(100.0)
         agent.loadQTable(customTable)
         
@@ -235,7 +235,7 @@ struct SARSATests {
             epsilon: 0.1
         )
         
-        var customTable = MLXArray.zeros([4, 2], type: Float.self)
+        let customTable = MLXArray.zeros([4, 2], type: Float.self)
         customTable[0, 0] = MLXArray(5.0)  // Q(s=0, a=0) = 5
         customTable[1, 1] = MLXArray(8.0)  // Q(s=1, a=1) = 8
         agent.loadQTable(customTable)
