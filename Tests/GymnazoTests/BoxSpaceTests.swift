@@ -1,6 +1,5 @@
 import Testing
 import MLX
-import MLXRandom
 @testable import Gymnazo
 
 @Suite("Box space sampling and membership")
@@ -8,9 +7,9 @@ struct BoxSpaceTests {
     @Test
     func testScalarBoundsSampleContains() async throws {
         let box = Box(low: -1.0, high: 1.0, shape: [3], dtype: .float32)
-        var key = MLXRandom.key(777)
+        var key = MLX.key(777)
         for _ in 0..<10 {
-            let (k, _) = MLXRandom.split(key: key)
+            let (k, _) = MLX.split(key: key)
             key = k
             let x = box.sample(key: key)
             #expect(box.contains(x))

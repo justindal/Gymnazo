@@ -1,6 +1,6 @@
 import Testing
 import MLX
-import MLXRandom
+
 @testable import Gymnazo
 
 @Suite("Discrete space sampling and membership")
@@ -22,13 +22,13 @@ struct DiscreteSpaceTests {
     
     @Test
     func testSampleWithMask() async throws {
-        var key = MLXRandom.key(123)
+        var key = MLX.key(123)
         let space = Discrete(n: 6)
         // allow only index 3
         let maskValues: [Float] = (0..<6).map { $0 == 3 ? Float(1) : Float(0) }
         let mask = MLXArray(maskValues)
         for _ in 0..<20 {
-            let (k, _) = MLXRandom.split(key: key)
+            let (k, _) = MLX.split(key: key)
             key = k
             let v = space.sample(key: key, mask: mask)
             #expect(v == 3)
@@ -37,12 +37,12 @@ struct DiscreteSpaceTests {
     
     @Test
     func testSampleWithProbability() async throws {
-        var key = MLXRandom.key(456)
+        var key = MLX.key(456)
         let space = Discrete(n: 4)
         // all mass on index 2
         let prob = MLXArray([Float](arrayLiteral: 0.0, 0.0, 1.0, 0.0))
         for _ in 0..<20 {
-            let (k, _) = MLXRandom.split(key: key)
+            let (k, _) = MLX.split(key: key)
             key = k
             let v = space.sample(key: key, probability: prob)
             #expect(v == 2)
