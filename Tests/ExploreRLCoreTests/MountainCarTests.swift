@@ -197,9 +197,13 @@ struct MountainCarTests {
         var env = MountainCar()
         _ = env.reset()
         
+        // Start the car near the left boundary with leftward velocity
+        // This ensures we'll actually hit the boundary to test the boundary behavior
+        env.state = MLXArray([-1.15, -0.05] as [Float32])
+        
         // Push left until we hit the boundary
         var hitBoundary = false
-        for _ in 0..<1000 {
+        for _ in 0..<100 {
             let result = env.step(0)
             let position = result.obs[0].item(Float.self)
             let velocity = result.obs[1].item(Float.self)

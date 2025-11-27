@@ -80,8 +80,8 @@ public struct MountainCar: Env {
         self.action_space = Discrete(n: 3)
         
         // Observation Space: [position, velocity]
-        let low = MLXArray([minPosition, -maxSpeed])
-        let high = MLXArray([maxPosition, maxSpeed])
+        let low = MLXArray([minPosition, -maxSpeed] as [Float32])
+        let high = MLXArray([maxPosition, maxSpeed] as [Float32])
         
         self.observation_space = Box(
             low: low,
@@ -112,7 +112,7 @@ public struct MountainCar: Env {
             velocity = 0
         }
         
-        self.state = MLXArray([position, velocity])
+        self.state = MLXArray([position, velocity] as [Float32])
         
         let terminated = position >= goalPosition && velocity >= goalVelocity
         
@@ -139,10 +139,10 @@ public struct MountainCar: Env {
         self._key = nextKey
         
         // Random starting position in [-0.6, -0.4], velocity = 0
-        let position = MLX.uniform(low: -0.6, high: -0.4, [1], key: stepKey)[0].item(Float.self)
+        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(Float.self)
         let velocity: Float = 0.0
         
-        self.state = MLXArray([position, velocity])
+        self.state = MLXArray([position, velocity] as [Float32])
         
         return (obs: self.state!, info: [:])
     }
@@ -296,32 +296,32 @@ public class MountainCarScene: SKScene {
         let segments = 100
         let range = snapshot.maxPosition - snapshot.minPosition
         
-        let trackLeft = padding
-        let trackRight = size.width - padding
-        let trackBottom: CGFloat = 30
-        let trackHeight = size.height - trackBottom - 50
+        let trackBottom: CGFloat = 20
+        let trackHeight = size.height - trackBottom - 40
         
         path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: trackLeft, y: trackBottom))
         
         for i in 0...segments {
             let t = Float(i) / Float(segments)
             let position = snapshot.minPosition + t * range
             let height = MountainCar.height(at: position)
             
-            let x = trackLeft + CGFloat(t) * (trackRight - trackLeft)
+            let x = CGFloat(t) * size.width
             let y = trackBottom + CGFloat(height) * trackHeight
             
-            path.addLine(to: CGPoint(x: x, y: y))
+            if i == 0 {
+                path.addLine(to: CGPoint(x: x, y: y))
+            } else {
+                path.addLine(to: CGPoint(x: x, y: y))
+            }
         }
         
-        path.addLine(to: CGPoint(x: trackRight, y: trackBottom))
         path.addLine(to: CGPoint(x: size.width, y: 0))
         path.closeSubpath()
         
         let node = SKShapeNode(path: path)
         node.fillColor = SKColor(red: 0.82, green: 0.71, blue: 0.55, alpha: 1.0)
-        node.strokeColor = SKColor(red: 0.5, green: 0.4, blue: 0.3, alpha: 1.0)
+        node.strokeColor = SKColor(red: 0.6, green: 0.5, blue: 0.4, alpha: 1.0)
         node.lineWidth = 2
         
         return node
@@ -381,20 +381,18 @@ public class MountainCarScene: SKScene {
     private func updatePositions() {
         let range = snapshot.maxPosition - snapshot.minPosition
         
-        let trackLeft = padding
-        let trackRight = size.width - padding
-        let trackBottom: CGFloat = 30
-        let trackHeight = size.height - trackBottom - 50
+        let trackBottom: CGFloat = 20
+        let trackHeight = size.height - trackBottom - 40
         
         let normalizedPos = (snapshot.position - snapshot.minPosition) / range
-        let carX = trackLeft + CGFloat(normalizedPos) * (trackRight - trackLeft)
+        let carX = CGFloat(normalizedPos) * size.width
         let carY = trackBottom + CGFloat(snapshot.height) * trackHeight
         
         let delta: Float = 0.01
         let heightBefore = MountainCar.height(at: snapshot.position - delta)
         let heightAfter = MountainCar.height(at: snapshot.position + delta)
         let slope = (heightAfter - heightBefore) / (2 * delta)
-        let visualSlope = slope * Float(trackHeight) / Float(trackRight - trackLeft) * Float(range)
+        let visualSlope = slope * Float(trackHeight) / Float(size.width) * Float(range)
         let angle = atan(visualSlope)
         
         let carHeight = carScale * 0.4
@@ -418,7 +416,7 @@ public class MountainCarScene: SKScene {
         )
         
         let goalNormalized = (snapshot.goalPosition - snapshot.minPosition) / range
-        let goalX = trackLeft + CGFloat(goalNormalized) * (trackRight - trackLeft)
+        let goalX = CGFloat(goalNormalized) * size.width
         let goalY = trackBottom + CGFloat(snapshot.goalHeight) * trackHeight
         
         flagPole?.position = CGPoint(x: goalX, y: goalY)
