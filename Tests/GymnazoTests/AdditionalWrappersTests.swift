@@ -1,8 +1,8 @@
 import Testing
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 /// wrapper specialized to FrozenLake that injects a flag into info to verify that
-/// additional_wrappers are applied by Gymnasium.make(spec:).
+/// additional_wrappers are applied by Gymnazo.make(spec:).
 final class FrozenLakeInfoTagWrapper: Wrapper {
     typealias InnerEnv = FrozenLake
     
@@ -41,8 +41,8 @@ struct AdditionalWrappersTests {
     @Test
     @MainActor
     func testAdditionalWrapperApplied() async throws {
-        Gymnasium.start()
-        guard var baseSpec = Gymnasium.registry["FrozenLake-v1"] else {
+        Gymnazo.start()
+        guard var baseSpec = Gymnazo.registry["FrozenLake-v1"] else {
             #expect(Bool(false), "FrozenLake-v1 spec missing")
             return
         }
@@ -60,7 +60,7 @@ struct AdditionalWrappersTests {
         
         baseSpec.additional_wrappers = [wrapperSpec]
         
-        let env = Gymnasium.make(
+        let env = Gymnazo.make(
             baseSpec,
             recordEpisodeStatistics: false,
             kwargs: ["is_slippery": false]

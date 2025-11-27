@@ -5,7 +5,7 @@
 import Testing
 import MLX
 import Foundation
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("MountainCar environment")
 struct MountainCarTests {
@@ -313,11 +313,11 @@ struct MountainCarTests {
     }
     
     @Test @MainActor
-    func testGymnasiumRegistration() async throws {
-        Gymnasium.start()
+    func testGymnazoRegistration() async throws {
+        Gymnazo.start()
         
-        guard var env = Gymnasium.make("MountainCar-v0") as? any Env<MLXArray, Int> else {
-            Issue.record("Failed to create MountainCar via Gymnasium.make")
+        guard var env = Gymnazo.make("MountainCar-v0") as? any Env<MLXArray, Int> else {
+            Issue.record("Failed to create MountainCar via Gymnazo.make")
             return
         }
         
@@ -326,11 +326,11 @@ struct MountainCarTests {
     }
     
     @Test @MainActor
-    func testGymnasiumMaxEpisodeSteps() async throws {
-        Gymnasium.start()
+    func testGymnazoMaxEpisodeSteps() async throws {
+        Gymnazo.start()
         
-        guard let env = Gymnasium.make("MountainCar-v0") as? any Env<MLXArray, Int> else {
-            Issue.record("Failed to create MountainCar via Gymnasium.make")
+        guard let env = Gymnazo.make("MountainCar-v0") as? any Env<MLXArray, Int> else {
+            Issue.record("Failed to create MountainCar via Gymnazo.make")
             return
         }
         

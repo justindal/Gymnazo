@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import MLX
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("Acrobot environment")
 struct AcrobotTests {

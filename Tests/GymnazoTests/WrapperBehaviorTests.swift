@@ -1,5 +1,5 @@
 import Testing
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("Wrapper behaviors")
 struct WrapperBehaviorTests {
@@ -17,8 +17,8 @@ struct WrapperBehaviorTests {
     @Test
     @MainActor
     func testRenderAllowedBeforeResetWhenDisabled() async throws {
-        Gymnasium.start()
-        var env = Gymnasium.make(
+        Gymnazo.start()
+        var env = Gymnazo.make(
             "FrozenLake-v1",
             disableRenderOrderEnforcing: true,
             kwargs: ["render_mode": "ansi", "is_slippery": false]

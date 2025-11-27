@@ -1,8 +1,8 @@
 import Testing
-@testable import ExploreRLCore
+@testable import Gymnazo
 
-@Suite("Gymnasium wrappers and env basics")
-struct GymnasiumTests {
+@Suite("Gymnazo wrappers and env basics")
+struct GymnazoTests {
     @Test
     func testTimeLimitAndEpisodeStats() async throws {
         // deterministic for stability
@@ -20,8 +20,8 @@ struct GymnasiumTests {
     @Test
     @MainActor
     func testRenderPassThroughAnsi() async throws {
-        Gymnasium.start()
-        var env = Gymnasium.make(
+        Gymnazo.start()
+        var env = Gymnazo.make(
             "FrozenLake-v1",
             kwargs: ["render_mode": "ansi", "is_slippery": false]
         )

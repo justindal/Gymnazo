@@ -2,7 +2,7 @@
 // EnvChecker.swift
 //
 
-/// checks that mirror Gymnasium's passive environment validation utilities.
+/// checks that mirror Gymnazo's passive environment validation utilities.
 enum PassiveEnvChecks {
     static func ensureSpacesExist<E: Env>(for env: E) {
         // ensure action/observation spaces can be touched without crashing.

@@ -1,6 +1,6 @@
 import Testing
 import MLX
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 /// minimal continuous env whose step returns the action it received as the observation.
 final class DummyBoxEnv: Env {
