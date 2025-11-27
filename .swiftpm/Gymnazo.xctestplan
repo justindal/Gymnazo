@@ -1,20 +1,15 @@
 {
   "configurations" : [
     {
-      "id" : "57E30496-4028-45FD-AFB3-5794890D212D",
-      "name" : "Test Scheme Action",
+      "id" : "77B2BDD1-BEC5-48D2-ABF8-91F7F57C3028",
+      "name" : "Configuration 1",
       "options" : {
 
       }
     }
   ],
   "defaultOptions" : {
-    "performanceAntipatternCheckerEnabled" : true,
-    "targetForVariableExpansion" : {
-      "containerPath" : "container:",
-      "identifier" : "Gymnazo",
-      "name" : "Gymnazo"
-    }
+
   },
   "testTargets" : [
     {
@@ -27,4 +22,3 @@
   ],
   "version" : 1
 }
-

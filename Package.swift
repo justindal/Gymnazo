@@ -35,7 +35,7 @@ let package = Package(
                            .product(name: "Collections", package: "swift-collections")
             ],
             resources: [
-                .process("Gymnasium/Resources")
+                .process("Resources")
             ]
         ),
         .testTarget(
