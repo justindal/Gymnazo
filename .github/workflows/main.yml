@@ -1,4 +1,4 @@
-name: ci
+name: Swift
 
 on:
   push:
