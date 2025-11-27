@@ -12,18 +12,19 @@
     "performanceAntipatternCheckerEnabled" : true,
     "targetForVariableExpansion" : {
       "containerPath" : "container:",
-      "identifier" : "ExploreRLCoreExamples",
-      "name" : "ExploreRLCoreExamples"
+      "identifier" : "Gymnazo",
+      "name" : "Gymnazo"
     }
   },
   "testTargets" : [
     {
       "target" : {
         "containerPath" : "container:",
-        "identifier" : "ExploreRLCoreTests",
-        "name" : "ExploreRLCoreTests"
+        "identifier" : "GymnazoTests",
+        "name" : "GymnazoTests"
       }
     }
   ],
   "version" : 1
 }
+

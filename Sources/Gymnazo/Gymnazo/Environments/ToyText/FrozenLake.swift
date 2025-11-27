@@ -347,7 +347,7 @@ public final class FrozenLake: Env {
     public func render() -> Any? {
         guard let mode = render_mode else {
             if let specId = spec?.id {
-                print("[Gymnasium] render() called without render_mode. Set render_mode when creating \(specId).")
+                print("[Gymnazo] render() called without render_mode. Set render_mode when creating \(specId).")
             }
             return nil
         }
@@ -369,7 +369,7 @@ public final class FrozenLake: Env {
             return nil
             #endif
         default:
-            print("[Gymnasium] Unsupported render_mode \(mode).")
+            print("[Gymnazo] Unsupported render_mode \(mode).")
             return nil
         }
     }
@@ -401,7 +401,7 @@ public final class FrozenLake: Env {
 #if canImport(PlaygroundSupport)
             PlaygroundPage.current.setLiveView(view)
 #else
-            print("[Gymnasium] SwiftUI Canvas available via FrozenLakeCanvasView; integrate it into your app UI.")
+            print("[Gymnazo] SwiftUI Canvas available via FrozenLakeCanvasView; integrate it into your app UI.")
 #endif
             return nil
         case "rgb_array":
@@ -414,14 +414,14 @@ public final class FrozenLake: Env {
 #endif
                 return renderer.cgImage
             } else {
-                print("[Gymnasium] rgb_array rendering requires macOS 13/iOS 16.")
+                print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
                 return nil
             }
         default:
             return nil
         }
 #else
-        print("[Gymnasium] SwiftUI is not available; falling back to ANSI render.")
+        print("[Gymnazo] SwiftUI is not available; falling back to ANSI render.")
         return nil
 #endif
     }

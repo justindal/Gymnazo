@@ -1,5 +1,5 @@
 import Testing
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("FrozenLake environment")
 struct FrozenLakeTests {
@@ -24,9 +24,9 @@ struct FrozenLakeTests {
     
     @Test
     @MainActor
-    func testGymnasiumMakeFrozenLake() async throws {
-        Gymnasium.start()
-        let env = Gymnasium.make("FrozenLake-v1", kwargs: ["is_slippery": false])
+    func testGymnazoMakeFrozenLake() async throws {
+        Gymnazo.start()
+        let env = Gymnazo.make("FrozenLake-v1", kwargs: ["is_slippery": false])
         let fl = env.unwrapped as! FrozenLake
         _ = fl.reset(seed: 123)
         let s = fl.step(2)

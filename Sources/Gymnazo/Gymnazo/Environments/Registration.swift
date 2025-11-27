@@ -86,10 +86,10 @@ public struct EnvSpec {
     }
 }
 
-/// register all built-in Gymnasium environments in one place.
+/// register all built-in Gymnazo environments in one place.
 @MainActor
-public final class GymnasiumRegistrations {
-    public static let shared: GymnasiumRegistrations = GymnasiumRegistrations()
+public final class GymnazoRegistrations {
+    public static let shared: GymnazoRegistrations = GymnazoRegistrations()
 
     public init(registerDefaults: Bool = true) {
         if registerDefaults {
@@ -97,7 +97,7 @@ public final class GymnasiumRegistrations {
         }
     }
 
-    /// registers every environment bundled with ExploreRLCore.
+    /// registers every environment bundled with Gymnazo.
     public func registerDefaultEnvironments() {
         registerFrozenLake()
         registerClassicControl()
@@ -105,32 +105,32 @@ public final class GymnasiumRegistrations {
 
     private func registerFrozenLake() {
         // register FrozenLake-v1 (4x4)
-        if Gymnasium.registry["FrozenLake-v1"] == nil {
-            Gymnasium.register(id: "FrozenLake-v1", entryPoint: { kwargs in
+        if Gymnazo.registry["FrozenLake-v1"] == nil {
+            Gymnazo.register(id: "FrozenLake-v1", entryPoint: { kwargs in
                 self.createFrozenLake(kwargs: kwargs, defaultMap: "4x4")
             }, maxEpisodeSteps: 100)
         }
 
         // register FrozenLake8x8-v1 (8x8)
-        if Gymnasium.registry["FrozenLake8x8-v1"] == nil {
-            Gymnasium.register(id: "FrozenLake8x8-v1", entryPoint: { kwargs in
+        if Gymnazo.registry["FrozenLake8x8-v1"] == nil {
+            Gymnazo.register(id: "FrozenLake8x8-v1", entryPoint: { kwargs in
                 self.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
             }, maxEpisodeSteps: 200)
         }
     }
     
     private func registerClassicControl() {
-        if Gymnasium.registry["CartPole-v1"] == nil {
-            Gymnasium.register(id: "CartPole-v1", entryPoint: { kwargs in
+        if Gymnazo.registry["CartPole-v1"] == nil {
+            Gymnazo.register(id: "CartPole-v1", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 return CartPole(render_mode: renderMode)
             }, maxEpisodeSteps: 500)
         }
         
-        if Gymnasium.registry["MountainCar-v0"] == nil {
-            Gymnasium.register(id: "MountainCar-v0", entryPoint: { kwargs in
+        if Gymnazo.registry["MountainCar-v0"] == nil {
+            Gymnazo.register(id: "MountainCar-v0", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
-                let goalVelocity = GymnasiumRegistrations.floatValue(
+                let goalVelocity = GymnazoRegistrations.floatValue(
                     from: kwargs["goal_velocity"],
                     default: 0.0
                 )
@@ -138,10 +138,10 @@ public final class GymnasiumRegistrations {
             }, maxEpisodeSteps: 200)
         }
         
-        if Gymnasium.registry["MountainCarContinuous-v0"] == nil {
-            Gymnasium.register(id: "MountainCarContinuous-v0", entryPoint: { kwargs in
+        if Gymnazo.registry["MountainCarContinuous-v0"] == nil {
+            Gymnazo.register(id: "MountainCarContinuous-v0", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
-                let goalVelocity = GymnasiumRegistrations.floatValue(
+                let goalVelocity = GymnazoRegistrations.floatValue(
                     from: kwargs["goal_velocity"],
                     default: 0.0
                 )
@@ -149,8 +149,8 @@ public final class GymnasiumRegistrations {
             }, maxEpisodeSteps: 999)
         }
         
-        if Gymnasium.registry["Acrobot-v1"] == nil {
-            Gymnasium.register(id: "Acrobot-v1", entryPoint: { kwargs in
+        if Gymnazo.registry["Acrobot-v1"] == nil {
+            Gymnazo.register(id: "Acrobot-v1", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 return Acrobot(render_mode: renderMode)
             }, maxEpisodeSteps: 500, rewardThreshold: -100)
@@ -161,7 +161,7 @@ public final class GymnasiumRegistrations {
         let renderMode = kwargs["render_mode"] as? String
         let mapName = kwargs["map_name"] as? String ?? defaultMap
         let isSlippery = kwargs["is_slippery"] as? Bool ?? true
-        let successRate = GymnasiumRegistrations.floatValue(
+        let successRate = GymnazoRegistrations.floatValue(
             from: kwargs["success_rate"],
             default: Float(1.0 / 3.0)
         )
@@ -171,7 +171,7 @@ public final class GymnasiumRegistrations {
         let useRandomMap = kwargs["generate_random_map"] as? Bool ?? false
         if desc == nil && useRandomMap {
             let size = (kwargs["size"] as? Int) ?? (mapName == "8x8" ? 8 : 4)
-            let p = GymnasiumRegistrations.floatValue(from: kwargs["p"], default: 0.8)
+            let p = GymnazoRegistrations.floatValue(from: kwargs["p"], default: 0.8)
             desc = FrozenLake.generateRandomMap(size: size, p: p)
         }
 

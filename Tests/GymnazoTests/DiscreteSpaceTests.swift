@@ -1,7 +1,7 @@
 import Testing
 import MLX
 import MLXRandom
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("Discrete space sampling and membership")
 struct DiscreteSpaceTests {

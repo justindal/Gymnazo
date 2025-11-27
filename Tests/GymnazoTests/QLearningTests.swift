@@ -1,6 +1,6 @@
 import Testing
 import MLX
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("QLearning agent")
 struct QLearningTests {

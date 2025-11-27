@@ -1,9 +1,9 @@
 //
-// Gymnasium.swift
+// Gymnazo.swift
 //
 
 @MainActor
-public struct Gymnasium {
+public struct Gymnazo {
     public private(set) static var registry: [String: EnvSpec] = [:]
 
     private static var factories: [String: AnyEnvFactory] = [:]
@@ -19,11 +19,11 @@ public struct Gymnasium {
         let recordStatsKey: String
     }
 
-    /// starts the Gymnasium environment registry with the default environments.
+    /// starts the Gymnazo environment registry with the default environments.
     public static func start() {
         guard !didStart else { return }
         didStart = true
-        GymnasiumRegistrations().registerDefaultEnvironments()
+        GymnazoRegistrations().registerDefaultEnvironments()
     }
 
     private class AnyEnvFactory {
@@ -49,7 +49,7 @@ public struct Gymnasium {
             config: WrapperConfig
         ) -> any Env {
             let env = builder(kwargs)
-            return Gymnasium.applyDefaultWrappers(env: env, config: config)
+            return Gymnazo.applyDefaultWrappers(env: env, config: config)
         }
     }
 

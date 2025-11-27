@@ -2,7 +2,7 @@ import Testing
 import MLX
 import MLXNN
 import MLXOptimizers
-@testable import ExploreRLCore
+@testable import Gymnazo
 
 @Suite("DQN components")
 struct DQNTests {
