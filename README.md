@@ -1,6 +1,6 @@
 # Gymnazo
 
-[![Swift](https://github.com/justindal/gymnazo/actions/workflows/main.yml/badge.svg)](https://github.com/justindal/gymnazo/actions/workflows/main.yml)
+[![Swift](https://github.com/justindal/Gymnazo/actions/workflows/main.yml/badge.svg)](https://github.com/justindal/Gymnazo/actions/workflows/main.yml)
 
 **Gymnazo** is a Swift port of [Farama Gymnasium](https://github.com/Farama-Foundation/Gymnasium) for reinforcement learning. Built on [MLX Swift](https://github.com/ml-explore/mlx-swift) for Apple Silicon acceleration. Under active development.
 
@@ -18,7 +18,7 @@ Add Gymnazo to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/justindal/gymnazo.git", from: "0.1.0")
+    .package(url: "https://github.com/justindal/Gymnazo.git", from: "0.1.0")
 ]
 ```
 
@@ -28,7 +28,7 @@ Then add it to your target:
 .target(
     name: "YourApp",
     dependencies: [
-        .product(name: "Gymnazo", package: "gymnazo")
+        .product(name: "Gymnazo", package: "Gymnazo")
     ]
 )
 ```
