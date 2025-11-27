@@ -1,167 +1,127 @@
-## ExploreRLCore
+# Gymnazo
 
-ExploreRLCore is a Swift package that ports core ideas from the Farama Gymnasium project to Swift. It provides Gymnasium-style environments, spaces, and wrappers on top of MLX Swift so you can train reinforcement learning agents on Apple platforms.
+[![Swift](https://github.com/justindal/gymnazo/actions/workflows/main.yml/badge.svg)](https://github.com/justindal/gymnazo/actions/workflows/main.yml)
 
-ExploreRLCore also powers my companion app, ExploreRL, available on macOS and iOS, which helps you explore reinforcement learning environments and algorithms interactively.
+**Gymnazo** is a Swift port of [Farama Gymnasium](https://github.com/Farama-Foundation/Gymnasium) for reinforcement learning. Built on [MLX Swift](https://github.com/ml-explore/mlx-swift) for Apple Silicon acceleration. Under active development.
 
-### Features
+## Requirements
 
-- **Gymnasium-style API**: `Environment` protocol, `Gymnasium.start()`, `Gymnasium.make()` and `env.step` / `env.reset` signatures that mirror Python Gymnasium.
-- **Spaces**: `Discrete` and `Box` spaces, with more planned (`MultiDiscrete`, `MultiBinary`, `Tuple`, `Dict`).
-- **Environments**:
-  - `FrozenLake-v1` from the Toy Text family, including optional random map generation.
-- **Wrappers**:
-  - passive env checker, order enforcing, time limit, episode statistics.
-  - action wrappers for `Box` spaces (`ClipAction`, `RescaleAction`).
-- **RL utilities**: a tabular `QLearningAgent` backed by MLX arrays.
+- **macOS 14+** / **iOS 17+**
+- **Apple Silicon** (M-series or A-series chips)
+- **Swift 6.0+**
 
-### Installation
+> **Note**: Gymnazo uses MLX Swift which requires Metal shaders, and will not build with SwiftPM (`swift build`). Build with Xcode or `xcodebuild`.
 
-Add the package to your `Package.swift` dependencies:
+## Installation
+
+Add Gymnazo to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/justindal/explorerlcore.git", from: "0.1.0")
+    .package(url: "https://github.com/justindal/gymnazo.git", from: "0.1.0")
 ]
 ```
 
-Then add `ExploreRLCore` to your target dependencies:
+Then add it to your target:
 
 ```swift
 .target(
-    name: "myapp",
+    name: "YourApp",
     dependencies: [
-        .product(name: "ExploreRLCore", package: "ExploreRLCore")
+        .product(name: "Gymnazo", package: "gymnazo")
     ]
 )
 ```
 
-### Basic usage
+## Building & Testing
+
+```bash
+xcodebuild \
+  -scheme Gymnazo \
+  -destination 'platform=macOS,arch=arm64' \
+  test
+```
+
+Or open the package in Xcode and run the test scheme.
+
+## Features
+
+### Environments
+
+| Category            | Environments                                                              |
+| ------------------- | ------------------------------------------------------------------------- |
+| **Classic Control** | `CartPole-v1`, `MountainCar-v0`, `MountainCarContinuous-v0`, `Acrobot-v1` |
+| **Toy Text**        | `FrozenLake-v1`, `FrozenLake8x8-v1`                                       |
+
+### Spaces
+
+`Discrete`, `Box`, `MultiDiscrete`, `Tuple`, `Dict`
+
+### Wrappers
+
+`TimeLimit`, `RecordEpisodeStatistics`, `ClipAction`, `RescaleAction`, `TransformObservation`, `NormalizeObservation`, `OrderEnforcing`, `PassiveEnvChecker`
+
+### Built-in RL Algorithms
+
+| Algorithm        | Type    | Description                              |
+| ---------------- | ------- | ---------------------------------------- |
+| `QLearningAgent` | Tabular | Q-learning with ε-greedy exploration     |
+| `SARSAAgent`     | Tabular | On-policy TD control                     |
+| `DQNAgent`       | Deep RL | Deep Q-Network with replay buffer        |
+| `SACAgent`       | Deep RL | Soft Actor-Critic for continuous actions |
+
+## Quick Start
 
 ```swift
-import ExploreRLCore
-import MLXRandom
+import Gymnazo
+import MLX
 
 @main
 struct Demo {
+    @MainActor
     static func main() {
-        Gymnasium.start()
+        Gymnazo.start()
 
-        var env = Gymnasium.make("FrozenLake-v1",
-                                 kwargs: ["is_slippery": true])
-
+        var env = Gymnazo.make("CartPole-v1")
         var (obs, _) = env.reset(seed: 42)
         var done = false
 
         while !done {
-            let action = env.action_space.sample(key: MLXRandom.key(0))
+            let action = env.action_space.sample(key: MLX.key(0))
             let step = env.step(action)
             obs = step.obs
             done = step.terminated || step.truncated
-            print("state: \(obs), reward: \(step.reward)")
         }
-
-        env.render()
     }
 }
 ```
 
-### Example training loop
+## Status
 
-The repository includes an example training loop you can adapt. It might look something like this:
+Gymnazo is under active development.
 
-```swift
-Gymnasium.start()
+**Implemented:**
 
-var env = Gymnasium.make("FrozenLake-v1",
-                         kwargs: ["is_slippery": true]) as! FrozenLake
+- Core Gymnasium-style API (`Env`, `Space`, `Wrapper`)
+- 6 environments (Classic Control + Toy Text)
+- 8 wrappers
+- 4 RL algorithms (Q-Learning, SARSA, DQN, SAC)
 
-let nStates = env.observation_space.n
-let nActions = env.action_space.n
+**Planned:**
 
-var agent = QLearningAgent(
-    learningRate: 0.1,
-    gamma: 0.99,
-    stateSize: nStates,
-    actionSize: nActions,
-    epsilon: 0.1
-)
+- All environments from the original Gymnasium
+- Vectorized environments
+- Additional RL algorithms
+- Better wrapper support
 
-var key = MLXRandom.key(0)
+For the full Gymnasium experience, see the [official Python repository](https://github.com/Farama-Foundation/Gymnasium).
 
-for episode in 0..<1000 {
-    var (obs, _) = env.reset(seed: UInt64(episode))
-    var done = false
+## License
 
-    while !done {
-        let action = agent.chooseAction(
-            actionSpace: env.action_space,
-            state: obs,
-            key: &key
-        )
+MIT License. See [LICENSE](LICENSE) for details.
 
-        let step = env.step(action)
-        let nextObs = step.obs
-        let reward = Float(step.reward)
+## Acknowledgments
 
-        _ = agent.update(
-            state: obs,
-            action: action,
-            reward: reward,
-            nextState: nextObs
-        )
-
-        obs = nextObs
-        done = step.terminated || step.truncated
-    }
-}
-```
-
-### SwiftUI rendering
-
-For SwiftUI, you can embed the FrozenLake canvas directly using the snapshot API:
-
-```swift
-import SwiftUI
-import ExploreRLCore
-
-@MainActor
-struct FrozenLakeView: View {
-    @State private var env = Gymnasium.make(
-        "FrozenLake-v1",
-        kwargs: ["is_slippery": true]
-    ) as! FrozenLake
-
-    var body: some View {
-        FrozenLakeCanvasView(snapshot: env.currentSnapshot)
-            .frame(maxWidth: 400, maxHeight: 400)
-    }
-}
-```
-
-### Testing and building
-
-Because ExploreRLCore depends on MLX Swift, which uses Metal shaders, the package cannot currently be built or tested reliably with the pure SwiftPM command-line tools (`swift build`, `swift test`). Instead, use Xcode or `xcodebuild`:
-
-- open the package in Xcode and run the `ExploreRLCore-Package` test scheme, or
-- from the command line:
-
-  ```bash
-  xcodebuild \
-    -scheme ExploreRLCore-Package \
-    -destination 'platform=macOS,arch=arm64' \
-    test
-  ```
-
-This exercises spaces, wrappers, and the `FrozenLake` environment using Xcode's build system.
-
-### Status and roadmap
-
-This package currently includes a subset of Gymnasium functionality focused on Toy Text and basic spaces. Planned work includes:
-
-- additional spaces: `MultiDiscrete`, `MultiBinary`, `Tuple`, `Dict`.
-- more wrappers: observation and reward normalization, frame stacking.
-- vectorized environments.
-- more reference environments (CartPole, MountainCar, Taxi).
-
-Contributions and feedback are welcome.
+- [Farama Foundation](https://farama.org/) for the original Gymnasium
+- [OpenAI](https://openai.com/) for the original Gym
+- [MLX Swift](https://github.com/ml-explore/mlx-swift) team
