@@ -24,6 +24,6 @@ jobs:
       - name: run tests with xcodebuild (macos)
         run: |
           xcodebuild \
-            -scheme ExploreRLCore-Package \
+            -scheme Gymnazo \
             -destination 'platform=macOS,arch=arm64' \
             test
