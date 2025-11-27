@@ -144,7 +144,7 @@ struct QLearningTests {
         )
         
         // Set Q-values so action 2 is best for state 0
-        var customTable = MLXArray.zeros([4, 3], type: Float.self)
+        let customTable = MLXArray.zeros([4, 3], type: Float.self)
         customTable[0, 2] = MLXArray(10.0)
         agent.loadQTable(customTable)
         
@@ -169,7 +169,7 @@ struct QLearningTests {
         )
         
         // Set Q-values so action 0 would be best
-        var customTable = MLXArray.zeros([4, 4], type: Float.self)
+        let customTable = MLXArray.zeros([4, 4], type: Float.self)
         customTable[0, 0] = MLXArray(100.0)
         agent.loadQTable(customTable)
         
@@ -198,7 +198,7 @@ struct QLearningTests {
         )
         
         // Set up known Q-values
-        var customTable = MLXArray.zeros([4, 2], type: Float.self)
+        let customTable = MLXArray.zeros([4, 2], type: Float.self)
         customTable[0, 0] = MLXArray(5.0)  // Q(s=0, a=0) = 5
         customTable[1, 0] = MLXArray(10.0) // Q(s=1, a=0) = 10 (max for next state)
         customTable[1, 1] = MLXArray(8.0)  // Q(s=1, a=1) = 8
