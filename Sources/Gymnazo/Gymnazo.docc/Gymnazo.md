@@ -1,4 +1,4 @@
-# `Gymnazo`
+# ``Gymnazo``
 
 A Swift implementation of Farama's Gymnasium for reinforcement learning on Apple platforms.
 
@@ -14,50 +14,50 @@ Gymnazo provides a collection of environments and utilities for developing and t
 
 ### Core Protocols
 
-- `Env`
-- `Space`
-- `Wrapper`
+- ``Env``
+- ``Space``
+- ``Wrapper``
 
 ### RL Agent Protocols
 
-- `DiscreteRLAgent`
-- `DiscreteDeepRLAgent`
-- `ContinuousDeepRLAgent`
+- ``DiscreteRLAgent``
+- ``DiscreteDeepRLAgent``
+- ``ContinuousDeepRLAgent``
 
 ### Environments
 
-- `CartPole`
-- `MountainCar`
-- `MountainCarContinuous`
-- `Acrobot`
-- `FrozenLake`
+- ``CartPole``
+- ``MountainCar``
+- ``MountainCarContinuous``
+- ``Acrobot``
+- ``FrozenLake``
 
 ### Spaces
 
-- `Discrete`
-- `Box`
-- `MultiDiscrete`
-- `Dict`
-- `Tuple`
+- ``Discrete``
+- ``Box``
+- ``MultiDiscrete``
+- ``Dict``
+- ``Tuple``
 
 ### RL Agent Implementations
 
-- `QLearning`
-- `SARSA`
-- `DQN`
-- `SAC`
-- `DiscreteAgent`
+- ``QLearningAgent``
+- ``SARSAAgent``
+- ``DQNAgent``
+- ``SACAgent``
+- ``DiscreteAgent``
 
 ### Wrappers
 
-- `TimeLimit`
-- `OrderEnforcing`
-- `PassiveEnvChecker`
-- `RecordEpisodeStatistics`
-- `TransformObservation`
-- `NormalizeObservation`
+- ``TimeLimit``
+- ``OrderEnforcing``
+- ``PassiveEnvChecker``
+- ``RecordEpisodeStatistics``
+- ``TransformObservation``
+- ``NormalizeObservation``
 
 ### Registration
 
-- `EnvSpec`
-- `GymnazoRegistrations`
+- ``EnvSpec``
+- ``GymnazoRegistrations``

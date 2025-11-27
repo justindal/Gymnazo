@@ -25,11 +25,11 @@ var env = Gymnazo.make("CartPole-v1")
 Interact with environments using the standard `reset` and `step` methods:
 
 ```swift
-import MLXRandom
+import MLX
 
 // Reset the environment
 var (observation, info) = env.reset()
-var key = MLXRandom.key(42)
+var key = MLX.key(42)
 
 var totalReward = 0.0
 var done = false
@@ -80,7 +80,7 @@ let agent = QLearning(
 
 // Train the agent
 var env = Gymnazo.make("FrozenLake-v1") as! FrozenLake
-var key = MLXRandom.key(42)
+var key = MLX.key(42)
 
 for episode in 0..<1000 {
     var (state, _) = env.reset()
