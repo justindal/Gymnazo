@@ -148,6 +148,13 @@ public final class GymnasiumRegistrations {
                 return MountainCarContinuous(render_mode: renderMode, goal_velocity: goalVelocity)
             }, maxEpisodeSteps: 999)
         }
+        
+        if Gymnasium.registry["Acrobot-v1"] == nil {
+            Gymnasium.register(id: "Acrobot-v1", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                return Acrobot(render_mode: renderMode)
+            }, maxEpisodeSteps: 500, rewardThreshold: -100)
+        }
     }
     
     private func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
