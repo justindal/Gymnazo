@@ -10,6 +10,24 @@ import MLX
 import MLXNN
 import MLXOptimizers
 
+public class TrainableParameter: Module {
+    @ParameterInfo(key: "value") var value: MLXArray
+    
+    public init(_ initialValue: MLXArray) {
+        self._value.wrappedValue = initialValue
+        super.init()
+    }
+    
+    public init(_ initialValue: Float) {
+        self._value.wrappedValue = MLXArray(initialValue)
+        super.init()
+    }
+    
+    public var item: Float {
+        value.item(Float.self)
+    }
+}
+
 public class SoftQNetwork: Module {
     @ModuleInfo var layer1: Linear
     @ModuleInfo var layer2: Linear
@@ -216,33 +234,60 @@ public struct SACExperience {
 
 public class SACReplayBuffer {
     public let capacity: Int
-    public var memory: Deque<SACExperience>
+    public let stateSize: Int
+    public let actionSize: Int
     
-    public init(capacity: Int) {
+    var obsBuffer: MLXArray
+    var nextObsBuffer: MLXArray
+    var actionBuffer: MLXArray
+    var rewardBuffer: MLXArray
+    var terminatedBuffer: MLXArray
+    
+    var ptr: Int = 0
+    var size: Int = 0
+    
+    public init(capacity: Int, stateSize: Int, actionSize: Int) {
         self.capacity = capacity
-        self.memory = Deque()
-        self.memory.reserveCapacity(capacity)
+        self.stateSize = stateSize
+        self.actionSize = actionSize
+        
+        self.obsBuffer = MLXArray.zeros([capacity, stateSize])
+        self.nextObsBuffer = MLXArray.zeros([capacity, stateSize])
+        self.actionBuffer = MLXArray.zeros([capacity, actionSize])
+        self.rewardBuffer = MLXArray.zeros([capacity, 1])
+        self.terminatedBuffer = MLXArray.zeros([capacity, 1])
     }
     
     public func push(_ experience: SACExperience) {
-        if memory.count >= capacity {
-            memory.removeFirst()
-        }
-        memory.append(experience)
+        let obs = experience.observation.ndim == 1 ? experience.observation : experience.observation.reshaped([stateSize])
+        let nextObs = experience.nextObservation.ndim == 1 ? experience.nextObservation : experience.nextObservation.reshaped([stateSize])
+        let action = experience.action.ndim == 1 ? experience.action : experience.action.reshaped([actionSize])
+        
+        obsBuffer[ptr] = obs
+        nextObsBuffer[ptr] = nextObs
+        actionBuffer[ptr] = action
+        rewardBuffer[ptr] = experience.reward.reshaped([1])
+        terminatedBuffer[ptr] = experience.terminated.reshaped([1])
+        
+        ptr = (ptr + 1) % capacity
+        size = min(size + 1, capacity)
     }
     
-    public func sample(batchSize: Int) -> [SACExperience] {
-        let safeBatchSize = min(batchSize, memory.count)
-        var result = [SACExperience]()
-        result.reserveCapacity(safeBatchSize)
-        for _ in 0..<safeBatchSize {
-            let idx = Int.random(in: 0..<memory.count)
-            result.append(memory[idx])
-        }
-        return result
+    public func sample(batchSize: Int) -> (MLXArray, MLXArray, MLXArray, MLXArray, MLXArray) {
+        let safeBatchSize = min(batchSize, size)
+        
+        let indices = MLX.randInt(low: 0, high: size, [safeBatchSize])
+        
+        let bObs = obsBuffer[indices]
+        let bNextObs = nextObsBuffer[indices]
+        let bActions = actionBuffer[indices]
+        let bRewards = rewardBuffer[indices]
+        let bTerminated = terminatedBuffer[indices]
+        
+        return (bObs, bNextObs, bActions, bRewards, bTerminated)
     }
     
-    public var count: Int { memory.count }
+    public var count: Int { size }
 }
 
 public class SACAgent: ContinuousDeepRLAgent {
@@ -266,19 +311,13 @@ public class SACAgent: ContinuousDeepRLAgent {
     public let autotune: Bool
     public var targetEntropy: Float
     public var targetEntropyArray: MLXArray
-    public var logAlpha: MLXArray
+    public let logAlphaModule: TrainableParameter?
     public let alphaOptimizer: AdamW?
     
     public var steps: Int = 0
     
-    // Compiled update functions for improved performance
-    private var compiledQUpdate: (([MLXArray]) -> [MLXArray])?
-    private var compiledActorUpdate: (([MLXArray]) -> [MLXArray])?
-    
     private let tauArray: MLXArray
     private let oneMinusTauArray: MLXArray
-    
-    private let alphaLearningRate: MLXArray
     
     public init(
         observationSpace: Box,
@@ -320,7 +359,7 @@ public class SACAgent: ContinuousDeepRLAgent {
         self.actorOptimizer = AdamW(learningRate: learningRate)
         self.qOptimizer = AdamW(learningRate: learningRate)
         
-        self.memory = SACReplayBuffer(capacity: bufferSize)
+        self.memory = SACReplayBuffer(capacity: bufferSize, stateSize: stateSize, actionSize: actionSize)
         
         self.gamma = gamma
         self.tau = tau
@@ -331,21 +370,22 @@ public class SACAgent: ContinuousDeepRLAgent {
         if autotune {
             self.targetEntropy = -Float(actionSize)
             self.targetEntropyArray = MLXArray(-Float(actionSize))
-            self.logAlpha = MLXArray(0.0)
+            self.logAlphaModule = TrainableParameter(log(alpha))
             self.alphaOptimizer = AdamW(learningRate: learningRate)
         } else {
             self.targetEntropy = 0
             self.targetEntropyArray = MLXArray(0.0)
-            self.logAlpha = MLXArray(log(alpha))
+            self.logAlphaModule = nil
             self.alphaOptimizer = nil
         }
         
         self.tauArray = MLXArray(tau)
         self.oneMinusTauArray = MLXArray(1.0 - tau)
         
-        self.alphaLearningRate = MLXArray(learningRate)
-        
         eval(actor, qf1, qf2, qf1Target, qf2Target)
+        if let logAlphaModule {
+            eval(logAlphaModule)
+        }
     }
     
     public func chooseAction(state: MLXArray, key: inout MLXArray, deterministic: Bool = false) -> MLXArray {
@@ -374,96 +414,60 @@ public class SACAgent: ContinuousDeepRLAgent {
         memory.push(exp)
     }
     
-    private func getCompiledQUpdate() -> ([MLXArray]) -> [MLXArray] {
-        if let existing = compiledQUpdate {
-            return existing
-        }
-        
+    private func updateQ(
+        batchObs: MLXArray,
+        batchNextObs: MLXArray,
+        batchActions: MLXArray,
+        batchRewards: MLXArray,
+        batchTerminated: MLXArray,
+        rngKey: MLXArray,
+        alphaVal: MLXArray
+    ) -> MLXArray {
         let gammaArr = MLXArray(gamma)
         
-        let step = compile(
-            inputs: [qf1, qf2, qf1Target, qf2Target, actor, qOptimizer],
-            outputs: [qf1, qf2, qOptimizer]
-        ) { [self] (arrays: [MLXArray]) -> [MLXArray] in
-            let batchObs = arrays[0]
-            let batchNextObs = arrays[1]
-            let batchActions = arrays[2]
-            let batchRewards = arrays[3]
-            let batchTerminated = arrays[4]
-            let rngKey = arrays[5]
-            let alphaVal = arrays[6]
-            
-            // Compute target Q values
-            let (nextActions, nextLogProbs, _) = actor.sample(obs: batchNextObs, key: rngKey)
-            let qf1NextTarget = qf1Target.callAsFunction(obs: batchNextObs, action: nextActions)
-            let qf2NextTarget = qf2Target.callAsFunction(obs: batchNextObs, action: nextActions)
-            let minQfNextTarget = minimum(qf1NextTarget, qf2NextTarget) - alphaVal * nextLogProbs
-            let nextQValue = stopGradient(batchRewards + (1.0 - batchTerminated) * gammaArr * minQfNextTarget)
-            
-            // Q-function loss for qf1
-            func qf1Loss(model: SoftQNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray {
-                let qVal = model.callAsFunction(obs: obs, action: batchActions)
-                return pow(qVal - targets, 2.0).mean()
-            }
-            
-            let qf1LossAndGrad = valueAndGrad(model: qf1, qf1Loss)
-            let (qf1LossValue, qf1Grads) = qf1LossAndGrad(qf1, batchObs, nextQValue)
-            qOptimizer.update(model: qf1, gradients: qf1Grads)
-            
-            // Q-function loss for qf2
-            func qf2Loss(model: SoftQNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray {
-                let qVal = model.callAsFunction(obs: obs, action: batchActions)
-                return pow(qVal - targets, 2.0).mean()
-            }
-            
-            let qf2LossAndGrad = valueAndGrad(model: qf2, qf2Loss)
-            let (qf2LossValue, qf2Grads) = qf2LossAndGrad(qf2, batchObs, nextQValue)
-            qOptimizer.update(model: qf2, gradients: qf2Grads)
-            
-            let totalQLoss = qf1LossValue + qf2LossValue
-            
-            return [totalQLoss]
-        }
+        let (nextActions, nextLogProbs, _) = actor.sample(obs: batchNextObs, key: rngKey)
+        let qf1NextTarget = qf1Target.callAsFunction(obs: batchNextObs, action: nextActions)
+        let qf2NextTarget = qf2Target.callAsFunction(obs: batchNextObs, action: nextActions)
+        let minQfNextTarget = minimum(qf1NextTarget, qf2NextTarget) - alphaVal * nextLogProbs
+        let nextQValue = stopGradient(batchRewards + (1.0 - batchTerminated) * gammaArr * minQfNextTarget)
         
-        compiledQUpdate = step
-        return step
+        let qf1LossAndGrad = valueAndGrad(model: qf1) { (model: SoftQNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray in
+            let qVal = model.callAsFunction(obs: obs, action: batchActions)
+            return pow(qVal - targets, 2.0).mean()
+        }
+        let (qf1LossValue, qf1Grads) = qf1LossAndGrad(qf1, batchObs, nextQValue)
+        qOptimizer.update(model: qf1, gradients: qf1Grads)
+        
+        let qf2LossAndGrad = valueAndGrad(model: qf2) { (model: SoftQNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray in
+            let qVal = model.callAsFunction(obs: obs, action: batchActions)
+            return pow(qVal - targets, 2.0).mean()
+        }
+        let (qf2LossValue, qf2Grads) = qf2LossAndGrad(qf2, batchObs, nextQValue)
+        qOptimizer.update(model: qf2, gradients: qf2Grads)
+        
+        return qf1LossValue + qf2LossValue
     }
     
-    private func getCompiledActorUpdate() -> ([MLXArray]) -> [MLXArray] {
-        if let existing = compiledActorUpdate {
-            return existing
+    private func updateActor(
+        batchObs: MLXArray,
+        rngKey: MLXArray,
+        alphaVal: MLXArray
+    ) -> (actorLoss: MLXArray, meanLogPi: MLXArray) {
+        let (_, logPiForAlpha, _) = actor.sample(obs: batchObs, key: rngKey)
+        let meanLogPi = logPiForAlpha.mean()
+        
+        let actorLossAndGrad = valueAndGrad(model: actor) { [self] (model: SACActorNetwork, obs: MLXArray, key: MLXArray) -> MLXArray in
+            let (piAct, logP, _) = model.sample(obs: obs, key: key)
+            let q1Pi = qf1.callAsFunction(obs: obs, action: piAct)
+            let q2Pi = qf2.callAsFunction(obs: obs, action: piAct)
+            let minQ = minimum(q1Pi, q2Pi)
+            return (alphaVal * logP - minQ).mean()
         }
         
-        let step = compile(
-            inputs: [actor, qf1, qf2, actorOptimizer],
-            outputs: [actor, actorOptimizer]
-        ) { [self] (arrays: [MLXArray]) -> [MLXArray] in
-            let batchObs = arrays[0]
-            let rngKey = arrays[1]
-            let alphaVal = arrays[2]
-            
-            let (_, logPiForAlpha, _) = actor.sample(obs: batchObs, key: rngKey)
-            let meanLogPi = logPiForAlpha.mean()
-            
-            // Actor loss function for gradient computation
-            func actorLoss(model: SACActorNetwork, obs: MLXArray, key: MLXArray) -> MLXArray {
-                let (piAct, logP, _) = model.sample(obs: obs, key: key)
-                let q1Pi = qf1.callAsFunction(obs: obs, action: piAct)
-                let q2Pi = qf2.callAsFunction(obs: obs, action: piAct)
-                let minQ = minimum(q1Pi, q2Pi)
-                return (alphaVal * logP - minQ).mean()
-            }
-            
-            // valueAndGrad computes both loss and gradients
-            let actorLossAndGrad = valueAndGrad(model: actor, actorLoss)
-            let (actorLossValue, actorGrads) = actorLossAndGrad(actor, batchObs, rngKey)
-            actorOptimizer.update(model: actor, gradients: actorGrads)
-            
-            return [actorLossValue, meanLogPi]
-        }
+        let (actorLossValue, actorGrads) = actorLossAndGrad(actor, batchObs, rngKey)
+        actorOptimizer.update(model: actor, gradients: actorGrads)
         
-        compiledActorUpdate = step
-        return step
+        return (actorLossValue, meanLogPi)
     }
     
     public func update() -> (qLoss: Float, actorLoss: Float, alphaLoss: Float)? {
@@ -471,56 +475,71 @@ public class SACAgent: ContinuousDeepRLAgent {
         
         steps += 1
         
-        let experiences = memory.sample(batchSize: batchSize)
-        let batchObs = MLX.stacked(experiences.map { $0.observation }).reshaped([batchSize, stateSize])
-        let batchNextObs = MLX.stacked(experiences.map { $0.nextObservation }).reshaped([batchSize, stateSize])
-        let batchActions = MLX.stacked(experiences.map { $0.action }).reshaped([batchSize, actionSize])
-        let batchRewards = MLX.stacked(experiences.map { $0.reward }).reshaped([batchSize, 1])
-        let batchTerminated = MLX.stacked(experiences.map { $0.terminated }).reshaped([batchSize, 1])
+        let (batchObs, batchNextObs, batchActions, batchRewards, batchTerminated) = memory.sample(batchSize: batchSize)
+        
+        let batchRewardsFloat = batchRewards.asType(.float32)
+        let batchTerminatedFloat = batchTerminated.asType(.float32)
         
         let key = MLX.key(UInt64(steps))
         let (k1, k2) = MLX.split(key: key)
         
+        let logAlpha = logAlphaModule?.value ?? MLXArray(log(alpha))
         let alphaVal = exp(logAlpha)
         
-        // Use compiled Q update
-        let qStep = getCompiledQUpdate()
-        let qResults = qStep([batchObs, batchNextObs, batchActions, batchRewards, batchTerminated, k1, alphaVal])
-        let totalQLoss = qResults[0]
+        let totalQLoss = updateQ(
+            batchObs: batchObs,
+            batchNextObs: batchNextObs,
+            batchActions: batchActions,
+            batchRewards: batchRewardsFloat,
+            batchTerminated: batchTerminatedFloat,
+            rngKey: k1,
+            alphaVal: alphaVal
+        )
         
-        let actorStep = getCompiledActorUpdate()
-        let actorResults = actorStep([batchObs, k2, alphaVal])
-        let actorLossValue = actorResults[0]
-        let meanLogPi = actorResults[1]
+        let (actorLossValue, meanLogPi) = updateActor(
+            batchObs: batchObs,
+            rngKey: k2,
+            alphaVal: alphaVal
+        )
         
         softUpdateTargetNetworks()
         
         var alphaLossArray: MLXArray = MLXArray(0.0)
         
-        if autotune {
-            alphaLossArray = -logAlpha * stopGradient(meanLogPi + targetEntropyArray)
+        if autotune, let logAlphaModule, let alphaOptimizer {
+            // Compute alpha loss using valueAndGrad with the trainable module
+            let alphaLossAndGrad = valueAndGrad(model: logAlphaModule) { (module: TrainableParameter, meanLogPiVal: MLXArray, targetEnt: MLXArray) -> MLXArray in
+                return -module.value * stopGradient(meanLogPiVal + targetEnt)
+            }
             
-            let alphaGrad = -stopGradient(meanLogPi + targetEntropyArray)
+            let (alphaLoss, alphaGrads) = alphaLossAndGrad(logAlphaModule, meanLogPi, targetEntropyArray)
+            alphaLossArray = alphaLoss
             
-            let alphaUpdate = logAlpha - alphaLearningRate * alphaGrad
+            alphaOptimizer.update(model: logAlphaModule, gradients: alphaGrads)
             
-            eval(actor, qf1, qf2, qf1Target, qf2Target, totalQLoss, actorLossValue, alphaLossArray, alphaUpdate)
-            
-            var newLogAlphaValue = alphaUpdate.item(Float.self)
+            eval(
+                totalQLoss, actorLossValue, alphaLossArray,
+                actor.parameters(), qf1.parameters(), qf2.parameters(),
+                qf1Target.parameters(), qf2Target.parameters(),
+                logAlphaModule.parameters()
+            )
             
             // Clamp log_alpha to prevent alpha from becoming too small (policy too deterministic)
             // or too large (too much exploration). 
             let minLogAlpha: Float = -3.0
             let maxLogAlpha: Float = -0.7
-            newLogAlphaValue = min(max(newLogAlphaValue, minLogAlpha), maxLogAlpha)
-            
-            logAlpha = MLXArray(newLogAlphaValue)
-            alpha = exp(newLogAlphaValue)
+            let clampedLogAlpha = min(max(logAlphaModule.item, minLogAlpha), maxLogAlpha)
+            logAlphaModule.value = MLXArray(clampedLogAlpha)
+            alpha = exp(clampedLogAlpha)
             
             return (totalQLoss.item(Float.self), actorLossValue.item(Float.self), alphaLossArray.item(Float.self))
         }
         
-        eval(actor, qf1, qf2, qf1Target, qf2Target, totalQLoss, actorLossValue)
+        eval(
+            totalQLoss, actorLossValue,
+            actor.parameters(), qf1.parameters(), qf2.parameters(),
+            qf1Target.parameters(), qf2Target.parameters()
+        )
         
         return (totalQLoss.item(Float.self), actorLossValue.item(Float.self), 0.0)
     }
@@ -568,17 +587,13 @@ public class SACAgentVmap: ContinuousDeepRLAgent {
     public let autotune: Bool
     public var targetEntropy: Float
     public var targetEntropyArray: MLXArray
-    public var logAlpha: MLXArray
+    public let logAlphaModule: TrainableParameter?
     public let alphaOptimizer: AdamW?
     
     public var steps: Int = 0
     
-    private var compiledQUpdate: (([MLXArray]) -> [MLXArray])?
-    private var compiledActorUpdate: (([MLXArray]) -> [MLXArray])?
-    
     private let tauArray: MLXArray
     private let oneMinusTauArray: MLXArray
-    private let alphaLearningRate: MLXArray
     private let gammaArray: MLXArray
     
     public init(
@@ -628,7 +643,7 @@ public class SACAgentVmap: ContinuousDeepRLAgent {
         self.actorOptimizer = AdamW(learningRate: learningRate)
         self.qOptimizer = AdamW(learningRate: learningRate)
         
-        self.memory = SACReplayBuffer(capacity: bufferSize)
+        self.memory = SACReplayBuffer(capacity: bufferSize, stateSize: stateSize, actionSize: actionSize)
         
         self.gamma = gamma
         self.tau = tau
@@ -639,21 +654,23 @@ public class SACAgentVmap: ContinuousDeepRLAgent {
         if autotune {
             self.targetEntropy = -Float(actionSize)
             self.targetEntropyArray = MLXArray(-Float(actionSize))
-            self.logAlpha = MLXArray(0.0)
+            self.logAlphaModule = TrainableParameter(log(alpha))
             self.alphaOptimizer = AdamW(learningRate: learningRate)
         } else {
             self.targetEntropy = 0
             self.targetEntropyArray = MLXArray(0.0)
-            self.logAlpha = MLXArray(log(alpha))
+            self.logAlphaModule = nil
             self.alphaOptimizer = nil
         }
         
         self.tauArray = MLXArray(tau)
         self.oneMinusTauArray = MLXArray(1.0 - tau)
-        self.alphaLearningRate = MLXArray(learningRate)
         self.gammaArray = MLXArray(gamma)
         
         eval(actor, qEnsemble, qEnsembleTarget)
+        if let logAlphaModule {
+            eval(logAlphaModule)
+        }
     }
     
     public func chooseAction(state: MLXArray, key: inout MLXArray, deterministic: Bool = false) -> MLXArray {
@@ -682,80 +699,54 @@ public class SACAgentVmap: ContinuousDeepRLAgent {
         memory.push(exp)
     }
     
-    private func getCompiledQUpdate() -> ([MLXArray]) -> [MLXArray] {
-        if let existing = compiledQUpdate {
-            return existing
+    private func updateQ(
+        batchObs: MLXArray,
+        batchNextObs: MLXArray,
+        batchActions: MLXArray,
+        batchRewards: MLXArray,
+        batchTerminated: MLXArray,
+        rngKey: MLXArray,
+        alphaVal: MLXArray
+    ) -> MLXArray {
+        let (nextActions, nextLogProbs, _) = actor.sample(obs: batchNextObs, key: rngKey)
+        
+        let minQfNextTarget = qEnsembleTarget.minQ(obs: batchNextObs, action: nextActions)
+        let targetWithEntropy = minQfNextTarget - alphaVal * nextLogProbs
+        let nextQValue = stopGradient(batchRewards + (1.0 - batchTerminated) * gammaArray * targetWithEntropy)
+        
+        let qLossAndGrad = valueAndGrad(model: qEnsemble) { (model: EnsembleQNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray in
+            let allQ = model.callAsFunction(obs: obs, action: batchActions)
+            let q1 = allQ[0]
+            let q2 = allQ[1]
+            let loss1 = pow(q1 - targets, 2.0).mean()
+            let loss2 = pow(q2 - targets, 2.0).mean()
+            return loss1 + loss2
         }
         
-        let step = compile(
-            inputs: [qEnsemble, qEnsembleTarget, actor, qOptimizer],
-            outputs: [qEnsemble, qOptimizer]
-        ) { [self] (arrays: [MLXArray]) -> [MLXArray] in
-            let batchObs = arrays[0]
-            let batchNextObs = arrays[1]
-            let batchActions = arrays[2]
-            let batchRewards = arrays[3]
-            let batchTerminated = arrays[4]
-            let rngKey = arrays[5]
-            let alphaVal = arrays[6]
-            
-            let (nextActions, nextLogProbs, _) = actor.sample(obs: batchNextObs, key: rngKey)
-            
-            let minQfNextTarget = qEnsembleTarget.minQ(obs: batchNextObs, action: nextActions)
-            let targetWithEntropy = minQfNextTarget - alphaVal * nextLogProbs
-            let nextQValue = stopGradient(batchRewards + (1.0 - batchTerminated) * gammaArray * targetWithEntropy)
-            
-            func qEnsembleLoss(model: EnsembleQNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray {
-                let allQ = model.callAsFunction(obs: obs, action: batchActions)
-                let q1 = allQ[0]
-                let q2 = allQ[1]
-                let loss1 = pow(q1 - targets, 2.0).mean()
-                let loss2 = pow(q2 - targets, 2.0).mean()
-                return loss1 + loss2
-            }
-            
-            let qLossAndGrad = valueAndGrad(model: qEnsemble, qEnsembleLoss)
-            let (totalQLoss, qGrads) = qLossAndGrad(qEnsemble, batchObs, nextQValue)
-            qOptimizer.update(model: qEnsemble, gradients: qGrads)
-            
-            return [totalQLoss]
-        }
+        let (totalQLoss, qGrads) = qLossAndGrad(qEnsemble, batchObs, nextQValue)
+        qOptimizer.update(model: qEnsemble, gradients: qGrads)
         
-        compiledQUpdate = step
-        return step
+        return totalQLoss
     }
     
-    private func getCompiledActorUpdate() -> ([MLXArray]) -> [MLXArray] {
-        if let existing = compiledActorUpdate {
-            return existing
+    private func updateActor(
+        batchObs: MLXArray,
+        rngKey: MLXArray,
+        alphaVal: MLXArray
+    ) -> (actorLoss: MLXArray, meanLogPi: MLXArray) {
+        let (_, logPiForAlpha, _) = actor.sample(obs: batchObs, key: rngKey)
+        let meanLogPi = logPiForAlpha.mean()
+        
+        let actorLossAndGrad = valueAndGrad(model: actor) { [self] (model: SACActorNetwork, obs: MLXArray, key: MLXArray) -> MLXArray in
+            let (piAct, logP, _) = model.sample(obs: obs, key: key)
+            let minQ = qEnsemble.minQ(obs: obs, action: piAct)
+            return (alphaVal * logP - minQ).mean()
         }
         
-        let step = compile(
-            inputs: [actor, qEnsemble, actorOptimizer],
-            outputs: [actor, actorOptimizer]
-        ) { [self] (arrays: [MLXArray]) -> [MLXArray] in
-            let batchObs = arrays[0]
-            let rngKey = arrays[1]
-            let alphaVal = arrays[2]
-            
-            let (_, logPiForAlpha, _) = actor.sample(obs: batchObs, key: rngKey)
-            let meanLogPi = logPiForAlpha.mean()
-            
-            func actorLoss(model: SACActorNetwork, obs: MLXArray, key: MLXArray) -> MLXArray {
-                let (piAct, logP, _) = model.sample(obs: obs, key: key)
-                let minQ = qEnsemble.minQ(obs: obs, action: piAct)
-                return (alphaVal * logP - minQ).mean()
-            }
-            
-            let actorLossAndGrad = valueAndGrad(model: actor, actorLoss)
-            let (actorLossValue, actorGrads) = actorLossAndGrad(actor, batchObs, rngKey)
-            actorOptimizer.update(model: actor, gradients: actorGrads)
-            
-            return [actorLossValue, meanLogPi]
-        }
+        let (actorLossValue, actorGrads) = actorLossAndGrad(actor, batchObs, rngKey)
+        actorOptimizer.update(model: actor, gradients: actorGrads)
         
-        compiledActorUpdate = step
-        return step
+        return (actorLossValue, meanLogPi)
     }
     
     public func update() -> (qLoss: Float, actorLoss: Float, alphaLoss: Float)? {
@@ -763,51 +754,67 @@ public class SACAgentVmap: ContinuousDeepRLAgent {
         
         steps += 1
         
-        let experiences = memory.sample(batchSize: batchSize)
-        let batchObs = MLX.stacked(experiences.map { $0.observation }).reshaped([batchSize, stateSize])
-        let batchNextObs = MLX.stacked(experiences.map { $0.nextObservation }).reshaped([batchSize, stateSize])
-        let batchActions = MLX.stacked(experiences.map { $0.action }).reshaped([batchSize, actionSize])
-        let batchRewards = MLX.stacked(experiences.map { $0.reward }).reshaped([batchSize, 1])
-        let batchTerminated = MLX.stacked(experiences.map { $0.terminated }).reshaped([batchSize, 1])
+        let (batchObs, batchNextObs, batchActions, batchRewards, batchTerminated) = memory.sample(batchSize: batchSize)
+        
+        let batchRewardsFloat = batchRewards.asType(.float32)
+        let batchTerminatedFloat = batchTerminated.asType(.float32)
         
         let key = MLX.key(UInt64(steps))
         let (k1, k2) = MLX.split(key: key)
         
+        let logAlpha = logAlphaModule?.value ?? MLXArray(log(alpha))
         let alphaVal = exp(logAlpha)
         
-        let qStep = getCompiledQUpdate()
-        let qResults = qStep([batchObs, batchNextObs, batchActions, batchRewards, batchTerminated, k1, alphaVal])
-        let totalQLoss = qResults[0]
+        let totalQLoss = updateQ(
+            batchObs: batchObs,
+            batchNextObs: batchNextObs,
+            batchActions: batchActions,
+            batchRewards: batchRewardsFloat,
+            batchTerminated: batchTerminatedFloat,
+            rngKey: k1,
+            alphaVal: alphaVal
+        )
         
-        let actorStep = getCompiledActorUpdate()
-        let actorResults = actorStep([batchObs, k2, alphaVal])
-        let actorLossValue = actorResults[0]
-        let meanLogPi = actorResults[1]
+        let (actorLossValue, meanLogPi) = updateActor(
+            batchObs: batchObs,
+            rngKey: k2,
+            alphaVal: alphaVal
+        )
         
         softUpdateTargetNetwork()
         
         var alphaLossArray: MLXArray = MLXArray(0.0)
         
-        if autotune {
-            alphaLossArray = -logAlpha * stopGradient(meanLogPi + targetEntropyArray)
-            let alphaGrad = -stopGradient(meanLogPi + targetEntropyArray)
-            let alphaUpdate = logAlpha - alphaLearningRate * alphaGrad
+        if autotune, let logAlphaModule, let alphaOptimizer {
+            let alphaLossAndGrad = valueAndGrad(model: logAlphaModule) { (module: TrainableParameter, meanLogPiVal: MLXArray, targetEnt: MLXArray) -> MLXArray in
+                return -module.value * stopGradient(meanLogPiVal + targetEnt)
+            }
             
-            eval(actor, qEnsemble, qEnsembleTarget, totalQLoss, actorLossValue, alphaLossArray, alphaUpdate)
+            let (alphaLoss, alphaGrads) = alphaLossAndGrad(logAlphaModule, meanLogPi, targetEntropyArray)
+            alphaLossArray = alphaLoss
             
-            var newLogAlphaValue = alphaUpdate.item(Float.self)
+            alphaOptimizer.update(model: logAlphaModule, gradients: alphaGrads)
             
-        let minLogAlpha: Float = -3.0
+            eval(
+                totalQLoss, actorLossValue, alphaLossArray,
+                actor.parameters(), qEnsemble.parameters(), qEnsembleTarget.parameters(),
+                logAlphaModule.parameters()
+            )
+            
+            let minLogAlpha: Float = -3.0
             let maxLogAlpha: Float = -0.7
-            newLogAlphaValue = min(max(newLogAlphaValue, minLogAlpha), maxLogAlpha)
-            
-            logAlpha = MLXArray(newLogAlphaValue)
-            alpha = exp(newLogAlphaValue)
+            let clampedLogAlpha = min(max(logAlphaModule.item, minLogAlpha), maxLogAlpha)
+            logAlphaModule.value = MLXArray(clampedLogAlpha)
+            alpha = exp(clampedLogAlpha)
             
             return (totalQLoss.item(Float.self), actorLossValue.item(Float.self), alphaLossArray.item(Float.self))
         }
         
-        eval(actor, qEnsemble, qEnsembleTarget, totalQLoss, actorLossValue)
+        eval(
+            totalQLoss, actorLossValue,
+            actor.parameters(), qEnsemble.parameters(), qEnsembleTarget.parameters()
+        )
+        
         return (totalQLoss.item(Float.self), actorLossValue.item(Float.self), 0.0)
     }
     

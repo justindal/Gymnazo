@@ -31,41 +31,92 @@ struct Experience {
     }
 }
 
-/// DQN Replay buffer for storing experiences
 public class ReplayMemory {
     let capacity: Int
-    var memory: Deque<Experience>
-
-    init(capacity: Int) {
+    let stateSize: Int
+    let actionSize: Int = 1
+    
+    var obsBuffer: [Float]
+    var nextObsBuffer: [Float]
+    var actionBuffer: [Int32]
+    var rewardBuffer: [Float]
+    var terminatedBuffer: [Float]
+    
+    var ptr: Int = 0
+    var size: Int = 0
+    
+    init(capacity: Int, stateSize: Int) {
         self.capacity = capacity
-        self.memory = Deque()
-        self.memory.reserveCapacity(capacity)
+        self.stateSize = stateSize
+        
+        // Pre-allocate memory with repeating values
+        self.obsBuffer = [Float](repeating: 0, count: capacity * stateSize)
+        self.nextObsBuffer = [Float](repeating: 0, count: capacity * stateSize)
+        self.actionBuffer = [Int32](repeating: 0, count: capacity)
+        self.rewardBuffer = [Float](repeating: 0, count: capacity)
+        self.terminatedBuffer = [Float](repeating: 0, count: capacity)
     }
-
+    
     func push(_ experience: Experience) {
-        if memory.count >= capacity {
-            memory.removeFirst()
+        let obsFlat = experience.observation.asArray(Float.self)
+        let nextObsFlat = experience.nextObservation.asArray(Float.self)
+        let actionScalar = experience.action.item(Int32.self)
+        let rewardScalar = experience.reward.item(Float.self)
+        let termScalar = experience.terminated.item(Float.self)
+        
+        let startIdx = ptr * stateSize
+        
+        for i in 0..<stateSize {
+            obsBuffer[startIdx + i] = obsFlat[i]
+            nextObsBuffer[startIdx + i] = nextObsFlat[i]
         }
-        self.memory.append(experience)
+        
+        actionBuffer[ptr] = actionScalar
+        rewardBuffer[ptr] = rewardScalar
+        terminatedBuffer[ptr] = termScalar
+        
+        ptr = (ptr + 1) % capacity
+        size = min(size + 1, capacity)
     }
-
-    func sample(batchSize: Int) -> [Experience] {
-        precondition(
-            !self.memory.isEmpty,
-            "Cannot sample from an empty replay memory."
-        )
-
-        let safeBatchSize = min(batchSize, memory.count)
-        let memoryCount = memory.count
+    
+    func sample(batchSize: Int) -> (MLXArray, MLXArray, MLXArray, MLXArray, MLXArray) {
+        let safeBatchSize = min(batchSize, size)
         
-        var result = [Experience]()
-        result.reserveCapacity(safeBatchSize)
-        
+        var indices = [Int]()
+        indices.reserveCapacity(safeBatchSize)
         for _ in 0..<safeBatchSize {
-            let idx = Int.random(in: 0..<memoryCount)
-            result.append(memory[idx])
+            indices.append(Int.random(in: 0..<size))
         }
-        return result
+        
+        var bObs = [Float]()
+        var bNextObs = [Float]()
+        var bActions = [Int32]()
+        var bRewards = [Float]()
+        var bTerminated = [Float]()
+        
+        bObs.reserveCapacity(safeBatchSize * stateSize)
+        bNextObs.reserveCapacity(safeBatchSize * stateSize)
+        bActions.reserveCapacity(safeBatchSize)
+        bRewards.reserveCapacity(safeBatchSize)
+        bTerminated.reserveCapacity(safeBatchSize)
+        
+        for idx in indices {
+            let start = idx * stateSize
+
+            bObs.append(contentsOf: obsBuffer[start..<(start+stateSize)])
+            bNextObs.append(contentsOf: nextObsBuffer[start..<(start+stateSize)])
+            bActions.append(actionBuffer[idx])
+            bRewards.append(rewardBuffer[idx])
+            bTerminated.append(terminatedBuffer[idx])
+        }
+        
+        let mlxObs = MLXArray(bObs).reshaped([safeBatchSize, stateSize])
+        let mlxNextObs = MLXArray(bNextObs).reshaped([safeBatchSize, stateSize])
+        let mlxActions = MLXArray(bActions).reshaped([safeBatchSize, 1])
+        let mlxRewards = MLXArray(bRewards).reshaped([safeBatchSize, 1])
+        let mlxTerminated = MLXArray(bTerminated).reshaped([safeBatchSize, 1])
+        
+        return (mlxObs, mlxNextObs, mlxActions, mlxRewards, mlxTerminated)
     }
 }
 
@@ -138,7 +189,10 @@ public class DQNAgent: DeepRLAgent {
     private var explorationSteps: Int = 0
     public var episodeDurations: [Int] = []
     
-    private var compiledStep: (([MLXArray]) -> [MLXArray])?
+
+    private let gammaArray: MLXArray
+    private let tauArray: MLXArray?
+    private let oneMinusTauArray: MLXArray?
 
     public convenience init(
         observationSpace: Box,
@@ -188,7 +242,7 @@ public class DQNAgent: DeepRLAgent {
         bufferCapacity: Int = 10000
     ) {
         self.batchSize = batchSize
-        self.memory = ReplayMemory(capacity: bufferCapacity)
+        self.memory = ReplayMemory(capacity: bufferCapacity, stateSize: stateSize)
 
         self.stateSize = stateSize
         self.actionSize = actionSize
@@ -213,6 +267,16 @@ public class DQNAgent: DeepRLAgent {
             numActions: actionSize
         )
         self.targetNetwork.update(parameters: policyNetwork.parameters())
+        
+        self.gammaArray = MLXArray(gamma)
+        if case .soft(let tau) = targetUpdateStrategy {
+            self.tauArray = MLXArray(tau)
+            self.oneMinusTauArray = MLXArray(1.0 - tau)
+        } else {
+            self.tauArray = nil
+            self.oneMinusTauArray = nil
+        }
+        
         eval(self.policyNetwork)
         eval(self.targetNetwork)
 
@@ -227,33 +291,13 @@ public class DQNAgent: DeepRLAgent {
         explorationSteps += 1
         updateEpsilonSchedule()
         
-        let (kRoll, kNext) = MLX.split(key: key)
-        
-        let roll = MLX.uniform(0..<1, key: kRoll).item() as Float
-        if roll < epsilon {
-            // explore: split again to get a fresh key for randInt
-            let (kAction, kRemaining) = MLX.split(key: kNext)
-            key = kRemaining
-            let randomAction = MLX.randInt(
-                low: 0,
-                high: actionSize,
-                [1, 1],
-                key: kAction
-            )
-            return randomAction
+        if Float.random(in: 0..<1) < epsilon {
+            let randomAction = Int32.random(in: 0..<Int32(actionSize))
+            return MLXArray([randomAction]).reshaped([1, 1])
         } else {
-            // exploit
-            key = kNext
-            let shp = state.shape
-            let stateRow: MLXArray
-            if shp.count == 1 && shp[0] == stateSize {
-                stateRow = state.reshaped([1, stateSize])
-            } else if shp.count == 2 && shp[0] == 1 && shp[1] == stateSize {
-                stateRow = state
-            } else {
-                stateRow = state.reshaped([1, stateSize])
-            }
+            let stateRow = state.ndim == 1 ? state.reshaped([1, stateSize]) : state
             let qValues = policyNetwork(stateRow)
+            eval(qValues)
             let actionIndex = argMax(qValues, axis: 1)
             return actionIndex.reshaped([1, 1])
         }
@@ -276,165 +320,118 @@ public class DQNAgent: DeepRLAgent {
         self.memory.push(e)
     }
 
-    private func getCompiledStep() -> ([MLXArray]) -> [MLXArray] {
-        if let existing = compiledStep {
-            return existing
+    private func trainStep(
+        batchObs: MLXArray,
+        batchNextObs: MLXArray,
+        batchActions: MLXArray,
+        batchRewards: MLXArray,
+        batchTerminated: MLXArray
+    ) -> (loss: MLXArray, gradNorm: MLXArray, meanQ: MLXArray, tdError: MLXArray) {
+        let nextQValues = targetNetwork(batchNextObs)
+        let maxNextQ = nextQValues.max(axis: 1).reshaped([-1, 1])
+        
+        // TD target: r + γ * max_a' Q_target(s', a') * (1 - done)
+        let targetQValues = stopGradient(
+            batchRewards + (gammaArray * maxNextQ * (1 - batchTerminated))
+        )
+        
+        let lossAndGrad = valueAndGrad(model: policyNetwork) { (model: QNetwork, obs: MLXArray, targets: MLXArray) -> MLXArray in
+            let predictedQ = model(obs)
+            let selectedQ = takeAlong(predictedQ, batchActions, axis: 1)
+            return smoothL1Loss(predictions: selectedQ, targets: targets, reduction: .mean)
         }
         
-        let gammaArray = MLXArray(gamma)
-        let maxNorm = gradClipNorm
+        let (lossValue, grads) = lossAndGrad(policyNetwork, batchObs, targetQValues)
+        let (clippedGrads, gradNormValue) = clipGradNorm(gradients: grads, maxNorm: gradClipNorm)
+        optim.update(model: policyNetwork, gradients: clippedGrads)
         
-        // - policyNetwork: updated by optimizer
-        // - targetNetwork: read for target Q-values
-        // - optim: optimizer state updated during training
-        let step = compile(
-            inputs: [policyNetwork, targetNetwork, optim],
-            outputs: [policyNetwork, optim]
-        ) { [self] (arrays: [MLXArray]) -> [MLXArray] in
-            let batchObs = arrays[0]
-            let batchNextObs = arrays[1]
-            let batchActions = arrays[2]
-            let batchRewards = arrays[3]
-            let batchTerminated = arrays[4]
-            
-            let nextQValues = targetNetwork(batchNextObs)
-            let maxNextQ = nextQValues.max(axis: 1).reshaped([-1, 1])
-            
-            // TD target: r + γ * max_a' Q_target(s', a') * (1 - done)
-            let targetQValues = stopGradient(
-                batchRewards + (gammaArray * maxNextQ * (1 - batchTerminated))
-            )
-            
-            func loss(model: QNetwork, x: MLXArray, targets: MLXArray) -> MLXArray {
-                let predictedQ = model(x)
-                let selectedQ = takeAlong(predictedQ, batchActions, axis: 1)
-                return smoothL1Loss(predictions: selectedQ, targets: targets, reduction: .mean)
-            }
-            
-            let lg = valueAndGrad(model: policyNetwork, loss)
-            let (lossValue, grads) = lg(policyNetwork, batchObs, targetQValues)
-            let (clippedGrads, gradNormValue) = clipGradNorm(gradients: grads, maxNorm: maxNorm)
-            optim.update(model: policyNetwork, gradients: clippedGrads)
-            
-            let currentQValues = policyNetwork(batchObs)
-            let meanQValue = currentQValues.max(axis: 1).mean()
-            let selectedCurrentQ = takeAlong(currentQValues, batchActions, axis: 1)
-            let tdError = abs(selectedCurrentQ - targetQValues).mean()
-            
-            return [lossValue, gradNormValue, meanQValue, tdError]
-        }
+        let currentQValues = policyNetwork(batchObs)
+        let meanQValue = currentQValues.max(axis: 1).mean()
+        let selectedCurrentQ = takeAlong(currentQValues, batchActions, axis: 1)
+        let tdError = abs(selectedCurrentQ - targetQValues).mean()
         
-        compiledStep = step
-        return step
+        return (lossValue, gradNormValue, meanQValue, tdError)
     }
     
     public func update() -> (
-            loss: Float, meanQ: Float, gradNorm: Float, tdError: Float
-        )? {
-            guard memory.memory.count >= batchSize else { return nil }
+        loss: Float, meanQ: Float, gradNorm: Float, tdError: Float
+    )? {
+        guard memory.size >= batchSize else { return nil }
+        
+        steps += 1
+        
+        let (batchObs, batchNextObs, batchActions, batchRewards, batchTerminated) = memory.sample(batchSize: batchSize)
+        
+        let (lossValue, gradNormValue, meanQArray, tdErrorArray) = trainStep(
+            batchObs: batchObs,
+            batchNextObs: batchNextObs,
+            batchActions: batchActions,
+            batchRewards: batchRewards,
+            batchTerminated: batchTerminated
+        )
+        
+        updateTargetNetwork()
+        
+        eval(
+            lossValue, gradNormValue, meanQArray, tdErrorArray,
+            policyNetwork.parameters(), targetNetwork.parameters()
+        )
+        
+        return (
+            lossValue.item(Float.self),
+            meanQArray.item(Float.self),
+            gradNormValue.item(Float.self),
+            tdErrorArray.item(Float.self)
+        )
+    }
+        
+    private func updateTargetNetwork() {
+        switch targetUpdateStrategy {
+        case .soft:
+            softUpdate(target: targetNetwork, source: policyNetwork)
+        case .hard(let frequency):
+            if steps % frequency == 0 {
+                hardUpdate(target: targetNetwork, source: policyNetwork)
+            }
+        }
+    }
+    
+    private func hardUpdate(target: Module, source: Module) {
+        target.update(parameters: source.parameters())
+    }
 
-            steps += 1
-
-            let experiences = memory.sample(batchSize: batchSize)
-            let batchCount = experiences.count
-
-            let batchObs = MLX.stacked(experiences.map { $0.observation }).reshaped(
-                [batchCount, stateSize])
-            let batchNextObs = MLX.stacked(experiences.map { $0.nextObservation })
-                .reshaped([batchCount, stateSize])
-            
-            let batchActionsIdx = MLX.stacked(experiences.map { $0.action })
-                .reshaped([batchCount, 1])
-                .asType(.int32)
-            let batchRewards = MLX.stacked(experiences.map { $0.reward })
-                .reshaped([batchCount, 1])
-                .asType(.float32)
-            let batchTerminated = MLX.stacked(experiences.map { $0.terminated })
-                .reshaped([batchCount, 1])
-                .asType(.float32)
-
-            let step = getCompiledStep()
-            let results = step([batchObs, batchNextObs, batchActionsIdx, batchRewards, batchTerminated])
-            let lossValue = results[0]
-            let gradNormValue = results[1]
-            let meanQArray = results[2]
-            let tdErrorArray = results[3]
-            
-            eval(policyNetwork, optim, lossValue, gradNormValue, meanQArray, tdErrorArray)
-
-            updateTargetNetwork()
-
-            return (
-                lossValue.item(Float.self),
-                meanQArray.item(Float.self),
-                gradNormValue.item(Float.self),
-                tdErrorArray.item(Float.self)
-            )
+    /// θ′ ← τ θ + (1 −τ )θ′
+    private func softUpdate(target: Module, source: Module) {
+        guard let tauArray = tauArray, let oneMinusTauArray = oneMinusTauArray else { return }
+        
+        let sourceParams = source.parameters().flattened()
+        let targetParams = target.parameters().flattened()
+        let sourceDict = Dictionary(uniqueKeysWithValues: sourceParams)
+        
+        var updatedParams = [(String, MLXArray)]()
+        updatedParams.reserveCapacity(targetParams.count)
+        
+        for (key, targetParam) in targetParams {
+            if let sourceParam = sourceDict[key] {
+                let updated = oneMinusTauArray * targetParam + tauArray * sourceParam
+                updatedParams.append((key, updated))
+            }
         }
         
-        private func updateTargetNetwork() {
-            switch targetUpdateStrategy {
-            case .soft(let tau):
-                softUpdate(target: targetNetwork, source: policyNetwork, tau: tau)
-            case .hard(let frequency):
-                if steps % frequency == 0 {
-                    hardUpdate(target: targetNetwork, source: policyNetwork)
-                }
-            }
+        let newParams = NestedDictionary<String, MLXArray>.unflattened(updatedParams)
+        target.update(parameters: newParams)
+    }
+
+    private func updateEpsilonSchedule() {
+        guard epsilonStart != epsilonEnd else {
+            epsilon = epsilonEnd
+            return
         }
         
-        private func hardUpdate(target: Module, source: Module) {
-            target.update(parameters: source.parameters())
-            eval(target)
-        }
-
-        /// θ′ ← τ θ + (1 −τ )θ′
-        private func softUpdate(target: Module, source: Module, tau: Float) {
-            let sourceParams = source.parameters()
-            let targetParams = target.parameters()
-            
-            let flatTarget = targetParams.flattened()
-            let flatSource = sourceParams.flattened()
-            let sourceDict = Dictionary(uniqueKeysWithValues: flatSource)
-            
-            var updatedParams = [(String, MLXArray)]()
-            updatedParams.reserveCapacity(flatTarget.count)
-            
-            let tauArray = MLXArray(tau)
-            let oneMinusTau = MLXArray(1.0 - tau)
-            
-            for (key, targetParam) in flatTarget {
-                if let sourceParam = sourceDict[key] {
-                    let updated = oneMinusTau * targetParam + tauArray * sourceParam
-                    updatedParams.append((key, updated))
-                }
-            }
-            
-            if let newParams = try? NestedDictionary<String, MLXArray>.unflattened(updatedParams) {
-                target.update(parameters: newParams)
-            }
-            
-            eval(target)
-        }
-
-        private func updateEpsilonSchedule() {
-            guard epsilonStart != epsilonEnd else {
-                epsilon = epsilonEnd
-                return
-            }
-
-            let decayConstant = max(1, epsilonDecaySteps)
-            let exponent = -Float(explorationSteps) / Float(decayConstant)
-            let decayFactor = exp(exponent)
-            let newValue = epsilonEnd
-                + (epsilonStart - epsilonEnd) * decayFactor
-
-            if epsilonStart > epsilonEnd {
-                epsilon = max(epsilonEnd, newValue)
-            } else {
-                epsilon = min(epsilonEnd, newValue)
-            }
-        }
+        // Linear decay
+        let progress = min(Float(explorationSteps) / Float(epsilonDecaySteps), 1.0)
+        epsilon = epsilonStart + (epsilonEnd - epsilonStart) * progress
+    }
     
     /// Get the current exploration step count (for saving)
     public var currentExplorationSteps: Int {
