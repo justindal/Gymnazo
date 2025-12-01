@@ -1,8 +1,6 @@
 //
 //  MountainCarContinuous.swift
-//
-//  Continuous action version of the MountainCar environment.
-//  The car can apply any force in the range [-1, 1].
+//  Gymnazo
 //
 
 import Foundation
@@ -11,34 +9,71 @@ import MLX
 import SwiftUI
 #endif
 
-/// MountainCarContinuous-v0 environment
-/// 
-/// Description:
+/// The MountainCarContinuous environment from Gymnasium's classic control suite.
+///
+/// ## Description
+///
 /// The Mountain Car MDP is a deterministic MDP that consists of a car placed stochastically
 /// at the bottom of a sinusoidal valley, with the only possible actions being the accelerations
-/// that can be applied to the car in either direction. Unlike the discrete version, this
-/// environment accepts continuous actions.
+/// that can be applied to the car in either direction. The goal of the MDP is to strategically
+/// accelerate the car to reach the goal state on top of the right hill. There are two versions
+/// of the mountain car domain in Gymnazo: one with discrete actions and one with continuous.
+/// This version is the one with continuous actions.
 ///
-/// Observation Space:
-/// The observation is a 2-element array:
-/// - position: [-1.2, 0.6]
-/// - velocity: [-0.07, 0.07]
+/// This MDP first appeared in Andrew Moore's PhD Thesis (1990):
+/// "Efficient Memory-based Learning for Robot Control", University of Cambridge.
 ///
-/// Action Space:
-/// Continuous action in [-1.0, 1.0] representing the force applied to the car.
-/// Negative values push left, positive values push right.
+/// ## Observation Space
 ///
-/// Rewards:
-/// Reward of 100 for reaching the goal, minus the squared sum of actions from start to goal.
-/// This reward function encourages reaching the goal with minimal energy expenditure.
+/// The observation is an `MLXArray` with shape `(2,)` where the elements correspond to the following:
 ///
-/// Starting State:
-/// The position is randomly initialized in [-0.6, -0.4] and velocity is 0.
+/// | Num | Observation                          | Min   | Max  | Unit          |
+/// |-----|--------------------------------------|-------|------|---------------|
+/// | 0   | position of the car along the x-axis | -1.2  | 0.6  | position (m)  |
+/// | 1   | velocity of the car                  | -0.07 | 0.07 | velocity (v)  |
 ///
-/// Episode Termination:
-/// The episode ends if:
-/// - Termination: position >= 0.45 (goal reached)
-/// - Truncation: Episode length > 999 (default max steps)
+/// ## Action Space
+///
+/// The action is an `MLXArray` with shape `(1,)`, representing the directional force applied on the car.
+/// The action is clipped in the range `[-1, 1]` and multiplied by a power of 0.0015.
+///
+/// ## Transition Dynamics
+///
+/// Given an action, the mountain car follows the following transition dynamics:
+///
+/// velocity(t+1) = velocity(t) + force * power - 0.0025 * cos(3 * position(t))
+///
+/// position(t+1) = position(t) + velocity(t+1)
+///
+/// where force is the action clipped to the range `[-1, 1]` and power is a constant 0.0015.
+/// The collisions at either end are inelastic with the velocity set to 0 upon collision with the wall.
+/// The position is clipped to the range `[-1.2, 0.6]` and velocity is clipped to the range `[-0.07, 0.07]`.
+///
+/// ## Rewards
+///
+/// A negative reward of -0.1 * action² is received at each timestep to penalise for taking actions of
+/// large magnitude. If the mountain car reaches the goal then a positive reward of +100 is added to
+/// the negative reward for that timestep.
+///
+/// ## Starting State
+///
+/// The position of the car is assigned a uniform random value in `[-0.6, -0.4]`.
+/// The starting velocity of the car is always assigned to 0.
+///
+/// ## Episode End
+///
+/// The episode ends if either of the following happens:
+/// 1. **Termination:** The position of the car is greater than or equal to 0.45 (the goal position on top of the right hill)
+/// 2. **Truncation:** The length of the episode is 999.
+///
+/// ## Arguments
+///
+/// - `render_mode`: The render mode for visualization. Supported values: `"human"`, `"rgb_array"`, or `nil`.
+/// - `goal_velocity`: The minimum velocity required at the goal position to terminate. Default is `0.0`.
+///
+/// ## Version History
+///
+/// - v0: Initial version release
 public struct MountainCarContinuous: Env {
     public typealias Observation = MLXArray
     public typealias Action = MLXArray
@@ -90,6 +125,10 @@ public struct MountainCarContinuous: Env {
         )
     }
     
+    /// Execute one time step within the environment.
+    ///
+    /// - Parameter action: An `MLXArray` with shape `(1,)` representing the force to apply (clipped to `[-1, 1]`).
+    /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
     public mutating func step(_ action: MLXArray) -> StepResult {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
@@ -131,6 +170,12 @@ public struct MountainCarContinuous: Env {
         )
     }
     
+    /// Reset the environment to an initial state.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional random seed for reproducibility.
+    ///   - options: Optional dictionary for custom reset bounds.
+    /// - Returns: A tuple containing the initial observation and info dictionary.
     public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> ResetResult {
         if let seed {
             self._key = MLX.key(seed)
@@ -150,6 +195,9 @@ public struct MountainCarContinuous: Env {
         return (obs: self.state!, info: [:])
     }
     
+    /// Render the environment.
+    ///
+    /// - Returns: A `MountainCarView` for human mode, `nil` otherwise.
     public func render() -> Any? {
         guard let mode = render_mode else { return nil }
         
