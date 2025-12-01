@@ -5,20 +5,14 @@ import Testing
 struct GymnazoRegistrationTests {
     @Test
     @MainActor
-    func testStartRegistersFrozenLake() async throws {
-        Gymnazo.start()
+    func testMakeRegistersEnvironments() async throws {
+        // Calling make triggers lazy initialization
+        let env = Gymnazo.make("FrozenLake-v1", kwargs: ["is_slippery": false])
+        #expect(env.spec?.id == "FrozenLake-v1")
+        
+        // Registry should now contain registered environments
         let contains = Gymnazo.registry.keys.contains("FrozenLake-v1")
         #expect(contains)
-    }
-    
-    @Test
-    @MainActor
-    func testStartIsIdempotent() async throws {
-        Gymnazo.start()
-        let count1: Int = Gymnazo.registry.count
-        Gymnazo.start()
-        let count2: Int = Gymnazo.registry.count
-        #expect(count1 == count2)
     }
 }
 

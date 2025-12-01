@@ -17,7 +17,6 @@ struct WrapperBehaviorTests {
     @Test
     @MainActor
     func testRenderAllowedBeforeResetWhenDisabled() async throws {
-        Gymnazo.start()
         var env = Gymnazo.make(
             "FrozenLake-v1",
             disableRenderOrderEnforcing: true,

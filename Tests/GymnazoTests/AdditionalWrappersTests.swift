@@ -41,7 +41,6 @@ struct AdditionalWrappersTests {
     @Test
     @MainActor
     func testAdditionalWrapperApplied() async throws {
-        Gymnazo.start()
         guard var baseSpec = Gymnazo.registry["FrozenLake-v1"] else {
             #expect(Bool(false), "FrozenLake-v1 spec missing")
             return

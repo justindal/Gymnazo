@@ -20,7 +20,6 @@ struct GymnazoTests {
     @Test
     @MainActor
     func testRenderPassThroughAnsi() async throws {
-        Gymnazo.start()
         var env = Gymnazo.make(
             "FrozenLake-v1",
             kwargs: ["render_mode": "ansi", "is_slippery": false]
