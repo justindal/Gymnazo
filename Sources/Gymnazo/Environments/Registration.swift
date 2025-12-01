@@ -155,6 +155,14 @@ public final class GymnazoRegistrations {
                 return Acrobot(render_mode: renderMode)
             }, maxEpisodeSteps: 500, rewardThreshold: -100)
         }
+        
+        if registry["Pendulum-v1"] == nil {
+            register(id: "Pendulum-v1", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let g = GymnazoRegistrations.floatValue(from: kwargs["g"], default: 10.0)
+                return Pendulum(render_mode: renderMode, g: g)
+            }, maxEpisodeSteps: 200)
+        }
     }
     
     private func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
