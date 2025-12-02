@@ -10,7 +10,7 @@
 - **Apple Silicon** (M-series or A-series chips)
 - **Swift 6.0+**
 
-> **Note**: Gymnazo uses MLX Swift which requires Metal shaders, and will not build with SwiftPM (`swift build`). Build with Xcode or `xcodebuild`.
+> **Note**: Gymnazo uses MLX Swift which requires Metal shaders, and might not reliably build with SwiftPM (`swift build`). Build with Xcode or `xcodebuild`.
 
 ## Installation
 
@@ -48,10 +48,10 @@ Or open the package in Xcode and run the test scheme.
 
 ### Environments
 
-| Category            | Environments                                                              |
-| ------------------- | ------------------------------------------------------------------------- |
-| **Classic Control** | `CartPole-v1`, `MountainCar-v0`, `MountainCarContinuous-v0`, `Acrobot-v1` |
-| **Toy Text**        | `FrozenLake-v1`, `FrozenLake8x8-v1`                                       |
+| Category            | Environments                                                                             |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| **Classic Control** | `CartPole-v1`, `MountainCar-v0`, `MountainCarContinuous-v0`, `Acrobot-v1`, `Pendulum-v1` |
+| **Toy Text**        | `FrozenLake-v1`, `FrozenLake8x8-v1`                                                      |
 
 ### Spaces
 
@@ -60,15 +60,6 @@ Or open the package in Xcode and run the test scheme.
 ### Wrappers
 
 `TimeLimit`, `RecordEpisodeStatistics`, `ClipAction`, `RescaleAction`, `TransformObservation`, `NormalizeObservation`, `OrderEnforcing`, `PassiveEnvChecker`
-
-### Built-in RL Algorithms
-
-| Algorithm        | Type    | Description                              |
-| ---------------- | ------- | ---------------------------------------- |
-| `QLearningAgent` | Tabular | Q-learning with ε-greedy exploration     |
-| `SARSAAgent`     | Tabular | On-policy TD control                     |
-| `DQNAgent`       | Deep RL | Deep Q-Network with replay buffer        |
-| `SACAgent`       | Deep RL | Soft Actor-Critic for continuous actions |
 
 ## Quick Start
 
@@ -80,8 +71,6 @@ import MLX
 struct Demo {
     @MainActor
     static func main() {
-        Gymnazo.start()
-
         var env = Gymnazo.make("CartPole-v1")
         var (obs, _) = env.reset(seed: 42)
         var done = false
@@ -103,15 +92,13 @@ Gymnazo is under active development.
 **Implemented:**
 
 - Core Gymnasium-style API (`Env`, `Space`, `Wrapper`)
-- 6 environments (Classic Control + Toy Text)
+- 7 environments (Classic Control + Toy Text)
 - 8 wrappers
-- 4 RL algorithms (Q-Learning, SARSA, DQN, SAC)
 
 **Planned:**
 
 - All environments from the original Gymnasium
 - Vectorized environments
-- Additional RL algorithms
 - Better wrapper support
 
 For the full Gymnasium experience, see the [official Python repository](https://github.com/Farama-Foundation/Gymnasium).
