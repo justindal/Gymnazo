@@ -211,6 +211,112 @@ public func make(
     return env
 }
 
+/// Creates a vectorized environment with multiple sub-environments.
+///
+/// This is the vector environment equivalent of `make()`. It creates a `SyncVectorEnv`
+/// that manages multiple instances of the specified environment.
+///
+/// ## Example
+///
+/// ```swift
+/// // Create 4 CartPole environments
+/// let envs = make_vec("CartPole-v1", numEnvs: 4)
+///
+/// // Reset all environments
+/// let (obs, _) = envs.reset(seed: 42)
+/// // obs.shape == [4, 4] for 4 envs with 4-dimensional observations
+///
+/// // Step all environments with different actions
+/// let result = envs.step([0, 1, 0, 1])
+/// ```
+///
+/// - Parameters:
+///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - numEnvs: The number of sub-environments to create.
+///   - maxEpisodeSteps: Override the default max steps per episode.
+///   - disableEnvChecker: Disable the passive environment checker.
+///   - disableRenderOrderEnforcing: Disable render order enforcement.
+///   - recordEpisodeStatistics: Whether to record episode statistics.
+///   - recordBufferLength: Buffer length for statistics recording.
+///   - recordStatsKey: Key for statistics in the info dict.
+///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
+///   - kwargs: Additional keyword arguments passed to each environment.
+/// - Returns: A `SyncVectorEnv` managing the created sub-environments.
+@MainActor
+public func make_vec(
+    _ id: String,
+    numEnvs: Int,
+    maxEpisodeSteps: Int? = nil,
+    disableEnvChecker: Bool? = nil,
+    disableRenderOrderEnforcing: Bool = false,
+    recordEpisodeStatistics: Bool = true,
+    recordBufferLength: Int = 100,
+    recordStatsKey: String = "episode",
+    autoresetMode: AutoresetMode = .nextStep,
+    kwargs: [String: Any] = [:]
+) -> SyncVectorEnv {
+    precondition(numEnvs > 0, "numEnvs must be positive")
+    
+    // Create factory functions for each sub-environment
+    let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
+        return {
+            make(
+                id,
+                maxEpisodeSteps: maxEpisodeSteps,
+                disableEnvChecker: disableEnvChecker,
+                disableRenderOrderEnforcing: disableRenderOrderEnforcing,
+                recordEpisodeStatistics: recordEpisodeStatistics,
+                recordBufferLength: recordBufferLength,
+                recordStatsKey: recordStatsKey,
+                kwargs: kwargs
+            )
+        }
+    }
+    
+    let vectorEnv = SyncVectorEnv(
+        envFns: envFns,
+        copyObservations: true,
+        autoresetMode: autoresetMode
+    )
+    
+    // Set spec from registry
+    if let spec = registry[id] {
+        vectorEnv.spec = spec
+    }
+    
+    return vectorEnv
+}
+
+/// Creates a vectorized environment from an array of environment factory functions.
+///
+/// This provides more flexibility than `make_vec(_:numEnvs:)` by allowing
+/// different configurations for each sub-environment.
+///
+/// ## Example
+///
+/// ```swift
+/// // Create environments with different parameters
+/// let envs = make_vec(envFns: [
+///     { make("Pendulum-v1", kwargs: ["g": 9.81]) },
+///     { make("Pendulum-v1", kwargs: ["g": 1.62]) },  // Moon gravity
+/// ])
+/// ```
+///
+/// - Parameters:
+///   - envFns: Array of closures that create environments.
+///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
+/// - Returns: A `SyncVectorEnv` managing the created sub-environments.
+@MainActor
+public func make_vec(
+    envFns: [() -> any Env],
+    autoresetMode: AutoresetMode = .nextStep
+) -> SyncVectorEnv {
+    return SyncVectorEnv(
+        envFns: envFns,
+        copyObservations: true,
+        autoresetMode: autoresetMode
+    )
+}
 
 @MainActor
 private func applyDefaultWrappers<E: Env>(
