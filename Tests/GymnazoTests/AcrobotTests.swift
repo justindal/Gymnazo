@@ -325,16 +325,16 @@ struct AcrobotTests {
     
     @Test
     func testAcrobotSnapshotPositions() async throws {
-        // When theta1 = 0, link 1 points downward
+        // When theta1 = 0, link 1 points straight down (-Y direction)
         let snapshotDown = AcrobotSnapshot(theta1: 0, theta2: 0, linkLength1: 1.0, linkLength2: 1.0)
         
-        // p1 should be at (-cos(0), sin(0)) = (-1, 0)
-        #expect(abs(snapshotDown.p1.x - (-1.0)) < 0.001)
-        #expect(abs(snapshotDown.p1.y - 0.0) < 0.001)
+        // p1 should be at (sin(0), -cos(0)) = (0, -1) - pointing down
+        #expect(abs(snapshotDown.p1.x - 0.0) < 0.001)
+        #expect(abs(snapshotDown.p1.y - (-1.0)) < 0.001)
         
-        // p2 should be at p1 + (-cos(0), sin(0)) = (-2, 0)
-        #expect(abs(snapshotDown.p2.x - (-2.0)) < 0.001)
-        #expect(abs(snapshotDown.p2.y - 0.0) < 0.001)
+        // p2 should be at p1 + (sin(0), -cos(0)) = (0, -2) - both links down
+        #expect(abs(snapshotDown.p2.x - 0.0) < 0.001)
+        #expect(abs(snapshotDown.p2.y - (-2.0)) < 0.001)
     }
     
     @Test
