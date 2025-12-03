@@ -318,6 +318,204 @@ public func make_vec(
     )
 }
 
+/// Vectorization mode for vector environments.
+public enum VectorizationMode: String, Sendable {
+    /// Synchronous execution - environments run sequentially.
+    case sync
+    /// Asynchronous execution - environments run in parallel using Swift Concurrency.
+    case async
+}
+
+/// Creates a vectorized environment with multiple sub-environments.
+///
+/// This is an enhanced version of `make_vec` that supports both synchronous and
+/// asynchronous vectorization modes.
+///
+/// ## Example
+///
+/// ```swift
+/// // Create 4 CartPole environments with async execution
+/// let envs = make_vec("CartPole-v1", numEnvs: 4, vectorizationMode: .async)
+///
+/// // Use async step for parallel execution
+/// let result = await envs.stepAsync([0, 1, 0, 1])
+/// ```
+///
+/// - Parameters:
+///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - numEnvs: The number of sub-environments to create.
+///   - vectorizationMode: The vectorization mode (`.sync` or `.async`). Default is `.sync`.
+///   - maxEpisodeSteps: Override the default max steps per episode.
+///   - disableEnvChecker: Disable the passive environment checker.
+///   - disableRenderOrderEnforcing: Disable render order enforcement.
+///   - recordEpisodeStatistics: Whether to record episode statistics.
+///   - recordBufferLength: Buffer length for statistics recording.
+///   - recordStatsKey: Key for statistics in the info dict.
+///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
+///   - kwargs: Additional keyword arguments passed to each environment.
+/// - Returns: A `VectorEnv` managing the created sub-environments.
+@MainActor
+public func make_vec(
+    _ id: String,
+    numEnvs: Int,
+    vectorizationMode: VectorizationMode = .sync,
+    maxEpisodeSteps: Int? = nil,
+    disableEnvChecker: Bool? = nil,
+    disableRenderOrderEnforcing: Bool = false,
+    recordEpisodeStatistics: Bool = true,
+    recordBufferLength: Int = 100,
+    recordStatsKey: String = "episode",
+    autoresetMode: AutoresetMode = .nextStep,
+    kwargs: [String: Any] = [:]
+) -> any VectorEnv {
+    precondition(numEnvs > 0, "numEnvs must be positive")
+    
+    let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
+        return {
+            make(
+                id,
+                maxEpisodeSteps: maxEpisodeSteps,
+                disableEnvChecker: disableEnvChecker,
+                disableRenderOrderEnforcing: disableRenderOrderEnforcing,
+                recordEpisodeStatistics: recordEpisodeStatistics,
+                recordBufferLength: recordBufferLength,
+                recordStatsKey: recordStatsKey,
+                kwargs: kwargs
+            )
+        }
+    }
+    
+    let vectorEnv: any VectorEnv
+    switch vectorizationMode {
+    case .sync:
+        let syncEnv = SyncVectorEnv(
+            envFns: envFns,
+            copyObservations: true,
+            autoresetMode: autoresetMode
+        )
+        if let spec = registry[id] {
+            syncEnv.spec = spec
+        }
+        vectorEnv = syncEnv
+    case .async:
+        let asyncEnv = AsyncVectorEnv(
+            envFns: envFns,
+            copyObservations: true,
+            autoresetMode: autoresetMode
+        )
+        if let spec = registry[id] {
+            asyncEnv.spec = spec
+        }
+        vectorEnv = asyncEnv
+    }
+    
+    return vectorEnv
+}
+
+/// Creates an asynchronous vectorized environment with multiple sub-environments.
+///
+/// This creates an `AsyncVectorEnv` that can run environment operations in parallel
+/// using Swift Concurrency.
+///
+/// ## Example
+///
+/// ```swift
+/// // Create 4 CartPole environments with async execution
+/// let envs = make_vec_async("CartPole-v1", numEnvs: 4)
+///
+/// // Reset all environments in parallel
+/// let (obs, _) = await envs.resetAsync(seed: 42)
+///
+/// // Step all environments in parallel
+/// let result = await envs.stepAsync([0, 1, 0, 1])
+/// ```
+///
+/// - Parameters:
+///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - numEnvs: The number of sub-environments to create.
+///   - maxEpisodeSteps: Override the default max steps per episode.
+///   - disableEnvChecker: Disable the passive environment checker.
+///   - disableRenderOrderEnforcing: Disable render order enforcement.
+///   - recordEpisodeStatistics: Whether to record episode statistics.
+///   - recordBufferLength: Buffer length for statistics recording.
+///   - recordStatsKey: Key for statistics in the info dict.
+///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
+///   - kwargs: Additional keyword arguments passed to each environment.
+/// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
+@MainActor
+public func make_vec_async(
+    _ id: String,
+    numEnvs: Int,
+    maxEpisodeSteps: Int? = nil,
+    disableEnvChecker: Bool? = nil,
+    disableRenderOrderEnforcing: Bool = false,
+    recordEpisodeStatistics: Bool = true,
+    recordBufferLength: Int = 100,
+    recordStatsKey: String = "episode",
+    autoresetMode: AutoresetMode = .nextStep,
+    kwargs: [String: Any] = [:]
+) -> AsyncVectorEnv {
+    precondition(numEnvs > 0, "numEnvs must be positive")
+    
+    let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
+        return {
+            make(
+                id,
+                maxEpisodeSteps: maxEpisodeSteps,
+                disableEnvChecker: disableEnvChecker,
+                disableRenderOrderEnforcing: disableRenderOrderEnforcing,
+                recordEpisodeStatistics: recordEpisodeStatistics,
+                recordBufferLength: recordBufferLength,
+                recordStatsKey: recordStatsKey,
+                kwargs: kwargs
+            )
+        }
+    }
+    
+    let vectorEnv = AsyncVectorEnv(
+        envFns: envFns,
+        copyObservations: true,
+        autoresetMode: autoresetMode
+    )
+    
+    if let spec = registry[id] {
+        vectorEnv.spec = spec
+    }
+    
+    return vectorEnv
+}
+
+/// Creates an asynchronous vectorized environment from an array of environment factory functions.
+///
+/// This provides more flexibility than `make_vec_async(_:numEnvs:)` by allowing
+/// different configurations for each sub-environment.
+///
+/// ## Example
+///
+/// ```swift
+/// // Create environments with different parameters
+/// let envs = make_vec_async(envFns: [
+///     { make("Pendulum-v1", kwargs: ["g": 9.81]) },
+///     { make("Pendulum-v1", kwargs: ["g": 1.62]) },  // Moon gravity
+/// ])
+/// ```
+///
+/// - Parameters:
+///   - envFns: Array of closures that create environments.
+///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
+/// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
+@MainActor
+public func make_vec_async(
+    envFns: [() -> any Env],
+    autoresetMode: AutoresetMode = .nextStep
+) -> AsyncVectorEnv {
+    return AsyncVectorEnv(
+        envFns: envFns,
+        copyObservations: true,
+        autoresetMode: autoresetMode
+    )
+}
+
 @MainActor
 private func applyDefaultWrappers<E: Env>(
     env: E,
