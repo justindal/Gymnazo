@@ -324,16 +324,16 @@ public struct AcrobotSnapshot: Sendable, Equatable {
     
     /// Returns the position of the first joint (end of link 1)
     public var p1: (x: Float, y: Float) {
-        let x = -linkLength1 * cos(theta1)
-        let y = linkLength1 * sin(theta1)
+        let x = linkLength1 * sin(theta1)
+        let y = -linkLength1 * cos(theta1)
         return (x, y)
     }
     
     /// Returns the position of the free end (end of link 2)
     public var p2: (x: Float, y: Float) {
         let p1 = self.p1
-        let x = p1.x - linkLength2 * cos(theta1 + theta2)
-        let y = p1.y + linkLength2 * sin(theta1 + theta2)
+        let x = p1.x + linkLength2 * sin(theta1 + theta2)
+        let y = p1.y - linkLength2 * cos(theta1 + theta2)
         return (x, y)
     }
     
@@ -382,7 +382,7 @@ public class AcrobotScene: SKScene {
     private var link2: SKShapeNode?
     private var joint0: SKShapeNode?  // Fixed joint at origin
     private var joint1: SKShapeNode?  // Joint between links
-    private var joint2: SKShapeNode?  // Free end
+    private var joint2: SKShapeNode?  // Free end, might not be needed
     private var targetLine: SKShapeNode?
     
     private let linkWidth: CGFloat = 10
