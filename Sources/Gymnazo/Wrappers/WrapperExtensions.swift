@@ -114,7 +114,7 @@ public extension Env where ActionSpace == Box {
     /// Rescales actions from a source range into the Box action space bounds.
     ///
     /// - Parameters:
-    ///   - from: The source range. Default is `(-1.0, 1.0)`.
+    ///   - sourceRange: The source range. Default is `(-1.0, 1.0)`.
     /// - Returns: The wrapped environment.
     func actionsRescaled(
         from sourceRange: (low: Float, high: Float) = (-1.0, 1.0)
