@@ -15,6 +15,7 @@ let package = Package(
             name: "Gymnazo",
             targets: ["Gymnazo"]
         ),
+        .library(name: "Box2D", targets: ["Box2D"])
     ],
     dependencies: [
         .package(url: "https://github.com/ml-explore/mlx-swift", from: "0.29.1"),
@@ -27,13 +28,15 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
+        .target(name: "Box2D"),
         .target(
             name: "Gymnazo",
             dependencies: [.product(name: "MLX", package: "mlx-swift"),
                            .product(name: "MLXNN", package: "mlx-swift"),
                            .product(name: "MLXOptimizers", package: "mlx-swift"),
                            .product(name: "MLXRandom", package: "mlx-swift"),
-                           .product(name: "Collections", package: "swift-collections")
+                           .product(name: "Collections", package: "swift-collections"),
+                            "Box2D"
             ],
             resources: [
                 .process("Resources")
