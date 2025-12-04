@@ -1,0 +1,4 @@
+module Box2D {
+    header "box2d/box2d.h"
+    export *
+}
