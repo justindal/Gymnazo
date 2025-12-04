@@ -107,7 +107,7 @@ public func make(
     maxEpisodeSteps: Int? = nil,
     disableEnvChecker: Bool? = nil,
     disableRenderOrderEnforcing: Bool = false,
-    recordEpisodeStatistics: Bool = true,
+    recordEpisodeStatistics: Bool = false,
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     kwargs: [String: Any] = [:]
@@ -148,7 +148,7 @@ public func make(
     maxEpisodeSteps: Int? = nil,
     disableEnvChecker: Bool? = nil,
     disableRenderOrderEnforcing: Bool = false,
-    recordEpisodeStatistics: Bool = true,
+    recordEpisodeStatistics: Bool = false,
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     kwargs: [String: Any] = [:]
@@ -249,7 +249,7 @@ public func make_vec(
     maxEpisodeSteps: Int? = nil,
     disableEnvChecker: Bool? = nil,
     disableRenderOrderEnforcing: Bool = false,
-    recordEpisodeStatistics: Bool = true,
+    recordEpisodeStatistics: Bool = false,
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     autoresetMode: AutoresetMode = .nextStep,
@@ -362,7 +362,7 @@ public func make_vec(
     maxEpisodeSteps: Int? = nil,
     disableEnvChecker: Bool? = nil,
     disableRenderOrderEnforcing: Bool = false,
-    recordEpisodeStatistics: Bool = true,
+    recordEpisodeStatistics: Bool = false,
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     autoresetMode: AutoresetMode = .nextStep,
@@ -449,7 +449,7 @@ public func make_vec_async(
     maxEpisodeSteps: Int? = nil,
     disableEnvChecker: Bool? = nil,
     disableRenderOrderEnforcing: Bool = false,
-    recordEpisodeStatistics: Bool = true,
+    recordEpisodeStatistics: Bool = false,
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     autoresetMode: AutoresetMode = .nextStep,
@@ -556,7 +556,7 @@ private func applyTimeLimit<E: Env>(
     env: E,
     config: WrapperConfig
 ) -> any Env {
-    guard let steps = config.maxEpisodeSteps else {
+    guard let steps = config.maxEpisodeSteps, steps != -1 else {
         return applyRecordEpisodeStatistics(env: env, config: config)
     }
 
