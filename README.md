@@ -51,6 +51,7 @@ Or open the package in Xcode and run the test scheme.
 | Category            | Environments                                                                             |
 | ------------------- | ---------------------------------------------------------------------------------------- |
 | **Classic Control** | `CartPole-v1`, `MountainCar-v0`, `MountainCarContinuous-v0`, `Acrobot-v1`, `Pendulum-v1` |
+| **Box2D**           | `LunarLander-v3`, `LunarLanderContinuous-v3`                                             |
 | **Toy Text**        | `FrozenLake-v1`, `FrozenLake8x8-v1`                                                      |
 
 ### Spaces
@@ -92,9 +93,10 @@ Gymnazo is under active development.
 **Implemented:**
 
 - Core Gymnasium-style API (`Env`, `Space`, `Wrapper`)
-- 7 environments (Classic Control + Toy Text)
+- 9 environments (Classic Control, Box2D, Toy Text)
 - 8 wrappers
 - Vectorized environments (`SyncVectorEnv`, `AsyncVectorEnv`)
+- SpriteKit/SwiftUI Canvas rendering for visualization
 
 **Planned:**
 
@@ -111,4 +113,5 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 - [Farama Foundation](https://farama.org/) for Gymnasium
 - [OpenAI](https://openai.com/) for the original Gym
-- [MLX Swift](https://github.com/ml-explore/mlx-swift) team
+- [MLX Swift](https://github.com/ml-explore/mlx-swift)
+- [Box2D](https://box2d.org/) for the physics engine used in some environments
