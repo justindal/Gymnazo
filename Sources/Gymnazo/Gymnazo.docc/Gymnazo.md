@@ -4,7 +4,7 @@ A Swift implementation of Farama's Gymnasium for reinforcement learning on Apple
 
 ## Overview
 
-Gymnazo provides a collection of environments and utilities for developing and testing reinforcement learning algorithms. It includes built-in implementations of common RL algorithms like Q-Learning, SARSA, DQN, and SAC, so you can start training agents right away.
+Gymnazo provides a collection of environments and utilities for developing and testing reinforcement learning algorithms. Built with MLX Swift for Apple Silicon acceleration.
 
 ## Topics
 
@@ -12,17 +12,23 @@ Gymnazo provides a collection of environments and utilities for developing and t
 
 - <doc:GettingStarted>
 
+### Guides
+
+- <doc:VectorEnvironments>
+- <doc:Wrappers-article>
+
 ### Core Protocols
 
 - ``Env``
 - ``Space``
 - ``Wrapper``
 
-### RL Agent Protocols
+### Creating Environments
 
-- ``DiscreteRLAgent``
-- ``DiscreteDeepRLAgent``
-- ``ContinuousDeepRLAgent``
+- ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)``
+- ``make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``
+- ``make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``
+- ``register(id:entryPoint:maxEpisodeSteps:rewardThreshold:nondeterministic:)``
 
 ### Environments
 
@@ -30,6 +36,7 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``MountainCar``
 - ``MountainCarContinuous``
 - ``Acrobot``
+- ``Pendulum``
 - ``FrozenLake``
 
 ### Spaces
@@ -40,13 +47,13 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``Dict``
 - ``Tuple``
 
-### RL Agent Implementations
+### Vector Environments
 
-- ``QLearningAgent``
-- ``SARSAAgent``
-- ``DQNAgent``
-- ``SACAgent``
-- ``DiscreteAgent``
+- ``VectorEnv``
+- ``SyncVectorEnv``
+- ``AsyncVectorEnv``
+- ``AutoresetMode``
+- ``VectorStepResult``
 
 ### Wrappers
 
@@ -56,6 +63,8 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``RecordEpisodeStatistics``
 - ``TransformObservation``
 - ``NormalizeObservation``
+- ``ClipAction``
+- ``RescaleAction``
 
 ### Registration
 

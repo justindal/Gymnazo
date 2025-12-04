@@ -10,7 +10,7 @@
 - **Apple Silicon** (M-series or A-series chips)
 - **Swift 6.0+**
 
-> **Note**: Gymnazo uses MLX Swift which requires Metal shaders, and might not reliably build with SwiftPM (`swift build`). Build with Xcode or `xcodebuild`.
+> **Note**: Gymnazo uses MLX Swift which requires Metal shaders, and might not build with SwiftPM (`swift build`). Build with Xcode or `xcodebuild`.
 
 ## Installation
 
@@ -94,12 +94,12 @@ Gymnazo is under active development.
 - Core Gymnasium-style API (`Env`, `Space`, `Wrapper`)
 - 7 environments (Classic Control + Toy Text)
 - 8 wrappers
+- Vectorized environments (`SyncVectorEnv`, `AsyncVectorEnv`)
 
 **Planned:**
 
-- All environments from the original Gymnasium
-- Vectorized environments
-- Better wrapper support
+- Additional environments from the original Gymnasium
+- More wrapper types
 
 For the full Gymnasium experience, see the [official Python repository](https://github.com/Farama-Foundation/Gymnasium).
 
@@ -109,6 +109,6 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [Farama Foundation](https://farama.org/) for the original Gymnasium
+- [Farama Foundation](https://farama.org/) for Gymnasium
 - [OpenAI](https://openai.com/) for the original Gym
 - [MLX Swift](https://github.com/ml-explore/mlx-swift) team
