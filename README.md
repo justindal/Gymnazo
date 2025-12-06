@@ -2,7 +2,7 @@
 
 [![Swift](https://github.com/justindal/Gymnazo/actions/workflows/main.yml/badge.svg)](https://github.com/justindal/Gymnazo/actions/workflows/main.yml)
 
-**Gymnazo** is a Swift port of [Farama Gymnasium](https://github.com/Farama-Foundation/Gymnasium) for reinforcement learning. Built on [MLX Swift](https://github.com/ml-explore/mlx-swift) for Apple Silicon acceleration. Under active development.
+**Gymnazo** is a Swift port of [Gymnasium](https://github.com/Farama-Foundation/Gymnasium) for reinforcement learning. Built on [MLX Swift](https://github.com/ml-explore/mlx-swift) for Apple Silicon acceleration. Under active development.
 
 ## Requirements
 
