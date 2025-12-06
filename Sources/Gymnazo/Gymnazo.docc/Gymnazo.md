@@ -38,6 +38,8 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``Acrobot``
 - ``Pendulum``
 - ``FrozenLake``
+- ``LunarLander``
+- ``LunarLanderContinuous``
 
 ### Spaces
 

@@ -101,6 +101,7 @@ public final class GymnazoRegistrations {
     public func registerDefaultEnvironments() {
         registerFrozenLake()
         registerClassicControl()
+        registerBox2D()
     }
 
     private func registerFrozenLake() {
@@ -162,6 +163,46 @@ public final class GymnazoRegistrations {
                 let g = GymnazoRegistrations.floatValue(from: kwargs["g"], default: 10.0)
                 return Pendulum(render_mode: renderMode, g: g)
             }, maxEpisodeSteps: 200)
+        }
+    }
+    
+    private func registerBox2D() {
+        // Register discrete variant
+        if registry["LunarLander-v3"] == nil {
+            register(id: "LunarLander-v3", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let gravity = GymnazoRegistrations.floatValue(from: kwargs["gravity"], default: -10.0)
+                let enableWind = kwargs["enable_wind"] as? Bool ?? false
+                let windPower = GymnazoRegistrations.floatValue(from: kwargs["wind_power"], default: 15.0)
+                let turbulencePower = GymnazoRegistrations.floatValue(from: kwargs["turbulence_power"], default: 1.5)
+                
+                return LunarLander(
+                    render_mode: renderMode,
+                    gravity: gravity,
+                    enableWind: enableWind,
+                    windPower: windPower,
+                    turbulencePower: turbulencePower
+                )
+            }, maxEpisodeSteps: 1000)
+        }
+        
+        // Register continuous variant
+        if registry["LunarLanderContinuous-v3"] == nil {
+            register(id: "LunarLanderContinuous-v3", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let gravity = GymnazoRegistrations.floatValue(from: kwargs["gravity"], default: -10.0)
+                let enableWind = kwargs["enable_wind"] as? Bool ?? false
+                let windPower = GymnazoRegistrations.floatValue(from: kwargs["wind_power"], default: 15.0)
+                let turbulencePower = GymnazoRegistrations.floatValue(from: kwargs["turbulence_power"], default: 1.5)
+                
+                return LunarLanderContinuous(
+                    render_mode: renderMode,
+                    gravity: gravity,
+                    enableWind: enableWind,
+                    windPower: windPower,
+                    turbulencePower: turbulencePower
+                )
+            }, maxEpisodeSteps: 1000)
         }
     }
     
