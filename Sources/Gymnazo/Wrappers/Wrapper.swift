@@ -63,7 +63,8 @@ public extension Wrapper {
         return env.close()
     }
 
-    func render() {
-        env.render()
+    @discardableResult
+    func render() -> Any? {
+        return env.render()
     }
 }

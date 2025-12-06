@@ -37,11 +37,12 @@ public final class OrderEnforcing<InnerEnv: Env>: Wrapper {
         return env.step(action)
     }
 
-    public func render() {
+    @discardableResult
+    public func render() -> Any? {
         guard disableRenderOrderEnforcing || hasReset else {
             fatalError("OrderEnforcing: Cannot call env.render() before env.reset().")
         }
-        env.render()
+        return env.render()
     }
 
     public var spec: EnvSpec? {

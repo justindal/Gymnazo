@@ -40,13 +40,13 @@ public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
         return env.reset(seed: seed, options: options)
     }
 
-    public func render() {
+    @discardableResult
+    public func render() -> Any? {
         if !checkedRender {
             checkedRender = true
             PassiveEnvChecks.render(env: &env)
-            return
         }
-        env.render()
+        return env.render()
     }
 
     public func close() {
