@@ -103,6 +103,7 @@ public struct LunarLanderContinuous: Env {
     private static let legDown: Float = 18
     private static let legW: Float = 2
     private static let legH: Float = 8
+    private static let legSpringTorque: Float = 40
     private static let sideEngineHeight: Float = 14
     private static let sideEngineAway: Float = 12
     private static let mainEngineYLocation: Float = 4
@@ -111,9 +112,9 @@ public struct LunarLanderContinuous: Env {
     private static let chunks: Int = 11
     private static let landerDensity: Float = 5.0
     
-    private static let legsCategory: UInt64 = 0x0010
+    private static let landerCategory: UInt64 = 0x0010
     private static let groundCategory: UInt64 = 0x0001
-    private static let landerCategory: UInt64 = 0x0020
+    private static let legsCategory: UInt64 = 0x0020
     
     public let gravity: Float
     public let enableWind: Bool
@@ -236,8 +237,8 @@ public struct LunarLanderContinuous: Env {
             let impulseY = -oy * Self.sideEnginePower * sPower
             
             let pos = b2Body_GetPosition(landerId)
-            let impulsePointX = pos.x + ox - sPower * direction * Self.sideEngineAway / Self.scale
-            let impulsePointY = pos.y + oy
+            let impulsePointX = pos.x + ox - tip.0 * 17 / Self.scale
+            let impulsePointY = pos.y + oy + tip.1 * Self.sideEngineHeight / Self.scale
             b2Body_ApplyLinearImpulse(landerId, b2Vec2(x: impulseX, y: impulseY), b2Vec2(x: impulsePointX, y: impulsePointY), true)
         }
         lastSidePower = sPower * (lateralAction > 0 ? 1.0 : -1.0)
@@ -267,10 +268,7 @@ public struct LunarLanderContinuous: Env {
         
         var terminated = false
         
-        // Terminate if out of bounds (X or Y) or crashed
-        // X: abs(normX) >= 1.0 means outside horizontal viewport
-        // Y: normY < -1.0 means below ground level, normY > 2.0 means too high
-        if gameOver || abs(stateArray[0]) >= 1.0 || stateArray[1] < -1.0 || stateArray[1] > 2.0 {
+        if gameOver || abs(stateArray[0]) >= 1.0 {
             terminated = true
             reward = -100
         }
@@ -453,7 +451,6 @@ public struct LunarLanderContinuous: Env {
         var bodyDef = b2DefaultBodyDef()
         bodyDef.type = b2_dynamicBody
         bodyDef.position = b2Vec2(x: initialX, y: initialY)
-        bodyDef.angularDamping = 0.5
         landerId = b2CreateBody(worldId, &bodyDef)
         
         var landerVerts: [b2Vec2] = [
@@ -487,24 +484,23 @@ public struct LunarLanderContinuous: Env {
         
         let landerPos = b2Body_GetPosition(landerId)
         
-        for i in 0..<2 {
-            let sign: Float = i == 0 ? -1 : 1
+        for i in [-1, 1] {
+            let sign: Float = Float(i)
             
             var legBodyDef = b2DefaultBodyDef()
             legBodyDef.type = b2_dynamicBody
             legBodyDef.position = b2Vec2(
-                x: landerPos.x + sign * Self.legAway / Self.scale,
-                y: landerPos.y - Self.legDown / Self.scale
+                x: landerPos.x - sign * Self.legAway / Self.scale,
+                y: landerPos.y
             )
-            legBodyDef.angularDamping = 0.5
+            legBodyDef.rotation = b2MakeRot(sign * 0.05)
             
             let legId = b2CreateBody(worldId, &legBodyDef)
             
-            var legBox = b2MakeBox(Self.legW / Self.scale / 2, Self.legH / Self.scale / 2)
+            var legBox = b2MakeBox(Self.legW / Self.scale, Self.legH / Self.scale)
             
             var legShapeDef = b2DefaultShapeDef()
             legShapeDef.density = 1.0
-            legShapeDef.material.friction = 0.2
             legShapeDef.material.restitution = 0.0
             legShapeDef.filter.categoryBits = Self.legsCategory
             legShapeDef.filter.maskBits = Self.groundCategory
@@ -515,23 +511,30 @@ public struct LunarLanderContinuous: Env {
             jointDef.base.bodyIdA = landerId
             jointDef.base.bodyIdB = legId
             jointDef.base.localFrameA = b2Transform(
-                p: b2Vec2(x: sign * Self.legAway / Self.scale, y: -Self.legDown / Self.scale + Self.legH / Self.scale / 2),
+                p: b2Vec2(x: 0, y: 0),
                 q: b2MakeRot(0)
             )
             jointDef.base.localFrameB = b2Transform(
-                p: b2Vec2(x: 0, y: Self.legH / Self.scale / 2),
+                p: b2Vec2(x: sign * Self.legAway / Self.scale, y: Self.legDown / Self.scale),
                 q: b2MakeRot(0)
             )
             jointDef.enableLimit = true
-            jointDef.lowerAngle = sign == -1 ? -0.9 : 0.05
-            jointDef.upperAngle = sign == -1 ? -0.05 : 0.9
-            jointDef.enableSpring = true
-            jointDef.hertz = 5.0
-            jointDef.dampingRatio = 0.7
+
+            if i == -1 {
+                jointDef.lowerAngle = 0.9 - 0.5  // +0.4
+                jointDef.upperAngle = 0.9
+            } else {
+                jointDef.lowerAngle = -0.9
+                jointDef.upperAngle = -0.9 + 0.5  // -0.4
+            }
+            // Use motor like Gymnasium instead of spring
+            jointDef.enableMotor = true
+            jointDef.maxMotorTorque = Self.legSpringTorque
+            jointDef.motorSpeed = 0.3 * sign
             
             _ = b2CreateRevoluteJoint(worldId, &jointDef)
             
-            if i == 0 {
+            if i == -1 {
                 leftLegId = legId
             } else {
                 rightLegId = legId
