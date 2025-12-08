@@ -28,7 +28,14 @@ let package = Package(
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
-        .target(name: "Box2D"),
+        .target(name: "Box2D",
+            path: "Vendor/Box2D",
+            sources: ["src"],
+            publicHeadersPath: "include",
+            cSettings: [
+                .headerSearchPath("include")
+            ]
+        ),
         .target(
             name: "Gymnazo",
             dependencies: [.product(name: "MLX", package: "mlx-swift"),
