@@ -508,16 +508,10 @@ public struct LunarLanderContinuous: Env {
             _ = b2CreatePolygonShape(legId, &legShapeDef, &legBox)
             
             var jointDef = b2DefaultRevoluteJointDef()
-            jointDef.base.bodyIdA = landerId
-            jointDef.base.bodyIdB = legId
-            jointDef.base.localFrameA = b2Transform(
-                p: b2Vec2(x: 0, y: 0),
-                q: b2MakeRot(0)
-            )
-            jointDef.base.localFrameB = b2Transform(
-                p: b2Vec2(x: sign * Self.legAway / Self.scale, y: Self.legDown / Self.scale),
-                q: b2MakeRot(0)
-            )
+            jointDef.bodyIdA = landerId
+            jointDef.bodyIdB = legId
+            jointDef.localAnchorA = b2Vec2(x: 0, y: 0)
+            jointDef.localAnchorB = b2Vec2(x: sign * Self.legAway / Self.scale, y: Self.legDown / Self.scale)
             jointDef.enableLimit = true
 
             if i == -1 {
