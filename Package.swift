@@ -30,6 +30,7 @@ let package = Package(
         // Targets can depend on other targets in this package and products from dependencies.
         .target(name: "Box2D",
             path: "Vendor/Box2D",
+            exclude: ["src/box2d.natvis", "src/CMakeLists.txt"],
             sources: ["src"],
             publicHeadersPath: "include",
             cSettings: [
