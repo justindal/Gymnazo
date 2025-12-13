@@ -43,9 +43,11 @@ public class LunarLanderScene: SKScene {
     private var rightLegNode: SKShapeNode?
     private var leftFlagNode: SKNode?
     private var rightFlagNode: SKNode?
-    private var mainFlameNode: SKShapeNode?
-    private var leftFlameNode: SKShapeNode?
-    private var rightFlameNode: SKShapeNode?
+    
+    // Particle emitters for engine flames (like Gymnasium)
+    private var mainEngineEmitter: SKEmitterNode?
+    private var leftEngineEmitter: SKEmitterNode?
+    private var rightEngineEmitter: SKEmitterNode?
     
     private let physicsScale: CGFloat = 30.0
     private let viewportW: CGFloat = 600
@@ -60,10 +62,8 @@ public class LunarLanderScene: SKScene {
         CGPoint(x: 14, y: 17)
     ]
     
-    private let legAway: CGFloat = 20
-    private let legDown: CGFloat = 18
-    private let legW: CGFloat = 3
-    private let legH: CGFloat = 12
+    private let legW: CGFloat = 4
+    private let legH: CGFloat = 16
     
     public override init(size: CGSize = CGSize(width: 600, height: 400)) {
         super.init(size: size)
@@ -118,20 +118,20 @@ public class LunarLanderScene: SKScene {
         rightLegNode?.zPosition = 9
         addChild(rightLegNode!)
         
-        mainFlameNode = createMainFlame()
-        mainFlameNode?.zPosition = 8
-        mainFlameNode?.isHidden = true
-        addChild(mainFlameNode!)
+        mainEngineEmitter = createMainEngineEmitter()
+        mainEngineEmitter?.zPosition = 8
+        mainEngineEmitter?.particleBirthRate = 0
+        addChild(mainEngineEmitter!)
         
-        leftFlameNode = createSideFlame()
-        leftFlameNode?.zPosition = 8
-        leftFlameNode?.isHidden = true
-        addChild(leftFlameNode!)
+        leftEngineEmitter = createSideEngineEmitter()
+        leftEngineEmitter?.zPosition = 8
+        leftEngineEmitter?.particleBirthRate = 0
+        addChild(leftEngineEmitter!)
         
-        rightFlameNode = createSideFlame()
-        rightFlameNode?.zPosition = 8
-        rightFlameNode?.isHidden = true
-        addChild(rightFlameNode!)
+        rightEngineEmitter = createSideEngineEmitter()
+        rightEngineEmitter?.zPosition = 8
+        rightEngineEmitter?.particleBirthRate = 0
+        addChild(rightEngineEmitter!)
     }
     
     private func createStarfield() {
@@ -151,11 +151,9 @@ public class LunarLanderScene: SKScene {
     
     private func createLanderShape() -> SKShapeNode {
         let path = CGMutablePath()
-        let scaledPoly = landerPoly.map { CGPoint(x: $0.x * 0.8, y: $0.y * 0.8) }
-        
-        path.move(to: scaledPoly[0])
-        for i in 1..<scaledPoly.count {
-            path.addLine(to: scaledPoly[i])
+        path.move(to: landerPoly[0])
+        for i in 1..<landerPoly.count {
+            path.addLine(to: landerPoly[i])
         }
         path.closeSubpath()
         
@@ -203,32 +201,82 @@ public class LunarLanderScene: SKScene {
         return container
     }
     
-    private func createMainFlame() -> SKShapeNode {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: -8, y: 0))
-        path.addLine(to: CGPoint(x: 0, y: -30))
-        path.addLine(to: CGPoint(x: 8, y: 0))
-        path.closeSubpath()
+    /// Particles for engine
+    private func createMainEngineEmitter() -> SKEmitterNode {
+        let emitter = SKEmitterNode()
         
-        let node = SKShapeNode(path: path)
-        node.fillColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)
-        node.strokeColor = SKColor(red: 1.0, green: 0.9, blue: 0.5, alpha: 1.0)
-        node.lineWidth = 2
-        return node
+        emitter.particleSize = CGSize(width: 6, height: 6)
+        emitter.particleBlendMode = .add
+        
+        emitter.particleColor = SKColor(red: 1.0, green: 0.7, blue: 0.3, alpha: 1.0)
+        emitter.particleColorBlendFactor = 1.0
+        emitter.particleColorSequence = SKKeyframeSequence(
+            keyframeValues: [
+                SKColor(red: 1.0, green: 0.9, blue: 0.5, alpha: 1.0),
+                SKColor(red: 1.0, green: 0.5, blue: 0.2, alpha: 1.0),
+                SKColor(red: 0.4, green: 0.2, blue: 0.2, alpha: 0.5),
+                SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 0.0),
+            ],
+            times: [0, 0.2, 0.6, 1.0]
+        )
+        
+        emitter.particleLifetime = 0.4
+        emitter.particleLifetimeRange = 0.2
+        
+        emitter.emissionAngle = -.pi / 2
+        emitter.emissionAngleRange = .pi / 8
+        
+        emitter.particleSpeed = 150
+        emitter.particleSpeedRange = 50
+        
+        emitter.particleBirthRate = 0
+        
+        emitter.particleScale = 1.0
+        emitter.particleScaleSpeed = -1.5
+        
+        emitter.particleAlpha = 1.0
+        emitter.particleAlphaSpeed = -2.0
+        
+        return emitter
     }
     
-    private func createSideFlame() -> SKShapeNode {
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 0, y: -4))
-        path.addLine(to: CGPoint(x: 15, y: 0))
-        path.addLine(to: CGPoint(x: 0, y: 4))
-        path.closeSubpath()
+    /// Particles for side engines
+    private func createSideEngineEmitter() -> SKEmitterNode {
+        let emitter = SKEmitterNode()
         
-        let node = SKShapeNode(path: path)
-        node.fillColor = SKColor(red: 1.0, green: 0.6, blue: 0.2, alpha: 1.0)
-        node.strokeColor = SKColor(red: 1.0, green: 0.9, blue: 0.5, alpha: 1.0)
-        node.lineWidth = 1
-        return node
+        emitter.particleSize = CGSize(width: 4, height: 4)
+        emitter.particleBlendMode = .add
+        
+        emitter.particleColor = SKColor(red: 1.0, green: 0.7, blue: 0.3, alpha: 1.0)
+        emitter.particleColorBlendFactor = 1.0
+        emitter.particleColorSequence = SKKeyframeSequence(
+            keyframeValues: [
+                SKColor(red: 1.0, green: 0.9, blue: 0.5, alpha: 1.0),
+                SKColor(red: 1.0, green: 0.5, blue: 0.2, alpha: 1.0),
+                SKColor(red: 0.4, green: 0.2, blue: 0.2, alpha: 0.5),
+                SKColor(red: 0.2, green: 0.2, blue: 0.2, alpha: 0.0),
+            ],
+            times: [0, 0.2, 0.6, 1.0]
+        )
+        
+        emitter.particleLifetime = 0.25
+        emitter.particleLifetimeRange = 0.1
+        
+        emitter.emissionAngle = 0
+        emitter.emissionAngleRange = .pi / 10
+        
+        emitter.particleSpeed = 80
+        emitter.particleSpeedRange = 30
+        
+        emitter.particleBirthRate = 0
+        
+        emitter.particleScale = 1.0
+        emitter.particleScaleSpeed = -2.0
+        
+        emitter.particleAlpha = 1.0
+        emitter.particleAlphaSpeed = -3.0
+        
+        return emitter
     }
     
     private func updateTerrain() {
@@ -272,86 +320,107 @@ public class LunarLanderScene: SKScene {
         
         let scaleX = size.width / viewportW
         let scaleY = size.height / viewportH
+        let uniformScale = min(scaleX, scaleY)
         
         let screenX = CGFloat(snapshot.x) * physicsScale * scaleX
         let screenY = CGFloat(snapshot.y) * physicsScale * scaleY
         
         lander.position = CGPoint(x: screenX, y: screenY)
-        lander.zRotation = -CGFloat(snapshot.angle)
+        lander.zRotation = CGFloat(snapshot.angle)
+        lander.setScale(uniformScale)
         
-        let angle = CGFloat(snapshot.angle)
-        let cosA = cos(angle)
-        let sinA = sin(angle)
+        let leftLegScreenX = CGFloat(snapshot.leftLegX) * physicsScale * scaleX
+        let leftLegScreenY = CGFloat(snapshot.leftLegY) * physicsScale * scaleY
+        leftLeg.position = CGPoint(x: leftLegScreenX, y: leftLegScreenY)
+        leftLeg.zRotation = CGFloat(snapshot.leftLegAngle)
+        leftLeg.setScale(uniformScale)
         
-        let legAwayScaled = legAway * 0.8 * scaleX
-        let legDownScaled = legDown * 0.8 * scaleY
+        let rightLegScreenX = CGFloat(snapshot.rightLegX) * physicsScale * scaleX
+        let rightLegScreenY = CGFloat(snapshot.rightLegY) * physicsScale * scaleY
+        rightLeg.position = CGPoint(x: rightLegScreenX, y: rightLegScreenY)
+        rightLeg.zRotation = CGFloat(snapshot.rightLegAngle)
+        rightLeg.setScale(uniformScale)
         
-        let leftOffsetX = -legAwayScaled * cosA + legDownScaled * sinA
-        let leftOffsetY = -legAwayScaled * sinA - legDownScaled * cosA
-        leftLeg.position = CGPoint(x: screenX + leftOffsetX, y: screenY + leftOffsetY)
-        leftLeg.zRotation = -angle
-        leftLeg.fillColor = snapshot.leftLegContact ?
-            SKColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0) :
-            SKColor(red: 0.5, green: 0.4, blue: 0.9, alpha: 1.0)
-        
-        let rightOffsetX = legAwayScaled * cosA + legDownScaled * sinA
-        let rightOffsetY = legAwayScaled * sinA - legDownScaled * cosA
-        rightLeg.position = CGPoint(x: screenX + rightOffsetX, y: screenY + rightOffsetY)
-        rightLeg.zRotation = -angle
-        rightLeg.fillColor = snapshot.rightLegContact ?
-            SKColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0) :
-            SKColor(red: 0.5, green: 0.4, blue: 0.9, alpha: 1.0)
+        if snapshot.gameOver {
+            lander.fillColor = SKColor(red: 0.8, green: 0.2, blue: 0.2, alpha: 1.0)
+            lander.strokeColor = SKColor(red: 0.5, green: 0.1, blue: 0.1, alpha: 1.0)
+            leftLeg.fillColor = SKColor(red: 0.8, green: 0.2, blue: 0.2, alpha: 1.0)
+            rightLeg.fillColor = SKColor(red: 0.8, green: 0.2, blue: 0.2, alpha: 1.0)
+        } else {
+            lander.fillColor = SKColor(red: 0.5, green: 0.4, blue: 0.9, alpha: 1.0)
+            lander.strokeColor = SKColor(red: 0.3, green: 0.3, blue: 0.5, alpha: 1.0)
+            
+            leftLeg.fillColor = snapshot.leftLegContact ?
+                SKColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0) :
+                SKColor(red: 0.5, green: 0.4, blue: 0.9, alpha: 1.0)
+            
+            rightLeg.fillColor = snapshot.rightLegContact ?
+                SKColor(red: 0.3, green: 0.8, blue: 0.3, alpha: 1.0) :
+                SKColor(red: 0.5, green: 0.4, blue: 0.9, alpha: 1.0)
+        }
     }
     
     private func updateFlames() {
-        guard let mainFlame = mainFlameNode,
-              let leftFlame = leftFlameNode,
-              let rightFlame = rightFlameNode,
+        guard let mainEmitter = mainEngineEmitter,
+              let leftEmitter = leftEngineEmitter,
+              let rightEmitter = rightEngineEmitter,
               let lander = landerNode else { return }
+        
+        let scaleX = size.width / viewportW
+        let scaleY = size.height / viewportH
+        let uniformScale = min(scaleX, scaleY)
         
         let angle = CGFloat(snapshot.angle)
         let cosA = cos(angle)
         let sinA = sin(angle)
         
         if snapshot.mainEnginePower > 0 {
-            mainFlame.isHidden = false
-            
-            let flameOffset: CGFloat = 15
-            let flameX = lander.position.x + flameOffset * sinA
+            let flameOffset: CGFloat = 12 * uniformScale
+            let flameX = lander.position.x - flameOffset * sinA
             let flameY = lander.position.y - flameOffset * cosA
-            mainFlame.position = CGPoint(x: flameX, y: flameY)
-            mainFlame.zRotation = -angle
+            mainEmitter.position = CGPoint(x: flameX, y: flameY)
             
-            let scale = 0.5 + CGFloat(snapshot.mainEnginePower) * 0.5
-            mainFlame.setScale(scale)
+            mainEmitter.emissionAngle = angle - .pi / 2
+            
+            let power = CGFloat(snapshot.mainEnginePower)
+            mainEmitter.particleBirthRate = 50 + power * 150
+            mainEmitter.particleSpeed = 100 + power * 100
+            mainEmitter.setScale(uniformScale)
         } else {
-            mainFlame.isHidden = true
+            mainEmitter.particleBirthRate = 0
         }
         
-        let sideEngineOffset: CGFloat = 12
-        let sideEngineHeight: CGFloat = 10
+        let sideEngineAway: CGFloat = 17 * uniformScale
+        let sideEngineHeight: CGFloat = 5 * uniformScale
         
         if snapshot.sideEnginePower < 0 {
-            leftFlame.isHidden = false
-            rightFlame.isHidden = true
+            let flameX = lander.position.x + sideEngineAway * cosA - sideEngineHeight * sinA
+            let flameY = lander.position.y + sideEngineAway * sinA + sideEngineHeight * cosA
+            leftEmitter.position = CGPoint(x: flameX, y: flameY)
             
-            let flameX = lander.position.x + sideEngineOffset * cosA + sideEngineHeight * sinA
-            let flameY = lander.position.y + sideEngineOffset * sinA - sideEngineHeight * cosA
-            leftFlame.position = CGPoint(x: flameX, y: flameY)
-            leftFlame.zRotation = -angle
-            leftFlame.xScale = -1
-        } else if snapshot.sideEnginePower > 0 {
-            leftFlame.isHidden = true
-            rightFlame.isHidden = false
+            leftEmitter.emissionAngle = angle + .pi
             
-            let flameX = lander.position.x - sideEngineOffset * cosA + sideEngineHeight * sinA
-            let flameY = lander.position.y - sideEngineOffset * sinA - sideEngineHeight * cosA
-            rightFlame.position = CGPoint(x: flameX, y: flameY)
-            rightFlame.zRotation = -angle
-            rightFlame.xScale = 1
+            let power = CGFloat(abs(snapshot.sideEnginePower))
+            leftEmitter.particleBirthRate = 30 + power * 100
+            leftEmitter.setScale(uniformScale)
+            
+            rightEmitter.particleBirthRate = 0
+        }
+        else if snapshot.sideEnginePower > 0 {
+            let flameX = lander.position.x - sideEngineAway * cosA - sideEngineHeight * sinA
+            let flameY = lander.position.y - sideEngineAway * sinA + sideEngineHeight * cosA
+            rightEmitter.position = CGPoint(x: flameX, y: flameY)
+            
+            rightEmitter.emissionAngle = angle
+            
+            let power = CGFloat(snapshot.sideEnginePower)
+            rightEmitter.particleBirthRate = 30 + power * 100
+            rightEmitter.setScale(uniformScale)
+            
+            leftEmitter.particleBirthRate = 0
         } else {
-            leftFlame.isHidden = true
-            rightFlame.isHidden = true
+            leftEmitter.particleBirthRate = 0
+            rightEmitter.particleBirthRate = 0
         }
     }
 }
@@ -359,8 +428,10 @@ public class LunarLanderScene: SKScene {
 #Preview {
     let sampleSnapshot = LunarLanderSnapshot(
         x: 10, y: 10, angle: 0.1,
+        leftLegX: 10.667, leftLegY: 9.4, leftLegAngle: 0.4,
+        rightLegX: 9.333, rightLegY: 9.4, rightLegAngle: -0.4,
         leftLegContact: false, rightLegContact: false,
-        mainEnginePower: 0.8, sideEnginePower: 0,
+        mainEnginePower: 1.0, sideEnginePower: 0,
         terrainX: [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20],
         terrainY: [2, 2.5, 3, 3.33, 3.33, 3.33, 3.33, 3, 2.5, 2, 2],
         helipadX1: 8, helipadX2: 12, helipadY: 3.33,

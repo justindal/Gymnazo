@@ -415,13 +415,28 @@ public struct LunarLanderContinuous: Env {
     }
     
     public var currentSnapshot: LunarLanderSnapshot? {
-        guard let landerId = landerId else { return nil }
+        guard let landerId = landerId,
+              let leftLegId = leftLegId,
+              let rightLegId = rightLegId else { return nil }
+        
         let pos = b2Body_GetPosition(landerId)
         let rot = b2Body_GetRotation(landerId)
+        
+        let leftLegPos = b2Body_GetPosition(leftLegId)
+        let leftLegRot = b2Body_GetRotation(leftLegId)
+        let rightLegPos = b2Body_GetPosition(rightLegId)
+        let rightLegRot = b2Body_GetRotation(rightLegId)
+        
         return LunarLanderSnapshot(
             x: pos.x,
             y: pos.y,
             angle: b2Rot_GetAngle(rot),
+            leftLegX: leftLegPos.x,
+            leftLegY: leftLegPos.y,
+            leftLegAngle: b2Rot_GetAngle(leftLegRot),
+            rightLegX: rightLegPos.x,
+            rightLegY: rightLegPos.y,
+            rightLegAngle: b2Rot_GetAngle(rightLegRot),
             leftLegContact: leftLegContact,
             rightLegContact: rightLegContact,
             mainEnginePower: lastMainPower,
@@ -515,7 +530,7 @@ public struct LunarLanderContinuous: Env {
             legBodyDef.type = b2_dynamicBody
             legBodyDef.position = b2Vec2(
                 x: landerPos.x - sign * Self.legAway / Self.scale,
-                y: landerPos.y
+                y: landerPos.y - Self.legDown / Self.scale
             )
             legBodyDef.rotation = b2MakeRot(sign * 0.05)
             
@@ -578,6 +593,9 @@ public struct LunarLanderContinuous: Env {
         
         for i in 0..<Int(count) {
             let contact = contactData[i]
+            
+            guard contact.manifold.pointCount > 0 else { continue }
+            
             let shapeA = contact.shapeIdA
             let shapeB = contact.shapeIdB
             
@@ -604,6 +622,9 @@ public struct LunarLanderContinuous: Env {
         
         for i in 0..<Int(count) {
             let contact = contactData[i]
+            
+            guard contact.manifold.pointCount > 0 else { continue }
+            
             let shapeA = contact.shapeIdA
             let shapeB = contact.shapeIdB
             

@@ -10,6 +10,12 @@ public struct LunarLanderSnapshot: Equatable, Sendable {
     public let x: Float
     public let y: Float
     public let angle: Float
+    public let leftLegX: Float
+    public let leftLegY: Float
+    public let leftLegAngle: Float
+    public let rightLegX: Float
+    public let rightLegY: Float
+    public let rightLegAngle: Float
     public let leftLegContact: Bool
     public let rightLegContact: Bool
     public let mainEnginePower: Float
@@ -23,6 +29,8 @@ public struct LunarLanderSnapshot: Equatable, Sendable {
     
     public init(
         x: Float, y: Float, angle: Float,
+        leftLegX: Float, leftLegY: Float, leftLegAngle: Float,
+        rightLegX: Float, rightLegY: Float, rightLegAngle: Float,
         leftLegContact: Bool, rightLegContact: Bool,
         mainEnginePower: Float, sideEnginePower: Float,
         terrainX: [Float], terrainY: [Float],
@@ -32,6 +40,12 @@ public struct LunarLanderSnapshot: Equatable, Sendable {
         self.x = x
         self.y = y
         self.angle = angle
+        self.leftLegX = leftLegX
+        self.leftLegY = leftLegY
+        self.leftLegAngle = leftLegAngle
+        self.rightLegX = rightLegX
+        self.rightLegY = rightLegY
+        self.rightLegAngle = rightLegAngle
         self.leftLegContact = leftLegContact
         self.rightLegContact = rightLegContact
         self.mainEnginePower = mainEnginePower
@@ -47,6 +61,8 @@ public struct LunarLanderSnapshot: Equatable, Sendable {
     public static var zero: LunarLanderSnapshot {
         LunarLanderSnapshot(
             x: 0, y: 0, angle: 0,
+            leftLegX: 0, leftLegY: 0, leftLegAngle: 0,
+            rightLegX: 0, rightLegY: 0, rightLegAngle: 0,
             leftLegContact: false, rightLegContact: false,
             mainEnginePower: 0, sideEnginePower: 0,
             terrainX: [], terrainY: [],
@@ -460,13 +476,28 @@ public struct LunarLander: Env {
     }
     
     public var currentSnapshot: LunarLanderSnapshot? {
-        guard let landerId = landerId else { return nil }
+        guard let landerId = landerId,
+              let leftLegId = leftLegId,
+              let rightLegId = rightLegId else { return nil }
+        
         let pos = b2Body_GetPosition(landerId)
         let rot = b2Body_GetRotation(landerId)
+        
+        let leftLegPos = b2Body_GetPosition(leftLegId)
+        let leftLegRot = b2Body_GetRotation(leftLegId)
+        let rightLegPos = b2Body_GetPosition(rightLegId)
+        let rightLegRot = b2Body_GetRotation(rightLegId)
+        
         return LunarLanderSnapshot(
             x: pos.x,
             y: pos.y,
             angle: b2Rot_GetAngle(rot),
+            leftLegX: leftLegPos.x,
+            leftLegY: leftLegPos.y,
+            leftLegAngle: b2Rot_GetAngle(leftLegRot),
+            rightLegX: rightLegPos.x,
+            rightLegY: rightLegPos.y,
+            rightLegAngle: b2Rot_GetAngle(rightLegRot),
             leftLegContact: leftLegContact,
             rightLegContact: rightLegContact,
             mainEnginePower: lastMainPower,
@@ -560,7 +591,7 @@ public struct LunarLander: Env {
             legBodyDef.type = b2_dynamicBody
             legBodyDef.position = b2Vec2(
                 x: landerPos.x - sign * Self.legAway / Self.scale,
-                y: landerPos.y
+                y: landerPos.y - Self.legDown / Self.scale
             )
             legBodyDef.rotation = b2MakeRot(sign * 0.05)
             
@@ -621,6 +652,9 @@ public struct LunarLander: Env {
         
         for i in 0..<Int(count) {
             let contact = contactData[i]
+            
+            guard contact.manifold.pointCount > 0 else { continue }
+            
             let shapeA = contact.shapeIdA
             let shapeB = contact.shapeIdB
             
@@ -647,6 +681,9 @@ public struct LunarLander: Env {
         
         for i in 0..<Int(count) {
             let contact = contactData[i]
+            
+            guard contact.manifold.pointCount > 0 else { continue }
+            
             let shapeA = contact.shapeIdA
             let shapeB = contact.shapeIdB
             
