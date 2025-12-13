@@ -221,8 +221,26 @@ public struct LunarLander: Env {
         
         self.action_space = Discrete(n: 4)
         
-        let low = MLXArray([-.infinity, -.infinity, -.infinity, -.infinity, -.infinity, -.infinity, 0.0, 0.0] as [Float32])
-        let high = MLXArray([.infinity, .infinity, .infinity, .infinity, .infinity, .infinity, 1.0, 1.0] as [Float32])
+        let low = MLXArray([
+            -2.5,   // x position
+            -2.5,   // y position
+            -10.0,  // x velocity
+            -10.0,  // y velocity
+            -2 * Float.pi, // angle
+            -10.0,  // angular velocity
+            0.0,    // left leg contact
+            0.0     // right leg contact
+        ] as [Float32])
+        let high = MLXArray([
+            2.5,
+            2.5,
+            10.0,
+            10.0,
+            2 * Float.pi,
+            10.0,
+            1.0,
+            1.0
+        ] as [Float32])
         self.observation_space = Box(low: low, high: high, dtype: .float32)
     }
     
@@ -288,7 +306,7 @@ public struct LunarLander: Env {
         }
         lastSidePower = (action == 1 ? -1.0 : (action == 3 ? 1.0 : 0.0)) * sPower
         
-        b2World_Step(worldId, 1.0 / Self.fps, 4)
+        b2World_Step(worldId, 1.0 / Self.fps, 8)
         
         updateLegContacts()
         checkBodyContact()
@@ -319,7 +337,7 @@ public struct LunarLander: Env {
         }
         
         let isAwake = b2Body_IsAwake(landerId)
-        if !isAwake && (leftLegContact || rightLegContact) {
+        if !isAwake {
             terminated = true
             reward = 100
         }
@@ -399,7 +417,7 @@ public struct LunarLander: Env {
         let forceY = MLX.uniform(low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey2)[0].item(Float.self)
         
         if let landerId = landerId {
-            b2Body_ApplyLinearImpulseToCenter(landerId, b2Vec2(x: forceX, y: forceY), true)
+            b2Body_ApplyForceToCenter(landerId, b2Vec2(x: forceX, y: forceY), true)
         }
         
         if enableWind {
@@ -411,8 +429,14 @@ public struct LunarLander: Env {
         
         lastMainPower = 0
         lastSidePower = 0
+
+        b2World_Step(worldId!, 1.0 / Self.fps, 8)
+        updateLegContacts()
+        checkBodyContact()
+        let obs = getObservation()
+        prevShaping = computeShaping(from: obs)
         
-        return (obs: getObservation(), info: [:])
+        return (obs: obs, info: [:])
     }
     
     @discardableResult
@@ -674,5 +698,14 @@ public struct LunarLander: Env {
         let (k1, rest) = MLX.split(key: key)
         let (k2, k3) = MLX.split(key: rest)
         return (k1, k2, k3)
+    }
+    
+    private func computeShaping(from obs: MLXArray) -> Float {
+        let s = obs.asArray(Float.self)
+        return -100.0 * sqrt(s[0] * s[0] + s[1] * s[1])
+             - 100.0 * sqrt(s[2] * s[2] + s[3] * s[3])
+             - 100.0 * abs(s[4])
+             + 10.0 * s[6]
+             + 10.0 * s[7]
     }
 }

@@ -56,10 +56,18 @@ struct LunarLanderTests {
         let low = env.observation_space.low.asArray(Float.self)
         let high = env.observation_space.high.asArray(Float.self)
         
-        #expect(low[0] == -.infinity)
-        #expect(high[0] == .infinity)
-        #expect(low[1] == -.infinity)
-        #expect(high[1] == .infinity)
+        #expect(low[0] == -2.5)
+        #expect(high[0] == 2.5)
+        #expect(low[1] == -2.5)
+        #expect(high[1] == 2.5)
+        #expect(low[2] == -10.0)
+        #expect(high[2] == 10.0)
+        #expect(low[3] == -10.0)
+        #expect(high[3] == 10.0)
+        #expect(low[4] == -2 * Float.pi)
+        #expect(high[4] == 2 * Float.pi)
+        #expect(low[5] == -10.0)
+        #expect(high[5] == 10.0)
         #expect(low[6] == 0.0)
         #expect(high[6] == 1.0)
         #expect(low[7] == 0.0)
@@ -193,6 +201,24 @@ struct LunarLanderTests {
         
         #expect(yFinal < yInit)
     }
+
+    @Test
+    func testCrashTerminatesWithNegativeReward() async throws {
+        var env = LunarLander()
+        _ = env.reset(seed: 123)
+        
+        var terminated = false
+        var reward: Double = 0
+        for _ in 0..<400 {
+            let step = env.step(0) // no thrust, should eventually crash or go out of bounds
+            terminated = step.terminated
+            reward = step.reward
+            if terminated { break }
+        }
+        
+        #expect(terminated == true)
+        #expect(reward == -100)
+    }
     
     @Test
     func testFuelCostInReward() async throws {
@@ -308,6 +334,26 @@ struct LunarLanderContinuousTests {
         
         // Same as discrete: 8-dimensional
         #expect(env.observation_space.shape == [8])
+        
+        let low = env.observation_space.low.asArray(Float.self)
+        let high = env.observation_space.high.asArray(Float.self)
+        
+        #expect(low[0] == -2.5)
+        #expect(high[0] == 2.5)
+        #expect(low[1] == -2.5)
+        #expect(high[1] == 2.5)
+        #expect(low[2] == -10.0)
+        #expect(high[2] == 10.0)
+        #expect(low[3] == -10.0)
+        #expect(high[3] == 10.0)
+        #expect(low[4] == -2 * Float.pi)
+        #expect(high[4] == 2 * Float.pi)
+        #expect(low[5] == -10.0)
+        #expect(high[5] == 10.0)
+        #expect(low[6] == 0.0)
+        #expect(high[6] == 1.0)
+        #expect(low[7] == 0.0)
+        #expect(high[7] == 1.0)
     }
     
     @Test
@@ -328,6 +374,40 @@ struct LunarLanderContinuousTests {
         let (obs, reward, _, _, _) = env.step(action)
         
         #expect(obs.shape == [8])
+    }
+
+    @Test
+    func testOutOfRangeActionIsClipped() async throws {
+        var env = LunarLanderContinuous()
+        _ = env.reset(seed: 42)
+        
+        // Action beyond allowed range should be clipped internally
+        let action = MLXArray([2.0, -2.0] as [Float32])
+        let (obs, _, _, _, _) = env.step(action)
+        
+        #expect(obs.shape == [8])
+        // Contacts remain within bounds after stepping
+        let leftContact = obs[6].item(Float.self)
+        let rightContact = obs[7].item(Float.self)
+        #expect(leftContact >= 0.0 && leftContact <= 1.0)
+        #expect(rightContact >= 0.0 && rightContact <= 1.0)
+    }
+
+    @Test
+    func testWindSeedingDeterminism() async throws {
+        var env1 = LunarLanderContinuous(enableWind: true)
+        var env2 = LunarLanderContinuous(enableWind: true)
+        var env3 = LunarLanderContinuous(enableWind: true)
+        
+        let (obs1, _) = env1.reset(seed: 7)
+        let (obs2, _) = env2.reset(seed: 7)
+        let (obs3, _) = env3.reset(seed: 8)
+        
+        let diffSame = abs(obs1 - obs2).sum().item(Float.self)
+        let diffDifferent = abs(obs1 - obs3).sum().item(Float.self)
+        
+        #expect(diffSame < 1e-6)
+        #expect(diffDifferent > 1e-6)
     }
     
     @Test
