@@ -1,6 +1,10 @@
 import Foundation
 import MLX
 
+/// Returns a space equivalent to `space` with its leaf components flattened where possible.
+///
+/// Spaces like ``Box``, ``Discrete``, ``MultiBinary``, ``MultiDiscrete``, ``Tuple``, ``Dict``, and ``TextSpace`` flatten to a single ``Box``.
+/// - ``SequenceSpace`` and ``Graph`` preserve their structure and flatten their element/node/edge spaces.
 public func flatten_space(_ space: any Space) -> any Space {
     if let box = space as? Box {
         let (low, high, dtype) = flattenBoxBounds(box)
@@ -46,10 +50,14 @@ public func flatten_space(_ space: any Space) -> any Space {
     fatalError("flatten_space not implemented for space \(type(of: space))")
 }
 
+/// Returns a flattened ``Box`` if and only if `flatten_space(space)` is a ``Box``.
 public func flattenSpaceToBox(_ space: any Space) -> Box? {
     flatten_space(space) as? Box
 }
 
+/// Returns the dimensionality of a space that flattens to a ``Box``.
+///
+/// - Note: This is only defined when `flatten_space(space)` returns a ``Box``.
 public func flatdim(_ space: any Space) -> Int {
     guard let box = flattenSpaceToBox(space) else {
         fatalError("flatdim requires a space that flattens to Box")
@@ -58,6 +66,12 @@ public func flatdim(_ space: any Space) -> Int {
     return shape.reduce(1, *)
 }
 
+/// Flattens a sample from `space` into its Gymnasium-style flattened representation.
+///
+/// - Returns:
+///   - `MLXArray` when `flatten_space(space)` is a ``Box``.
+///   - ``SequenceSample`` when `space` is a ``SequenceSpace``.
+///   - ``GraphSample`` when `space` is a ``Graph``.
 public func flatten(space: any Space, sample: Any) -> Any {
     if flattenSpaceToBox(space) != nil {
         return flattenToBox(space: space, sample: sample)
@@ -80,6 +94,7 @@ public func flatten(space: any Space, sample: Any) -> Any {
     fatalError("flatten not implemented for space \(type(of: space))")
 }
 
+/// Inverse of ``flatten(space:sample:)``.
 public func unflatten(space: any Space, flattened: Any) -> Any {
     if flattenSpaceToBox(space) != nil {
         guard let flat = flattened as? MLXArray else {

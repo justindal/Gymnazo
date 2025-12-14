@@ -1,3 +1,4 @@
+/// A reward wrapper that applies a function to every reward.
 public struct TransformReward<InnerEnv: Env>: Wrapper {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
@@ -8,6 +9,11 @@ public struct TransformReward<InnerEnv: Env>: Wrapper {
     public var env: InnerEnv
     public let transform: (Double) -> Double
 
+    /// Creates the wrapper.
+    ///
+    /// - Parameters:
+    ///   - env: The environment to wrap.
+    ///   - transform: A function applied to every reward.
     public init(env: InnerEnv, transform: @escaping (Double) -> Double) {
         self.env = env
         self.transform = transform

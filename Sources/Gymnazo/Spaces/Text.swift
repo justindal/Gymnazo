@@ -1,5 +1,8 @@
 import MLX
 
+/// A space representing strings composed from a fixed character set.
+///
+/// A sample is a `String` whose length is in `[minLength, maxLength]` and whose characters all belong to `charset`.
 public struct TextSpace: Space {
     public typealias T = String
 
@@ -7,6 +10,12 @@ public struct TextSpace: Space {
     public let maxLength: Int
     public let charset: [Character]
 
+    /// Creates a text space with an explicit character set.
+    ///
+    /// - Parameters:
+    ///   - minLength: Minimum string length (inclusive).
+    ///   - maxLength: Maximum string length (inclusive).
+    ///   - charset: Allowed characters.
     public init(minLength: Int, maxLength: Int, charset: [Character]) {
         precondition(minLength >= 0, "minLength must be non-negative")
         precondition(maxLength >= minLength, "maxLength must be >= minLength")
@@ -16,11 +25,17 @@ public struct TextSpace: Space {
         self.charset = charset
     }
 
+    /// Creates a text space with a default alphanumeric character set.
+    ///
+    /// - Parameters:
+    ///   - minLength: Minimum string length (inclusive).
+    ///   - maxLength: Maximum string length (inclusive).
     public init(minLength: Int, maxLength: Int) {
         let defaultChars = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".map { $0 })
         self.init(minLength: minLength, maxLength: maxLength, charset: defaultChars)
     }
 
+    /// Samples a random string from the space.
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> String {
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
@@ -44,6 +59,7 @@ public struct TextSpace: Space {
         return String(out)
     }
 
+    /// Returns `true` if the string length is in range and all characters are members of `charset`.
     public func contains(_ x: String) -> Bool {
         let len = x.count
         if len < minLength || len > maxLength { return false }

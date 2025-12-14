@@ -1,21 +1,33 @@
 import MLX
 
+/// An n-dimensional binary space.
+///
+/// Elements of this space are binary arrays of a shape that is fixed during construction.
 public struct MultiBinary: Space {
     public typealias T = MLXArray
 
     public let shape: [Int]?
     public let dtype: DType? = .int32
 
+    /// Creates a 1D binary space with shape `[n]`.
+    ///
+    /// - Parameter n: The number of binary variables.
     public init(n: Int) {
         precondition(n >= 0, "n must be non-negative")
         self.shape = [n]
     }
 
+    /// Creates an n-dimensional binary space with the given shape.
+    ///
+    /// - Parameter shape: The shape of the binary array.
     public init(shape: [Int]) {
         precondition(shape.allSatisfy { $0 >= 0 }, "shape must be non-negative")
         self.shape = shape
     }
 
+    /// Samples a random binary array from the space.
+    ///
+    /// - Note: `mask` and `probability` are currently ignored.
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
         guard let shape else {
             fatalError("MultiBinary requires a defined shape")
@@ -24,6 +36,7 @@ public struct MultiBinary: Space {
         return (u01 .>= 0.5).asType(.int32)
     }
 
+    /// Returns `true` if `x` is in `{0,1}` elementwise and has the correct shape.
     public func contains(_ x: MLXArray) -> Bool {
         if let shape, x.shape != shape { return false }
         let xI = x.asType(.int32)
@@ -34,6 +47,7 @@ public struct MultiBinary: Space {
 }
 
 extension MultiBinary: MLXSpace {
+    /// Samples `count` binary arrays and returns a batched tensor of shape `[count] + shape`.
     public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
         precondition(count >= 0, "count must be non-negative")
         guard let elementShape = shape else {

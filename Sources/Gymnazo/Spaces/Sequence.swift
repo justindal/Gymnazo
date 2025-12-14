@@ -1,21 +1,32 @@
 import MLX
 
+/// A type-erased view of a ``SequenceSpace``.
 public protocol AnySequenceSpace: Space where T == SequenceSample {
     var minLength: Int { get }
     var maxLength: Int { get }
     var elementSpace: any MLXSpace { get }
 }
 
+/// A padded, fixed-shape representation of a variable-length sequence.
+///
+/// This is the sample type for ``SequenceSpace``. The first dimension of `values` is `maxLength` and `mask`
+/// indicates which leading items are valid.
 public struct SequenceSample {
     public let values: MLXArray
     public let mask: MLXArray
 
+    /// Creates a sequence sample.
+    ///
+    /// - Parameters:
+    ///   - values: A tensor of shape `[maxLength] + elementShape`.
+    ///   - mask: A boolean vector of shape `[maxLength]` where `true` means “valid element”.
     public init(values: MLXArray, mask: MLXArray) {
         self.values = values
         self.mask = mask
     }
 }
 
+/// A space representing variable-length sequences of elements from an inner space.
 public struct SequenceSpace<Inner: MLXSpace>: Space {
     public typealias T = SequenceSample
 
@@ -26,6 +37,12 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
     private let elementShape: [Int]
     private let elementCount: Int
 
+    /// Creates a sequence space.
+    ///
+    /// - Parameters:
+    ///   - space: The element space.
+    ///   - minLength: Minimum sampled length (inclusive).
+    ///   - maxLength: Maximum sampled length (inclusive) and the padded length of returned samples.
     public init(space: Inner, minLength: Int = 0, maxLength: Int) {
         precondition(minLength >= 0, "minLength must be non-negative")
         precondition(maxLength >= minLength, "maxLength must be >= minLength")
@@ -42,6 +59,10 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
     public var shape: [Int]? { nil }
     public var dtype: DType? { nil }
 
+    /// Samples a sequence from the space.
+    ///
+    /// - Returns: A padded ``SequenceSample`` where `mask` is `true` for a prefix of length `L` and `false` elsewhere.
+    /// - Note: `mask` and `probability` are currently ignored.
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> SequenceSample {
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
@@ -60,6 +81,7 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
         return SequenceSample(values: values, mask: maskArr)
     }
 
+    /// Returns `true` if shapes match, the mask is a valid prefix mask, and all unmasked elements are contained in `space`.
     public func contains(_ x: SequenceSample) -> Bool {
         if x.mask.shape != [maxLength] { return false }
         if x.values.shape.count < 1 { return false }

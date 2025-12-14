@@ -1,5 +1,6 @@
 import Foundation
 
+/// Normalizes immediate rewards using a running estimate of return variance.
 public struct NormalizeReward<InnerEnv: Env>: Wrapper {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
@@ -33,6 +34,12 @@ public struct NormalizeReward<InnerEnv: Env>: Wrapper {
     private let rms = RunningMeanStd()
     private var returns: Double = 0
 
+    /// Creates the wrapper.
+    ///
+    /// - Parameters:
+    ///   - env: The environment to wrap.
+    ///   - gamma: Discount factor used to compute the running return.
+    ///   - epsilon: Numerical stability constant.
     public init(env: InnerEnv, gamma: Double = 0.99, epsilon: Double = 1e-8) {
         self.env = env
         self.gamma = gamma

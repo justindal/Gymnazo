@@ -1,5 +1,9 @@
 import MLX
 
+/// An observation wrapper that flattens observations into a 1D tensor.
+///
+/// This wrapper only supports environments whose observation space flattens to a ``Box`` via
+///   ``flatten_space(_:)``. In particular, ``SequenceSpace`` and ``Graph`` preserve structure under `flatten_space`.
 public struct FlattenObservation<InnerEnv: Env>: TransformingWrapper {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = MLXArray
@@ -12,6 +16,7 @@ public struct FlattenObservation<InnerEnv: Env>: TransformingWrapper {
 
     private let baseSpace: any Space
 
+    /// Creates the wrapper and computes the flattened observation space.
     public init(env: InnerEnv) {
         self.env = env
         let s: any Space = env.observation_space

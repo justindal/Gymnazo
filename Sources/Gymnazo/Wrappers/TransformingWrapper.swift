@@ -1,3 +1,4 @@
+/// A wrapper protocol for environments that change their observation and/or action types.
 public protocol TransformingWrapper: Env {
     associatedtype InnerEnv: Env
     var env: InnerEnv { get set }

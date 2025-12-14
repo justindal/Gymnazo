@@ -1,5 +1,6 @@
 import MLX
 
+/// A type-erased view of a ``Graph`` space.
 public protocol AnyGraphSpace: Space where T == GraphSample {
     var maxNodes: Int { get }
     var maxEdges: Int { get }
@@ -9,6 +10,7 @@ public protocol AnyGraphSpace: Space where T == GraphSample {
     var edgeSpaceAny: any MLXSpace { get }
 }
 
+/// A padded, fixed-shape representation of a sampled graph.
 public struct GraphSample {
     public let nodes: MLXArray
     public let edges: MLXArray
@@ -16,6 +18,14 @@ public struct GraphSample {
     public let nodeMask: MLXArray
     public let edgeMask: MLXArray
 
+    /// Creates a graph sample.
+    ///
+    /// - Parameters:
+    ///   - nodes: Node feature tensor of shape `[maxNodes] + nodeShape`.
+    ///   - edges: Edge feature tensor of shape `[maxEdges] + edgeShape`.
+    ///   - edgeLinks: Edge endpoints of shape `[maxEdges, 2]` with `-1` for padded edges.
+    ///   - nodeMask: Boolean vector of shape `[maxNodes]`.
+    ///   - edgeMask: Boolean vector of shape `[maxEdges]`.
     public init(nodes: MLXArray, edges: MLXArray, edgeLinks: MLXArray, nodeMask: MLXArray, edgeMask: MLXArray) {
         self.nodes = nodes
         self.edges = edges
@@ -25,6 +35,7 @@ public struct GraphSample {
     }
 }
 
+/// A space representing graph-structured samples with node and edge features.
 public struct Graph<NodeSpace: MLXSpace, EdgeSpace: MLXSpace>: Space {
     public typealias T = GraphSample
 
@@ -40,6 +51,15 @@ public struct Graph<NodeSpace: MLXSpace, EdgeSpace: MLXSpace>: Space {
     private let nodeCount: Int
     private let edgeCount: Int
 
+    /// Creates a graph space.
+    ///
+    /// - Parameters:
+    ///   - nodeSpace: The node feature space.
+    ///   - edgeSpace: The edge feature space.
+    ///   - maxNodes: Maximum number of nodes in padded samples.
+    ///   - maxEdges: Maximum number of edges in padded samples.
+    ///   - allowSelfLoops: Whether sampled edges may connect a node to itself.
+    ///   - directed: Whether edges are directed.
     public init(
         nodeSpace: NodeSpace,
         edgeSpace: EdgeSpace,
@@ -71,6 +91,9 @@ public struct Graph<NodeSpace: MLXSpace, EdgeSpace: MLXSpace>: Space {
     public var shape: [Int]? { nil }
     public var dtype: DType? { nil }
 
+    /// Samples a graph with random node/edge counts and returns a padded ``GraphSample``.
+    ///
+    /// - Note: `mask` and `probability` are currently ignored.
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> GraphSample {
         let keys = MLX.split(key: key, into: 4)
         let nodeCountKey = keys[0]

@@ -1,5 +1,8 @@
 import MLX
 
+/// A type-erased wrapper around any ``MLXSpace``.
+///
+/// This is useful when higher-level code needs to store an `MLXSpace` without preserving the generic type.
 public struct AnyMLXSpace: MLXSpace {
     public typealias T = MLXArray
 
@@ -10,6 +13,7 @@ public struct AnyMLXSpace: MLXSpace {
     private let containsFn: (MLXArray) -> Bool
     private let sampleBatchFn: (MLXArray, Int) -> MLXArray
 
+    /// Creates a type-erased MLX space.
     public init<S: MLXSpace>(_ space: S) {
         self.shape = space.shape
         self.dtype = space.dtype

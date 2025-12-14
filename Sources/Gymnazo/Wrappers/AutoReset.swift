@@ -1,3 +1,8 @@
+/// Automatically resets an environment when an episode ends.
+///
+/// When autoreset happens, the wrapper stores the terminated episode’s final transition under:
+/// - `info["final_observation"]`
+/// - `info["final_info"]`
 public struct AutoReset<InnerEnv: Env>: Wrapper {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
@@ -10,6 +15,11 @@ public struct AutoReset<InnerEnv: Env>: Wrapper {
 
     private var needsReset: Bool = true
 
+    /// Creates the wrapper.
+    ///
+    /// - Parameters:
+    ///   - env: The environment to wrap.
+    ///   - mode: Autoreset behavior (`nextStep`, `sameStep`, or `disabled`).
     public init(env: InnerEnv, mode: AutoresetMode = .nextStep) {
         self.env = env
         self.mode = mode
