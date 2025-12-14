@@ -1,5 +1,11 @@
 import MLX
 
+public protocol AnySequenceSpace: Space where T == SequenceSample {
+    var minLength: Int { get }
+    var maxLength: Int { get }
+    var elementSpace: any MLXSpace { get }
+}
+
 public struct SequenceSample {
     public let values: MLXArray
     public let mask: MLXArray
@@ -96,5 +102,9 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
         }
         return true
     }
+}
+
+extension SequenceSpace: AnySequenceSpace {
+    public var elementSpace: any MLXSpace { space }
 }
 

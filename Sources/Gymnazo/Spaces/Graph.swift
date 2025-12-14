@@ -1,5 +1,14 @@
 import MLX
 
+public protocol AnyGraphSpace: Space where T == GraphSample {
+    var maxNodes: Int { get }
+    var maxEdges: Int { get }
+    var allowSelfLoops: Bool { get }
+    var directed: Bool { get }
+    var nodeSpaceAny: any MLXSpace { get }
+    var edgeSpaceAny: any MLXSpace { get }
+}
+
 public struct GraphSample {
     public let nodes: MLXArray
     public let edges: MLXArray
@@ -215,5 +224,10 @@ public struct Graph<NodeSpace: MLXSpace, EdgeSpace: MLXSpace>: Space {
 
         return true
     }
+}
+
+extension Graph: AnyGraphSpace {
+    public var nodeSpaceAny: any MLXSpace { nodeSpace }
+    public var edgeSpaceAny: any MLXSpace { edgeSpace }
 }
 
