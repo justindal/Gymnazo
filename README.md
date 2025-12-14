@@ -60,7 +60,8 @@ Or open the package in Xcode and run the test scheme.
 
 ### Wrappers
 
-`TimeLimit`, `RecordEpisodeStatistics`, `ClipAction`, `RescaleAction`, `TransformObservation`, `NormalizeObservation`, `OrderEnforcing`, `PassiveEnvChecker`
+`TimeLimit`, `RecordEpisodeStatistics`, `ClipAction`, `RescaleAction`, `TransformObservation`, `NormalizeObservation`, `TransformReward`, `NormalizeReward`, `AutoReset`, `FlattenObservation`, `OrderEnforcing`, `PassiveEnvChecker`
+
 
 ## Quick Start
 
