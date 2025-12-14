@@ -28,7 +28,7 @@ public struct LunarLanderView: View {
             }
             .aspectRatio(600 / 400, contentMode: .fit)
         } else {
-            Text("LunarLander rendering requires iOS 17+ / macOS 14+")
+            SwiftUI.Text("LunarLander rendering requires iOS 17+ / macOS 14+")
                 .foregroundColor(.secondary)
         }
     }

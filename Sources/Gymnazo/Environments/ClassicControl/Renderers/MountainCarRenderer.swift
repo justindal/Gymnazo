@@ -31,7 +31,7 @@ public struct MountainCarView: View {
                     }
             }
         } else {
-            Text("Unsupported")
+            SwiftUI.Text("Unsupported")
         }
     }
 }

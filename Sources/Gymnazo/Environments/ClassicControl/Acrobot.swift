@@ -370,7 +370,7 @@ public struct AcrobotView: View {
                     }
             }
         } else {
-            Text("Unsupported")
+            SwiftUI.Text("Unsupported")
         }
     }
 }
