@@ -46,8 +46,12 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``Discrete``
 - ``Box``
 - ``MultiDiscrete``
+- ``MultiBinary``
+- ``TextSpace``
 - ``Dict``
 - ``Tuple``
+- ``SequenceSpace``
+- ``Graph``
 
 ### Vector Environments
 
