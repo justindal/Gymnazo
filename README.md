@@ -56,7 +56,7 @@ Or open the package in Xcode and run the test scheme.
 
 ### Spaces
 
-`Discrete`, `Box`, `MultiDiscrete`, `Tuple`, `Dict`
+`Discrete`, `Box`, `MultiDiscrete`, `MultiBinary`, `TextSpace`, `Tuple`, `Dict`, `SequenceSpace`, `Graph`
 
 ### Wrappers
 
