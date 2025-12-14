@@ -139,6 +139,8 @@ public struct LunarLanderContinuous: Env {
     private var leftLegContact: Bool = false
     private var rightLegContact: Bool = false
     
+    private var landingStableTime: Float = 0
+    
     private var lastMainPower: Float = 0
     private var lastSidePower: Float = 0
     
@@ -265,6 +267,7 @@ public struct LunarLanderContinuous: Env {
         
         updateLegContacts()
         checkBodyContact()
+        maybeForceSleepForLanding(timeStep: 1.0 / Self.fps)
         
         let obs = getObservation()
         let stateArray = obs.asArray(Float.self)
@@ -302,7 +305,12 @@ public struct LunarLanderContinuous: Env {
             reward: Double(reward),
             terminated: terminated,
             truncated: false,
-            info: [:]
+            info: render_mode == nil ? [:] : [
+                "lander_awake": isAwake,
+                "left_leg_contact": leftLegContact,
+                "right_leg_contact": rightLegContact,
+                "landing_stable_time": landingStableTime,
+            ]
         )
     }
     
@@ -323,6 +331,7 @@ public struct LunarLanderContinuous: Env {
         prevShaping = nil
         leftLegContact = false
         rightLegContact = false
+        landingStableTime = 0
         
         let W = Self.viewportW / Self.scale
         let H = Self.viewportH / Self.scale
@@ -580,6 +589,54 @@ public struct LunarLanderContinuous: Env {
         
         leftLegContact = checkBodyGroundContact(leftLegId)
         rightLegContact = checkBodyGroundContact(rightLegId)
+    }
+
+    private func approximateSleepVelocity(bodyId: b2BodyId) -> Float {
+        let v = b2Body_GetLinearVelocity(bodyId)
+        let w = b2Body_GetAngularVelocity(bodyId)
+
+        let aabb = b2Body_ComputeAABB(bodyId)
+        let width = aabb.upperBound.x - aabb.lowerBound.x
+        let height = aabb.upperBound.y - aabb.lowerBound.y
+        let maxExtent = 0.5 * sqrt(width * width + height * height)
+
+        let linearSpeed = sqrt(v.x * v.x + v.y * v.y)
+        return linearSpeed + abs(w) * maxExtent
+    }
+
+    private mutating func maybeForceSleepForLanding(timeStep dt: Float) {
+        guard gameOver == false else {
+            landingStableTime = 0
+            return
+        }
+
+        guard leftLegContact || rightLegContact else {
+            landingStableTime = 0
+            return
+        }
+
+        guard let landerId = landerId, let leftLegId = leftLegId, let rightLegId = rightLegId else {
+            landingStableTime = 0
+            return
+        }
+
+        let ids: [b2BodyId] = [landerId, leftLegId, rightLegId]
+        let isSleepy = ids.allSatisfy { id in
+            let threshold = b2Body_GetSleepThreshold(id)
+            return approximateSleepVelocity(bodyId: id) <= threshold
+        }
+
+        if isSleepy {
+            landingStableTime += dt
+        } else {
+            landingStableTime = 0
+        }
+
+        if landingStableTime >= 0.5 {
+            b2Body_SetAwake(landerId, false)
+            b2Body_SetAwake(leftLegId, false)
+            b2Body_SetAwake(rightLegId, false)
+        }
     }
     
     private func checkBodyGroundContact(_ bodyId: b2BodyId) -> Bool {

@@ -220,22 +220,22 @@ public class LunarLanderScene: SKScene {
             times: [0, 0.2, 0.6, 1.0]
         )
         
-        emitter.particleLifetime = 0.4
-        emitter.particleLifetimeRange = 0.2
+        emitter.particleLifetime = 0.13
+        emitter.particleLifetimeRange = 0.05
         
         emitter.emissionAngle = -.pi / 2
         emitter.emissionAngleRange = .pi / 8
         
-        emitter.particleSpeed = 150
-        emitter.particleSpeedRange = 50
+        emitter.particleSpeed = 110
+        emitter.particleSpeedRange = 40
         
         emitter.particleBirthRate = 0
         
         emitter.particleScale = 1.0
-        emitter.particleScaleSpeed = -1.5
+        emitter.particleScaleSpeed = -6.0
         
         emitter.particleAlpha = 1.0
-        emitter.particleAlphaSpeed = -2.0
+        emitter.particleAlphaSpeed = -8.0
         
         return emitter
     }
@@ -259,22 +259,22 @@ public class LunarLanderScene: SKScene {
             times: [0, 0.2, 0.6, 1.0]
         )
         
-        emitter.particleLifetime = 0.25
-        emitter.particleLifetimeRange = 0.1
+        emitter.particleLifetime = 0.12
+        emitter.particleLifetimeRange = 0.05
         
         emitter.emissionAngle = 0
         emitter.emissionAngleRange = .pi / 10
         
-        emitter.particleSpeed = 80
-        emitter.particleSpeedRange = 30
+        emitter.particleSpeed = 40
+        emitter.particleSpeedRange = 20
         
         emitter.particleBirthRate = 0
         
         emitter.particleScale = 1.0
-        emitter.particleScaleSpeed = -2.0
+        emitter.particleScaleSpeed = -8.0
         
         emitter.particleAlpha = 1.0
-        emitter.particleAlphaSpeed = -3.0
+        emitter.particleAlphaSpeed = -10.0
         
         return emitter
     }
@@ -373,8 +373,11 @@ public class LunarLanderScene: SKScene {
         let angle = CGFloat(snapshot.angle)
         let cosA = cos(angle)
         let sinA = sin(angle)
+
+        let approxFPS: CGFloat = 50.0
+        let powerEps: Float = 1e-4
         
-        if snapshot.mainEnginePower > 0 {
+        if snapshot.mainEnginePower > powerEps {
             let flameOffset: CGFloat = 12 * uniformScale
             let flameX = lander.position.x - flameOffset * sinA
             let flameY = lander.position.y - flameOffset * cosA
@@ -383,8 +386,8 @@ public class LunarLanderScene: SKScene {
             mainEmitter.emissionAngle = angle - .pi / 2
             
             let power = CGFloat(snapshot.mainEnginePower)
-            mainEmitter.particleBirthRate = 50 + power * 150
-            mainEmitter.particleSpeed = 100 + power * 100
+            mainEmitter.particleBirthRate = approxFPS * power
+            mainEmitter.particleSpeed = 80 + 60 * power
             mainEmitter.setScale(uniformScale)
         } else {
             mainEmitter.particleBirthRate = 0
@@ -393,7 +396,7 @@ public class LunarLanderScene: SKScene {
         let sideEngineAway: CGFloat = 17 * uniformScale
         let sideEngineHeight: CGFloat = 5 * uniformScale
         
-        if snapshot.sideEnginePower < 0 {
+        if snapshot.sideEnginePower < -powerEps {
             let flameX = lander.position.x + sideEngineAway * cosA - sideEngineHeight * sinA
             let flameY = lander.position.y + sideEngineAway * sinA + sideEngineHeight * cosA
             leftEmitter.position = CGPoint(x: flameX, y: flameY)
@@ -401,12 +404,13 @@ public class LunarLanderScene: SKScene {
             leftEmitter.emissionAngle = angle + .pi
             
             let power = CGFloat(abs(snapshot.sideEnginePower))
-            leftEmitter.particleBirthRate = 30 + power * 100
+            leftEmitter.particleBirthRate = approxFPS * power
+            leftEmitter.particleSpeed = 25 + 25 * power
             leftEmitter.setScale(uniformScale)
             
             rightEmitter.particleBirthRate = 0
         }
-        else if snapshot.sideEnginePower > 0 {
+        else if snapshot.sideEnginePower > powerEps {
             let flameX = lander.position.x - sideEngineAway * cosA - sideEngineHeight * sinA
             let flameY = lander.position.y - sideEngineAway * sinA + sideEngineHeight * cosA
             rightEmitter.position = CGPoint(x: flameX, y: flameY)
@@ -414,7 +418,8 @@ public class LunarLanderScene: SKScene {
             rightEmitter.emissionAngle = angle
             
             let power = CGFloat(snapshot.sideEnginePower)
-            rightEmitter.particleBirthRate = 30 + power * 100
+            rightEmitter.particleBirthRate = approxFPS * power
+            rightEmitter.particleSpeed = 25 + 25 * power
             rightEmitter.setScale(uniformScale)
             
             leftEmitter.particleBirthRate = 0
