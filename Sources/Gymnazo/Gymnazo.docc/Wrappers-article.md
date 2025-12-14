@@ -36,7 +36,7 @@ var env = Gymnazo.make("CartPole-v1", maxEpisodeSteps: -1)
 
 ## Chainable Wrapper Extensions
 
-Gymnazo provides chainable extension methods for applying wrappers beyond what `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)` provides:
+Gymnazo provides chainable extension methods for applying wrappers beyond what ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)`` provides:
 
 ```swift
 import Gymnazo
@@ -82,6 +82,10 @@ Call flow: `Your code → NormalizeObservation → [make() wrappers] → CartPol
 | `.recordingStatistics()`       | `RecordEpisodeStatistics`          | Tracks episode metrics        |
 | `.observationsNormalized()`    | `NormalizeObservation`             | Normalizes observations       |
 | `.observationsTransformed(_:)` | `TransformObservation`             | Custom observation transform  |
+| `.observationsFlattened()`     | `FlattenObservation`               | Flattens observations         |
+| `.rewardsTransformed(_:)`      | `TransformReward`                  | Custom reward transform       |
+| `.rewardsNormalized()`         | `NormalizeReward`                  | Normalizes rewards            |
+| `.autoReset(mode:)`            | `AutoReset`                        | Resets episodes automatically |
 | `.actionsClipped()`            | `ClipAction`                       | Clips actions to bounds       |
 | `.actionsRescaled(from:)`      | `RescaleAction`                    | Rescales action range         |
 | `.validated()`                 | PassiveEnvChecker + OrderEnforcing | Standard validation stack     |
@@ -294,28 +298,76 @@ public final class RewardScaler<InnerEnv: Env>: Wrapper {
 var env = RewardScaler(env: CartPole(), scale: 0.01)
 ```
 
+### FlattenObservation
+
+Flattens observations into a 1D `MLXArray` and updates the observation space to a flat `Box`. This wrapper only works when `flatten_space(env.observation_space)` returns a `Box`. For `SequenceSpace` and `Graph`, `flatten_space` preserves the structured space instead of forcing a single `Box`.
+
+```swift
+import Gymnazo
+
+var env = FrozenLake().observationsFlattened()
+let (obs, _) = env.reset(seed: 0)
+```
+
+### TransformReward
+
+Applies a custom function to each reward.
+
+```swift
+import Gymnazo
+
+var env = CartPole().rewardsTransformed { $0 * 2 }
+```
+
+### NormalizeReward
+
+Normalizes rewards using a running return variance estimate.
+
+```swift
+import Gymnazo
+
+var env = CartPole().rewardsNormalized()
+```
+
+### AutoReset
+
+Automatically resets when an episode ends. In `sameStep` mode, the observation returned is from the new episode and the previous episode’s final observation is stored in `info["final_observation"]`.
+
+```swift
+import Gymnazo
+
+var env = CartPole().autoReset(mode: .sameStep)
+```
+
 ## Topics
 
 ### Core Protocol
 
-- ``Wrapper``
+- `Wrapper`
 
 ### Time and Episode Management
 
-- ``TimeLimit``
-- ``RecordEpisodeStatistics``
+- `TimeLimit`
+- `RecordEpisodeStatistics`
+- `AutoReset`
 
 ### Validation
 
-- ``OrderEnforcing``
-- ``PassiveEnvChecker``
+- `OrderEnforcing`
+- `PassiveEnvChecker`
 
 ### Observation Wrappers
 
-- ``TransformObservation``
-- ``NormalizeObservation``
+- `TransformObservation`
+- `NormalizeObservation`
+- `FlattenObservation`
+
+### Reward Wrappers
+
+- `TransformReward`
+- `NormalizeReward`
 
 ### Action Wrappers
 
-- ``ClipAction``
-- ``RescaleAction``
+- `ClipAction`
+- `RescaleAction`

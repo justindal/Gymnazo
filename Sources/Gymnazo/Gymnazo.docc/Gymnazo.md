@@ -48,8 +48,8 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``MultiDiscrete``
 - ``MultiBinary``
 - ``TextSpace``
-- ``Dict``
 - ``Tuple``
+- ``Dict``
 - ``SequenceSpace``
 - ``Graph``
 
@@ -67,8 +67,12 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``OrderEnforcing``
 - ``PassiveEnvChecker``
 - ``RecordEpisodeStatistics``
+- ``AutoReset``
 - ``TransformObservation``
 - ``NormalizeObservation``
+- ``FlattenObservation``
+- ``TransformReward``
+- ``NormalizeReward``   
 - ``ClipAction``
 - ``RescaleAction``
 
