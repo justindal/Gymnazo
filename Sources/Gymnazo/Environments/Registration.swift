@@ -105,31 +105,29 @@ public final class GymnazoRegistrations {
     }
 
     private func registerFrozenLake() {
-        // register FrozenLake-v1 (4x4)
-        if registry["FrozenLake-v1"] == nil {
-            register(id: "FrozenLake-v1", entryPoint: { kwargs in
+        if registry["FrozenLake"] == nil {
+            register(id: "FrozenLake", entryPoint: { kwargs in
                 self.createFrozenLake(kwargs: kwargs, defaultMap: "4x4")
             }, maxEpisodeSteps: 100)
         }
 
-        // register FrozenLake8x8-v1 (8x8)
-        if registry["FrozenLake8x8-v1"] == nil {
-            register(id: "FrozenLake8x8-v1", entryPoint: { kwargs in
+        if registry["FrozenLake8x8"] == nil {
+            register(id: "FrozenLake8x8", entryPoint: { kwargs in
                 self.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
             }, maxEpisodeSteps: 200)
         }
     }
     
     private func registerClassicControl() {
-        if registry["CartPole-v1"] == nil {
-            register(id: "CartPole-v1", entryPoint: { kwargs in
+        if registry["CartPole"] == nil {
+            register(id: "CartPole", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 return CartPole(render_mode: renderMode)
             }, maxEpisodeSteps: 500)
         }
         
-        if registry["MountainCar-v0"] == nil {
-            register(id: "MountainCar-v0", entryPoint: { kwargs in
+        if registry["MountainCar"] == nil {
+            register(id: "MountainCar", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 let goalVelocity = GymnazoRegistrations.floatValue(
                     from: kwargs["goal_velocity"],
@@ -139,8 +137,8 @@ public final class GymnazoRegistrations {
             }, maxEpisodeSteps: 200)
         }
         
-        if registry["MountainCarContinuous-v0"] == nil {
-            register(id: "MountainCarContinuous-v0", entryPoint: { kwargs in
+        if registry["MountainCarContinuous"] == nil {
+            register(id: "MountainCarContinuous", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 let goalVelocity = GymnazoRegistrations.floatValue(
                     from: kwargs["goal_velocity"],
@@ -150,15 +148,15 @@ public final class GymnazoRegistrations {
             }, maxEpisodeSteps: 999)
         }
         
-        if registry["Acrobot-v1"] == nil {
-            register(id: "Acrobot-v1", entryPoint: { kwargs in
+        if registry["Acrobot"] == nil {
+            register(id: "Acrobot", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 return Acrobot(render_mode: renderMode)
             }, maxEpisodeSteps: 500, rewardThreshold: -100)
         }
         
-        if registry["Pendulum-v1"] == nil {
-            register(id: "Pendulum-v1", entryPoint: { kwargs in
+        if registry["Pendulum"] == nil {
+            register(id: "Pendulum", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 let g = GymnazoRegistrations.floatValue(from: kwargs["g"], default: 10.0)
                 return Pendulum(render_mode: renderMode, g: g)
@@ -167,9 +165,8 @@ public final class GymnazoRegistrations {
     }
     
     private func registerBox2D() {
-        // Register discrete variant
-        if registry["LunarLander-v3"] == nil {
-            register(id: "LunarLander-v3", entryPoint: { kwargs in
+        if registry["LunarLander"] == nil {
+            register(id: "LunarLander", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 let gravity = GymnazoRegistrations.floatValue(from: kwargs["gravity"], default: -10.0)
                 let enableWind = kwargs["enable_wind"] as? Bool ?? false
@@ -186,9 +183,8 @@ public final class GymnazoRegistrations {
             }, maxEpisodeSteps: 1000)
         }
         
-        // Register continuous variant
-        if registry["LunarLanderContinuous-v3"] == nil {
-            register(id: "LunarLanderContinuous-v3", entryPoint: { kwargs in
+        if registry["LunarLanderContinuous"] == nil {
+            register(id: "LunarLanderContinuous", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
                 let gravity = GymnazoRegistrations.floatValue(from: kwargs["gravity"], default: -10.0)
                 let enableWind = kwargs["enable_wind"] as? Bool ?? false

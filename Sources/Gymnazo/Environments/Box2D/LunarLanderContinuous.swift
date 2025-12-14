@@ -89,7 +89,7 @@ import MLX
 /// ```
 ///
 /// - Note: For the discrete variant, use ``LunarLander`` directly or create via
-///   `make("LunarLander-v3")`.
+///   `make("LunarLander")`.
 public struct LunarLanderContinuous: Env {
     public typealias Observation = MLXArray
     public typealias Action = MLXArray

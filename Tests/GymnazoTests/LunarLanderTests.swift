@@ -494,7 +494,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeDiscreteEnvironment() async throws {
-        var env = make("LunarLander-v3")
+        var env = make("LunarLander")
         let (obs, _) = env.reset(seed: 42)
         
         eval(obs as! MLXArray)
@@ -504,7 +504,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeContinuousEnvironment() async throws {
-        var env = make("LunarLanderContinuous-v3")
+        var env = make("LunarLanderContinuous")
         let (obs, _) = env.reset(seed: 42)
         
         eval(obs as! MLXArray)
@@ -514,7 +514,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeWithCustomGravity() async throws {
-        var env = make("LunarLander-v3", kwargs: ["gravity": -5.0])
+        var env = make("LunarLander", kwargs: ["gravity": -5.0])
         let (obs, _) = env.reset(seed: 42)
         
         eval(obs as! MLXArray)
@@ -524,7 +524,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeWithWind() async throws {
-        var env = make("LunarLander-v3", kwargs: [
+        var env = make("LunarLander", kwargs: [
             "enable_wind": true,
             "wind_power": 10.0,
             "turbulence_power": 1.0

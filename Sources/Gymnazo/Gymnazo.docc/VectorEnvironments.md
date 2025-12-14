@@ -19,17 +19,17 @@ The simplest way to create vector environments is with `make_vec(_:numEnvs:maxEp
 import Gymnazo
 
 // Synchronous vector environment with 4 CartPoles
-let syncEnv = Gymnazo.make_vec("CartPole-v1", numEnvs: 4)
+let syncEnv = Gymnazo.make_vec("CartPole", numEnvs: 4)
 
 // Asynchronous vector environment with 4 CartPoles
-let asyncEnv = Gymnazo.make_vec_async("CartPole-v1", numEnvs: 4)
+let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
 ```
 
 You can also use the `vectorizationMode` parameter:
 
 ```swift
 // Equivalent to make_vec_async
-let asyncEnv = Gymnazo.make_vec("CartPole-v1", numEnvs: 4, vectorizationMode: .async)
+let asyncEnv = Gymnazo.make_vec("CartPole", numEnvs: 4, vectorizationMode: .async)
 ```
 
 These functions apply the same default wrappers as `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)` to each sub-environment.
@@ -63,8 +63,8 @@ You can also use `make_vec(envFns:autoresetMode:)` with custom factory closures:
 ```swift
 // Environments with different configurations
 let envs = Gymnazo.make_vec(envFns: [
-    { Gymnazo.make("Pendulum-v1", kwargs: ["g": 9.81]) },
-    { Gymnazo.make("Pendulum-v1", kwargs: ["g": 1.62]) },  // Moon gravity
+    { Gymnazo.make("Pendulum", kwargs: ["g": 9.81]) },
+    { Gymnazo.make("Pendulum", kwargs: ["g": 1.62]) },  // Moon gravity
 ])
 ```
 
@@ -145,7 +145,7 @@ let env = SyncVectorEnv(
 `AsyncVectorEnv` uses Swift's actor system to run environments in parallel. It provides both synchronous and asynchronous APIs:
 
 ```swift
-let asyncEnv = Gymnazo.make_vec_async("CartPole-v1", numEnvs: 4)
+let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
 
 // Synchronous API (runs parallel internally but blocks)
 let (obs, _) = asyncEnv.reset(seed: 42)
@@ -191,7 +191,7 @@ func trainWithVectorEnv() {
     let numEnvs = 8
 
     // Use make_vec for the simplest setup
-    let env = Gymnazo.make_vec("CartPole-v1", numEnvs: numEnvs)
+    let env = Gymnazo.make_vec("CartPole", numEnvs: numEnvs)
 
     var (observations, _) = env.reset(seed: 42)
     var key = MLX.key(0)
@@ -220,18 +220,18 @@ func trainWithVectorEnv() {
 
 ### Vector Environment Types
 
-- ``VectorEnv``
-- ``SyncVectorEnv``
-- ``AsyncVectorEnv``
+- `VectorEnv`
+- `SyncVectorEnv`
+- `AsyncVectorEnv`
 
 ### Configuration
 
-- ``AutoresetMode``
-- ``VectorizationMode``
+- `AutoresetMode`
+- `VectorizationMode`
 
 ### Result Types
 
-- ``VectorStepResult``
-- ``VectorResetResult``
-- ``EnvStepResult``
-- ``EnvResetResult``
+- `VectorStepResult`
+- `VectorResetResult`
+- `EnvStepResult`
+- `EnvResetResult`

@@ -20,18 +20,18 @@ Note: `RecordEpisodeStatistics` is **not** applied by default. Enable it explici
 import Gymnazo
 
 // Create environment with default wrappers
-var env = Gymnazo.make("CartPole-v1")
+var env = Gymnazo.make("CartPole")
 
 // Customize wrapper behavior
 var env = Gymnazo.make(
-    "CartPole-v1",
+    "CartPole",
     maxEpisodeSteps: 500,           // Override default time limit
     disableEnvChecker: true,        // Disable PassiveEnvChecker
     recordEpisodeStatistics: true   // Enable RecordEpisodeStatistics
 )
 
 // Use maxEpisodeSteps: -1 to disable TimeLimit entirely
-var env = Gymnazo.make("CartPole-v1", maxEpisodeSteps: -1)
+var env = Gymnazo.make("CartPole", maxEpisodeSteps: -1)
 ```
 
 ## Chainable Wrapper Extensions
@@ -42,7 +42,7 @@ Gymnazo provides chainable extension methods for applying wrappers beyond what `
 import Gymnazo
 
 // Start with make() for default wrappers, then add extras
-var env = Gymnazo.make("MountainCarContinuous-v0")
+var env = Gymnazo.make("MountainCarContinuous")
     .actionsRescaled(from: (-1.0, 1.0))  // Rescale agent outputs
     .observationsNormalized()             // Normalize observations
 
@@ -58,7 +58,7 @@ Wrappers are applied inside-out—the **last wrapper in the chain processes call
 
 ```swift
 // Example: Adding observation normalization to an environment
-var env = Gymnazo.make("CartPole-v1")
+var env = Gymnazo.make("CartPole")
     .observationsNormalized()  // Applied after make()'s wrappers
 ```
 
@@ -121,7 +121,7 @@ Tracks episode returns, lengths, and timing. **Not applied by default** - enable
 
 ```swift
 // Enable via make()
-var env = Gymnazo.make("CartPole-v1", recordEpisodeStatistics: true)
+var env = Gymnazo.make("CartPole", recordEpisodeStatistics: true)
 
 // Or apply manually
 var env = RecordEpisodeStatistics(env: CartPole(), bufferLength: 100)
@@ -175,7 +175,7 @@ var env = PassiveEnvChecker(env: CartPole())
 // - Return types are correct
 ```
 
-Disable with `Gymnazo.make("CartPole-v1", disableEnvChecker: true)`.
+Disable with `Gymnazo.make("CartPole", disableEnvChecker: true)`.
 
 ### TransformObservation
 

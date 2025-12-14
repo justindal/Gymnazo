@@ -21,7 +21,7 @@ struct GymnazoTests {
     @MainActor
     func testRenderPassThroughAnsi() async throws {
         var env = Gymnazo.make(
-            "FrozenLake-v1",
+            "FrozenLake",
             kwargs: ["render_mode": "ansi", "is_slippery": false]
         )
         _ = env.reset(seed: 123)

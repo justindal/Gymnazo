@@ -25,7 +25,7 @@ struct FrozenLakeTests {
     @Test
     @MainActor
     func testGymnazoMakeFrozenLake() async throws {
-        let env = Gymnazo.make("FrozenLake-v1", kwargs: ["is_slippery": false])
+        let env = Gymnazo.make("FrozenLake", kwargs: ["is_slippery": false])
         let fl = env.unwrapped as! FrozenLake
         _ = fl.reset(seed: 123)
         let s = fl.step(2)

@@ -62,7 +62,7 @@ private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
 /// Registers a new environment with the given ID and entry point.
 ///
 /// - Parameters:
-///   - id: The unique identifier for the environment (e.g., "CartPole-v1").
+///   - id: The unique identifier for the environment (e.g., "CartPole").
 ///   - entryPoint: A closure that creates the environment from kwargs.
 ///   - maxEpisodeSteps: Optional maximum steps per episode.
 ///   - rewardThreshold: Optional reward threshold for solving the environment.
@@ -92,7 +92,7 @@ public func register<EnvType: Env>(
 /// Creates an environment instance from the registry.
 ///
 /// - Parameters:
-///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - id: The environment ID (e.g., "CartPole", "FrozenLake").
 ///   - maxEpisodeSteps: Override the default max steps per episode.
 ///   - disableEnvChecker: Disable the passive environment checker.
 ///   - disableRenderOrderEnforcing: Disable render order enforcement.
@@ -220,7 +220,7 @@ public func make(
 ///
 /// ```swift
 /// // Create 4 CartPole environments
-/// let envs = make_vec("CartPole-v1", numEnvs: 4)
+/// let envs = make_vec("CartPole", numEnvs: 4)
 ///
 /// // Reset all environments
 /// let (obs, _) = envs.reset(seed: 42)
@@ -231,7 +231,7 @@ public func make(
 /// ```
 ///
 /// - Parameters:
-///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - id: The environment ID (e.g., "CartPole", "FrozenLake").
 ///   - numEnvs: The number of sub-environments to create.
 ///   - maxEpisodeSteps: Override the default max steps per episode.
 ///   - disableEnvChecker: Disable the passive environment checker.
@@ -297,8 +297,8 @@ public func make_vec(
 /// ```swift
 /// // Create environments with different parameters
 /// let envs = make_vec(envFns: [
-///     { make("Pendulum-v1", kwargs: ["g": 9.81]) },
-///     { make("Pendulum-v1", kwargs: ["g": 1.62]) },  // Moon gravity
+///     { make("Pendulum", kwargs: ["g": 9.81]) },
+///     { make("Pendulum", kwargs: ["g": 1.62]) },  // Moon gravity
 /// ])
 /// ```
 ///
@@ -335,14 +335,14 @@ public enum VectorizationMode: String, Sendable {
 ///
 /// ```swift
 /// // Create 4 CartPole environments with async execution
-/// let envs = make_vec("CartPole-v1", numEnvs: 4, vectorizationMode: .async)
+/// let envs = make_vec("CartPole", numEnvs: 4, vectorizationMode: .async)
 ///
 /// // Use async step for parallel execution
 /// let result = await envs.stepAsync([0, 1, 0, 1])
 /// ```
 ///
 /// - Parameters:
-///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - id: The environment ID (e.g., "CartPole", "FrozenLake").
 ///   - numEnvs: The number of sub-environments to create.
 ///   - vectorizationMode: The vectorization mode (`.sync` or `.async`). Default is `.sync`.
 ///   - maxEpisodeSteps: Override the default max steps per episode.
@@ -421,7 +421,7 @@ public func make_vec(
 ///
 /// ```swift
 /// // Create 4 CartPole environments with async execution
-/// let envs = make_vec_async("CartPole-v1", numEnvs: 4)
+/// let envs = make_vec_async("CartPole", numEnvs: 4)
 ///
 /// // Reset all environments in parallel
 /// let (obs, _) = await envs.resetAsync(seed: 42)
@@ -431,7 +431,7 @@ public func make_vec(
 /// ```
 ///
 /// - Parameters:
-///   - id: The environment ID (e.g., "CartPole-v1", "FrozenLake-v1").
+///   - id: The environment ID (e.g., "CartPole", "FrozenLake").
 ///   - numEnvs: The number of sub-environments to create.
 ///   - maxEpisodeSteps: Override the default max steps per episode.
 ///   - disableEnvChecker: Disable the passive environment checker.
@@ -495,8 +495,8 @@ public func make_vec_async(
 /// ```swift
 /// // Create environments with different parameters
 /// let envs = make_vec_async(envFns: [
-///     { make("Pendulum-v1", kwargs: ["g": 9.81]) },
-///     { make("Pendulum-v1", kwargs: ["g": 1.62]) },  // Moon gravity
+///     { make("Pendulum", kwargs: ["g": 9.81]) },
+///     { make("Pendulum", kwargs: ["g": 1.62]) },  // Moon gravity
 /// ])
 /// ```
 ///

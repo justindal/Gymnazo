@@ -41,10 +41,10 @@ struct AdditionalWrappersTests {
     @Test
     @MainActor
     func testAdditionalWrapperApplied() async throws {
-        _ = Gymnazo.make("FrozenLake-v1", kwargs: ["is_slippery": false])
+        _ = Gymnazo.make("FrozenLake", kwargs: ["is_slippery": false])
         
-        guard var baseSpec = Gymnazo.registry["FrozenLake-v1"] else {
-            #expect(Bool(false), "FrozenLake-v1 spec missing")
+        guard var baseSpec = Gymnazo.registry["FrozenLake"] else {
+            #expect(Bool(false), "FrozenLake spec missing")
             return
         }
         

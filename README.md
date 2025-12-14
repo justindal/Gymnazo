@@ -48,11 +48,11 @@ Or open the package in Xcode and run the test scheme.
 
 ### Environments
 
-| Category            | Environments                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------------- |
-| **Classic Control** | `CartPole-v1`, `MountainCar-v0`, `MountainCarContinuous-v0`, `Acrobot-v1`, `Pendulum-v1` |
-| **Box2D**           | `LunarLander-v3`, `LunarLanderContinuous-v3`                                             |
-| **Toy Text**        | `FrozenLake-v1`, `FrozenLake8x8-v1`                                                      |
+| Category            | Environments                                                              |
+| ------------------- | ------------------------------------------------------------------------- |
+| **Classic Control** | `CartPole`, `MountainCar`, `MountainCarContinuous`, `Acrobot`, `Pendulum` |
+| **Box2D**           | `LunarLander`, `LunarLanderContinuous`                                    |
+| **Toy Text**        | `FrozenLake`, `FrozenLake8x8`                                             |
 
 ### Spaces
 
@@ -61,7 +61,6 @@ Or open the package in Xcode and run the test scheme.
 ### Wrappers
 
 `TimeLimit`, `RecordEpisodeStatistics`, `ClipAction`, `RescaleAction`, `TransformObservation`, `NormalizeObservation`, `TransformReward`, `NormalizeReward`, `AutoReset`, `FlattenObservation`, `OrderEnforcing`, `PassiveEnvChecker`
-
 
 ## Quick Start
 
@@ -73,7 +72,7 @@ import MLX
 struct Demo {
     @MainActor
     static func main() {
-        var env = Gymnazo.make("CartPole-v1")
+        var env = Gymnazo.make("CartPole")
         var (obs, _) = env.reset(seed: 42)
         var done = false
 

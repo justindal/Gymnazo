@@ -11,7 +11,7 @@ import MLX
 import SwiftUI
 #endif
 
-/// Acrobot-v1 environment
+/// Acrobot environment
 ///
 /// Description:
 /// The Acrobot environment is based on Sutton's work in "Generalization in Reinforcement Learning:

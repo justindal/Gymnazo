@@ -14,7 +14,7 @@ Use the `Gymnazo` registry to create environments by their ID:
 import Gymnazo
 
 // Create an environment
-var env = Gymnazo.make("CartPole-v1")
+var env = Gymnazo.make("CartPole")
 ```
 
 ## The Environment Loop
@@ -50,27 +50,27 @@ print("Episode finished with reward: \(totalReward)")
 
 Gymnazo includes several classic control and toy text environments:
 
-| Environment           | ID                         | Description                 |
-| --------------------- | -------------------------- | --------------------------- |
-| CartPole              | `CartPole-v1`              | Balance a pole on a cart    |
-| MountainCar           | `MountainCar-v0`           | Drive a car up a hill       |
-| MountainCarContinuous | `MountainCarContinuous-v0` | Continuous action version   |
-| Acrobot               | `Acrobot-v1`               | Swing up a two-link robot   |
-| Pendulum              | `Pendulum-v1`              | Swing up a pendulum         |
-| FrozenLake            | `FrozenLake-v1`            | Navigate a frozen lake grid |
-| FrozenLake 8x8        | `FrozenLake8x8-v1`         | Larger frozen lake variant  |
+| Environment           | ID                      | Description                 |
+| --------------------- | ----------------------- | --------------------------- |
+| CartPole              | `CartPole`              | Balance a pole on a cart    |
+| MountainCar           | `MountainCar`           | Drive a car up a hill       |
+| MountainCarContinuous | `MountainCarContinuous` | Continuous action version   |
+| Acrobot               | `Acrobot`               | Swing up a two-link robot   |
+| Pendulum              | `Pendulum`              | Swing up a pendulum         |
+| FrozenLake            | `FrozenLake`            | Navigate a frozen lake grid |
+| FrozenLake 8x8        | `FrozenLake8x8`         | Larger frozen lake variant  |
 
 ## Vector Environments
 
 For parallel training, use vector environments to run multiple instances simultaneously.
 
-The easiest way is with ``make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``:
+The easiest way is with `make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)`:
 
 ```swift
 import Gymnazo
 
 // Create 4 CartPole environments using make_vec
-let vecEnv = Gymnazo.make_vec("CartPole-v1", numEnvs: 4)
+let vecEnv = Gymnazo.make_vec("CartPole", numEnvs: 4)
 
 // Reset all environments at once
 let (observations, _) = vecEnv.reset(seed: 42)
@@ -80,10 +80,10 @@ let (observations, _) = vecEnv.reset(seed: 42)
 let result = vecEnv.step([1, 0, 1, 0])
 ```
 
-For async execution, use ``make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``:
+For async execution, use `make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)`:
 
 ```swift
-let asyncEnv = Gymnazo.make_vec_async("CartPole-v1", numEnvs: 4)
+let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
 
 // Use stepAsync for parallel execution
 let result = await asyncEnv.stepAsync([1, 0, 1, 0])
@@ -93,30 +93,30 @@ See <doc:VectorEnvironments> for more details.
 
 ## Default Wrappers
 
-When you call ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)``, wrappers are applied automatically:
+When you call `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)`, wrappers are applied automatically:
 
 1. **PassiveEnvChecker** - Validates API compliance (disable with `disableEnvChecker: true`)
 2. **OrderEnforcing** - Ensures `reset()` is called before `step(_:)`
 3. **TimeLimit** - Truncates episodes at `maxEpisodeSteps` (if defined for the environment)
 
-Note: ``RecordEpisodeStatistics`` is **not** applied by default. Enable it explicitly if you need episode tracking.
+Note: `RecordEpisodeStatistics` is **not** applied by default. Enable it explicitly if you need episode tracking.
 
 ```swift
 import Gymnazo
 
 // Default wrappers applied
-var env = Gymnazo.make("CartPole-v1")
+var env = Gymnazo.make("CartPole")
 
 // Customize wrapper behavior
 var env = Gymnazo.make(
-    "CartPole-v1",
+    "CartPole",
     maxEpisodeSteps: 500,           // Override default time limit
     disableEnvChecker: true,        // Disable API validation
     recordEpisodeStatistics: true   // Enable statistics tracking
 )
 
 // Use maxEpisodeSteps: -1 to disable TimeLimit entirely
-var env = Gymnazo.make("CartPole-v1", maxEpisodeSteps: -1)
+var env = Gymnazo.make("CartPole", maxEpisodeSteps: -1)
 ```
 
 You can also apply wrappers manually using chainable extensions:

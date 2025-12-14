@@ -246,7 +246,7 @@ struct PendulumTests {
     @Test
     @MainActor
     func testGymnazoRegistration() async throws {
-        guard var env = Gymnazo.make("Pendulum-v1") as? any Env<MLXArray, MLXArray> else {
+        guard var env = Gymnazo.make("Pendulum") as? any Env<MLXArray, MLXArray> else {
             Issue.record("Failed to create Pendulum via Gymnazo.make")
             return
         }
@@ -258,7 +258,7 @@ struct PendulumTests {
     @Test
     @MainActor
     func testGymnazoMaxEpisodeSteps() async throws {
-        guard let env = Gymnazo.make("Pendulum-v1") as? any Env<MLXArray, MLXArray> else {
+        guard let env = Gymnazo.make("Pendulum") as? any Env<MLXArray, MLXArray> else {
             Issue.record("Failed to create Pendulum via Gymnazo.make")
             return
         }
@@ -269,7 +269,7 @@ struct PendulumTests {
     @Test
     @MainActor
     func testGymnazoCustomGravity() async throws {
-        guard let env = Gymnazo.make("Pendulum-v1", kwargs: ["g": 9.81]) as? any Env<MLXArray, MLXArray> else {
+        guard let env = Gymnazo.make("Pendulum", kwargs: ["g": 9.81]) as? any Env<MLXArray, MLXArray> else {
             Issue.record("Failed to create Pendulum via Gymnazo.make")
             return
         }

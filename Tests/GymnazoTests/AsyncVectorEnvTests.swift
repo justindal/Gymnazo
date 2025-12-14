@@ -281,7 +281,7 @@ struct AsyncVectorEnvTests {
     
     @Test("make_vec_async function works")
     func testMakeVecAsyncFunction() {
-        let envs = make_vec_async("CartPole-v1", numEnvs: 3)
+        let envs = make_vec_async("CartPole", numEnvs: 3)
         
         #expect(envs.num_envs == 3)
         
@@ -301,7 +301,7 @@ struct AsyncVectorEnvTests {
     
     @Test("make_vec with async mode returns AsyncVectorEnv")
     func testMakeVecWithAsyncMode() {
-        let envs = make_vec("CartPole-v1", numEnvs: 2, vectorizationMode: .async)
+        let envs = make_vec("CartPole", numEnvs: 2, vectorizationMode: .async)
         
         #expect(envs is AsyncVectorEnv)
         #expect(envs.num_envs == 2)
@@ -309,7 +309,7 @@ struct AsyncVectorEnvTests {
     
     @Test("make_vec with sync mode returns SyncVectorEnv")
     func testMakeVecWithSyncMode() {
-        let envs = make_vec("CartPole-v1", numEnvs: 2, vectorizationMode: .sync)
+        let envs = make_vec("CartPole", numEnvs: 2, vectorizationMode: .sync)
         
         #expect(envs is SyncVectorEnv)
         #expect(envs.num_envs == 2)

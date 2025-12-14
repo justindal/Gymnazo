@@ -314,7 +314,7 @@ struct MountainCarTests {
     
     @Test @MainActor
     func testGymnazoRegistration() async throws {
-        guard var env = Gymnazo.make("MountainCar-v0") as? any Env<MLXArray, Int> else {
+        guard var env = Gymnazo.make("MountainCar") as? any Env<MLXArray, Int> else {
             Issue.record("Failed to create MountainCar via Gymnazo.make")
             return
         }
@@ -325,7 +325,7 @@ struct MountainCarTests {
     
     @Test @MainActor
     func testGymnazoMaxEpisodeSteps() async throws {
-        guard let env = Gymnazo.make("MountainCar-v0") as? any Env<MLXArray, Int> else {
+        guard let env = Gymnazo.make("MountainCar") as? any Env<MLXArray, Int> else {
             Issue.record("Failed to create MountainCar via Gymnazo.make")
             return
         }

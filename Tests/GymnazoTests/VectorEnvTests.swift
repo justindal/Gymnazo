@@ -34,7 +34,7 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testMakeVecFunction() async throws {
-        let envs = make_vec("CartPole-v1", numEnvs: 3)
+        let envs = make_vec("CartPole", numEnvs: 3)
         
         #expect(envs.num_envs == 3)
         #expect(envs.spec?.name == "CartPole")
@@ -353,7 +353,7 @@ struct VectorEnvTests {
     @MainActor
     func testManyEnvironments() async throws {
         let numEnvs = 10
-        let envs = make_vec("CartPole-v1", numEnvs: numEnvs)
+        let envs = make_vec("CartPole", numEnvs: numEnvs)
         
         #expect(envs.num_envs == numEnvs)
         
@@ -368,7 +368,7 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testFullEpisode() async throws {
-        let envs = make_vec("CartPole-v1", numEnvs: 2)
+        let envs = make_vec("CartPole", numEnvs: 2)
         var result = envs.reset(seed: 42)
         
         var totalRewards: [Float] = [0, 0]
@@ -403,7 +403,7 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testWithMountainCar() async throws {
-        let envs = make_vec("MountainCar-v0", numEnvs: 2)
+        let envs = make_vec("MountainCar", numEnvs: 2)
         
         let result = envs.reset(seed: 42)
         
