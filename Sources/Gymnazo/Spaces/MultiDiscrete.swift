@@ -35,3 +35,15 @@ public struct MultiDiscrete: Space {
         return lower && upper
     }
 }
+
+extension MultiDiscrete: MLXSpace {
+    public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
+        precondition(count >= 0, "count must be non-negative")
+        guard let elementShape = self.shape else {
+            fatalError("MultiDiscrete requires a defined shape")
+        }
+        let batchShape = [count] + elementShape
+        let rand = MLX.uniform(low: 0, high: 1, batchShape, key: key)
+        return (rand * self.nvec).asType(.int32)
+    }
+}

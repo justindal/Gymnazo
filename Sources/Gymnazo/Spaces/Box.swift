@@ -157,6 +157,47 @@ public struct Box: Space {
     }
 }
 
+extension Box: MLXSpace {
+    public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
+        precondition(count >= 0, "count must be non-negative")
+        let elementShape = shape ?? low.shape
+        let batchShape = [count] + elementShape
+        let u01 = MLX.uniform(0 ..< 1, batchShape, key: key).asType(dtype ?? .float32)
+
+        let flatLow = low.reshaped([-1]).asArray(Float.self)
+        let flatHigh = high.reshaped([-1]).asArray(Float.self)
+
+        let defaultRange: Float = 1e6
+        var effectiveLow = [Float](repeating: 0, count: flatLow.count)
+        var effectiveHigh = [Float](repeating: 0, count: flatHigh.count)
+
+        for i in 0..<flatLow.count {
+            let bBelow = boundedBelow[i]
+            let bAbove = boundedAbove[i]
+
+            if bBelow && bAbove {
+                effectiveLow[i] = flatLow[i]
+                effectiveHigh[i] = flatHigh[i]
+            } else if bBelow {
+                effectiveLow[i] = flatLow[i]
+                effectiveHigh[i] = flatLow[i] + defaultRange
+            } else if bAbove {
+                effectiveLow[i] = flatHigh[i] - defaultRange
+                effectiveHigh[i] = flatHigh[i]
+            } else {
+                effectiveLow[i] = -defaultRange
+                effectiveHigh[i] = defaultRange
+            }
+        }
+
+        let effLow = MLXArray(effectiveLow).reshaped(elementShape).asType(dtype ?? .float32)
+        let effHigh = MLXArray(effectiveHigh).reshaped(elementShape).asType(dtype ?? .float32)
+
+        let span = effHigh - effLow
+        return effLow + u01 * span
+    }
+}
+
 private extension Box {
     static func full(shape: [Int], value: Float, dtype: DType) -> MLXArray {
         let count = shape.reduce(1, *)
