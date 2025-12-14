@@ -70,6 +70,29 @@ public extension Env {
     func timeLimited(_ maxSteps: Int) -> TimeLimit<Self> {
         TimeLimit(env: self, maxEpisodeSteps: maxSteps)
     }
+
+    func rewardsTransformed(
+        _ transform: @escaping (Double) -> Double
+    ) -> TransformReward<Self> {
+        TransformReward(env: self, transform: transform)
+    }
+
+    func rewardsNormalized(
+        gamma: Double = 0.99,
+        epsilon: Double = 1e-8
+    ) -> NormalizeReward<Self> {
+        NormalizeReward(env: self, gamma: gamma, epsilon: epsilon)
+    }
+
+    func autoReset(
+        mode: AutoresetMode = .nextStep
+    ) -> AutoReset<Self> {
+        AutoReset(env: self, mode: mode)
+    }
+
+    func observationsFlattened() -> FlattenObservation<Self> {
+        FlattenObservation(env: self)
+    }
 }
 
 public extension Env where Observation == MLXArray {
