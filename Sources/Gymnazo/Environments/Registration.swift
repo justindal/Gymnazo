@@ -99,9 +99,14 @@ public final class GymnazoRegistrations {
 
     /// registers every environment bundled with Gymnazo.
     public func registerDefaultEnvironments() {
-        registerFrozenLake()
+        registerToyText()
         registerClassicControl()
         registerBox2D()
+    }
+    
+    private func registerToyText() {
+        registerFrozenLake()
+        registerBlackjack()
     }
 
     private func registerFrozenLake() {
@@ -115,6 +120,17 @@ public final class GymnazoRegistrations {
             register(id: "FrozenLake8x8", entryPoint: { kwargs in
                 self.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
             }, maxEpisodeSteps: 200)
+        }
+    }
+    
+    private func registerBlackjack() {
+        if registry["Blackjack"] == nil {
+            register(id: "Blackjack", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let natural = kwargs["natural"] as? Bool ?? false
+                let sab = kwargs["sab"] as? Bool ?? false
+                return Blackjack(render_mode: renderMode, natural: natural, sab: sab)
+            })
         }
     }
     
