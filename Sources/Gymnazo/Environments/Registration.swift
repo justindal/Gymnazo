@@ -107,6 +107,8 @@ public final class GymnazoRegistrations {
     private func registerToyText() {
         registerFrozenLake()
         registerBlackjack()
+        registerTaxi()
+        registerCliffWalking()
     }
 
     private func registerFrozenLake() {
@@ -131,6 +133,27 @@ public final class GymnazoRegistrations {
                 let sab = kwargs["sab"] as? Bool ?? false
                 return Blackjack(render_mode: renderMode, natural: natural, sab: sab)
             })
+        }
+    }
+    
+    private func registerTaxi() {
+        if registry["Taxi"] == nil {
+            register(id: "Taxi", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let isRainy = kwargs["is_rainy"] as? Bool ?? false
+                let ficklePassenger = kwargs["fickle_passenger"] as? Bool ?? false
+                return Taxi(render_mode: renderMode, isRainy: isRainy, ficklePassenger: ficklePassenger)
+            }, maxEpisodeSteps: 200)
+        }
+    }
+    
+    private func registerCliffWalking() {
+        if registry["CliffWalking"] == nil {
+            register(id: "CliffWalking", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let isSlippery = kwargs["is_slippery"] as? Bool ?? false
+                return CliffWalking(render_mode: renderMode, isSlippery: isSlippery)
+            }, maxEpisodeSteps: 200)
         }
     }
     
