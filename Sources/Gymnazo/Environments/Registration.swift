@@ -140,9 +140,7 @@ public final class GymnazoRegistrations {
         if registry["Taxi"] == nil {
             register(id: "Taxi", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
-                let isRainy = kwargs["is_rainy"] as? Bool ?? false
-                let ficklePassenger = kwargs["fickle_passenger"] as? Bool ?? false
-                return Taxi(render_mode: renderMode, isRainy: isRainy, ficklePassenger: ficklePassenger)
+                return Taxi(render_mode: renderMode)
             }, maxEpisodeSteps: 200)
         }
     }
@@ -151,8 +149,7 @@ public final class GymnazoRegistrations {
         if registry["CliffWalking"] == nil {
             register(id: "CliffWalking", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
-                let isSlippery = kwargs["is_slippery"] as? Bool ?? false
-                return CliffWalking(render_mode: renderMode, isSlippery: isSlippery)
+                return CliffWalking(render_mode: renderMode)
             }, maxEpisodeSteps: 200)
         }
     }
@@ -190,7 +187,8 @@ public final class GymnazoRegistrations {
         if registry["Acrobot"] == nil {
             register(id: "Acrobot", entryPoint: { kwargs in
                 let renderMode = kwargs["render_mode"] as? String
-                return Acrobot(render_mode: renderMode)
+                let torqueNoiseMax = GymnazoRegistrations.floatValue(from: kwargs["torque_noise_max"], default: 0.0)
+                return Acrobot(render_mode: renderMode, torque_noise_max: torqueNoiseMax)
             }, maxEpisodeSteps: 500, rewardThreshold: -100)
         }
         
@@ -245,26 +243,13 @@ public final class GymnazoRegistrations {
         let renderMode = kwargs["render_mode"] as? String
         let mapName = kwargs["map_name"] as? String ?? defaultMap
         let isSlippery = kwargs["is_slippery"] as? Bool ?? true
-        let successRate = GymnazoRegistrations.floatValue(
-            from: kwargs["success_rate"],
-            default: Float(1.0 / 3.0)
-        )
-
-        // allow either a user-provided desc or a random map
-        var desc = kwargs["desc"] as? [String]
-        let useRandomMap = kwargs["generate_random_map"] as? Bool ?? false
-        if desc == nil && useRandomMap {
-            let size = (kwargs["size"] as? Int) ?? (mapName == "8x8" ? 8 : 4)
-            let p = GymnazoRegistrations.floatValue(from: kwargs["p"], default: 0.8)
-            desc = FrozenLake.generateRandomMap(size: size, p: p)
-        }
+        let desc = kwargs["desc"] as? [String]
 
         return FrozenLake(
             render_mode: renderMode,
             desc: desc,
             map_name: mapName,
-            isSlippery: isSlippery,
-            successRate: successRate
+            isSlippery: isSlippery
         )
     }
 
