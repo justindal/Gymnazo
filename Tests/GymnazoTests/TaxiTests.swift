@@ -39,16 +39,12 @@ struct TaxiTests {
     }
     
     @Test
-    func testActionMaskReturned() async throws {
+    func testInfoContainsProbOnly() async throws {
         let env = Taxi()
         let result = env.reset(seed: 123)
         
-        guard let mask = result.info["action_mask"] as? [Int] else {
-            #expect(Bool(false), "action_mask not in info")
-            return
-        }
-        
-        #expect(mask.count == 6)
+        #expect((result.info["prob"] as? Double) == 1.0)
+        #expect(result.info["action_mask"] == nil)
     }
     
     @Test
@@ -191,7 +187,7 @@ struct TaxiTests {
     @Test
     @MainActor
     func testGymnazoMakeTaxiWithKwargs() async throws {
-        let env = Gymnazo.make("Taxi", kwargs: ["is_rainy": true, "fickle_passenger": true])
+        let env = Gymnazo.make("Taxi", kwargs: ["render_mode": "ansi"])
         let taxi = env.unwrapped as! Taxi
         _ = taxi.reset(seed: 42)
         #expect(taxi.action_space.n == 6)

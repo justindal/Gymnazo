@@ -233,6 +233,23 @@ struct MountainCarTests {
         
         #expect(result.terminated == true, "Should terminate when at goal position with non-negative velocity")
     }
+
+    @Test
+    func testGoalVelocityParameterAffectsTermination() async throws {
+        // If goal_velocity > 0, then being at/above goalPosition is not enough; velocity must also meet goal_velocity.
+        var env = MountainCar(goal_velocity: 0.04)
+        _ = env.reset()
+        
+        // At goal position but too slow -> should not terminate.
+        env.state = MLXArray([env.goalPosition + 0.01, 0.01] as [Float32])
+        let slow = env.step(1)
+        #expect(slow.terminated == false)
+        
+        // At goal position and fast enough -> should terminate.
+        env.state = MLXArray([env.goalPosition + 0.01, 0.05] as [Float32])
+        let fast = env.step(1)
+        #expect(fast.terminated == true)
+    }
     
     @Test
     func testNoTerminationBeforeGoal() async throws {

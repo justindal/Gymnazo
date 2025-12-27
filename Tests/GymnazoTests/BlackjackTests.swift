@@ -16,7 +16,7 @@ struct BlackjackTests {
         let env = Blackjack()
         let result = env.reset(seed: 123)
         
-        #expect(result.obs.playerSum >= 2)
+        #expect(result.obs.playerSum >= 12)
         #expect(result.obs.playerSum <= 21)
         #expect(result.obs.dealerCard >= 1)
         #expect(result.obs.dealerCard <= 10)

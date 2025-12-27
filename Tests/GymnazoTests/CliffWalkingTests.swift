@@ -219,8 +219,8 @@ struct CliffWalkingTests {
     
     @Test
     @MainActor
-    func testGymnazoMakeCliffWalkingSlippery() async throws {
-        let env = Gymnazo.make("CliffWalking", kwargs: ["is_slippery": true])
+    func testGymnazoMakeCliffWalkingWithKwargs() async throws {
+        let env = Gymnazo.make("CliffWalking", kwargs: ["render_mode": "ansi"])
         let cliffWalking = env.unwrapped as! CliffWalking
         let (obs, _) = cliffWalking.reset(seed: 42)
         #expect(obs == CliffWalking.startState)
