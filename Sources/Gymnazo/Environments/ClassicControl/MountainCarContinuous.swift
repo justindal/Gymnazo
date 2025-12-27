@@ -82,7 +82,7 @@ public struct MountainCarContinuous: Env {
     public let maxPosition: Float = 0.6
     public let maxSpeed: Float = 0.07
     public let goalPosition: Float = 0.45
-    public let goalVelocity: Float = 0.0
+    public let goalVelocity: Float
     
     public let power: Float = 0.0015
     public let gravity: Float = 0.0025
@@ -106,6 +106,7 @@ public struct MountainCarContinuous: Env {
     
     public init(render_mode: String? = nil, goal_velocity: Float = 0.0) {
         self.render_mode = render_mode
+        self.goalVelocity = goal_velocity
         
         // Continuous action space: force in [-1.0, 1.0]
         self.action_space = Box(

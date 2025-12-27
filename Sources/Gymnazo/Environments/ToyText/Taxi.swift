@@ -424,7 +424,7 @@ public final class Taxi: Env {
             fickleStep = false
         }
         
-        return (obs: s, info: ["prob": 1.0, "action_mask": actionMask(for: s)])
+        return (obs: s, info: ["prob": 1.0])
     }
     
     public func step(_ action: Action) -> StepResult {
@@ -476,7 +476,7 @@ public final class Taxi: Env {
             reward: reward,
             terminated: terminated,
             truncated: false,
-            info: ["prob": p, "action_mask": actionMask(for: s)]
+            info: ["prob": p]
         )
     }
     

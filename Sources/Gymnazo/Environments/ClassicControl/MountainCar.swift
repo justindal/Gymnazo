@@ -84,7 +84,7 @@ public struct MountainCar: Env {
     public let maxPosition: Float = 0.6
     public let maxSpeed: Float = 0.07
     public let goalPosition: Float = 0.5
-    public let goalVelocity: Float = 0.0
+    public let goalVelocity: Float
     
     public let force: Float = 0.001
     public let gravity: Float = 0.0025
@@ -109,6 +109,7 @@ public struct MountainCar: Env {
     
     public init(render_mode: String? = nil, goal_velocity: Float = 0.0) {
         self.render_mode = render_mode
+        self.goalVelocity = goal_velocity
         
         // Action Space: 0 = push left, 1 = no push, 2 = push right
         self.action_space = Discrete(n: 3)

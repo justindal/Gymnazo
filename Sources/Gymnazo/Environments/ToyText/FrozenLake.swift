@@ -397,6 +397,21 @@ public final class FrozenLake: Env {
         self._seed = nil
     }
 
+    public convenience init(
+        render_mode: String? = nil,
+        desc: [String]? = nil,
+        map_name: String = "4x4",
+        isSlippery: Bool = true
+    ) {
+        self.init(
+            render_mode: render_mode,
+            desc: desc,
+            map_name: map_name,
+            isSlippery: isSlippery,
+            successRate: (1.0 / 3.0)
+        )
+    }
+
     public func reset(
         seed: UInt64? = nil,
         options: [String : Any]? = nil
@@ -404,12 +419,9 @@ public final class FrozenLake: Env {
         
         let key = self.prepareKey(with: seed)
         
-        // 2. Split key
         let (resetKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
         
-        // 3. Sample initial state
-        // Python: `self.s = categorical_sample(self.initial_state_distrib, ...)`
         let s_ml: MLXArray = MLX.categorical(self.initial_state_logits, key: resetKey)
         self.s = s_ml.item(Int.self)
         self.lastAction = nil
@@ -419,10 +431,8 @@ public final class FrozenLake: Env {
 
     public func step(_ action: Action) -> StepResult {
         
-        // 1. Get transitions for (s, a)
         let transitions = self.P[self.s][action]
         
-        // 2. Get and split key
         guard let key = self._key else {
             fatalError("Env must be seeded with reset(seed:)")
         }
@@ -437,7 +447,6 @@ public final class FrozenLake: Env {
         
         let (p, s, r, t) = transitions[i]
         
-        // 4. Update state
         self.s = s
         self.lastAction = action
         

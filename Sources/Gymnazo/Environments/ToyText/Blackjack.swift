@@ -167,6 +167,7 @@ public final class Blackjack: Env {
     private var playerCardValueStrs: [String] = []
     
     private var _key: MLXArray?
+    private var _renderKey: MLXArray?
     
 #if canImport(SwiftUI)
     private var lastRGBFrame: CGImage?
@@ -265,39 +266,56 @@ public final class Blackjack: Env {
     ) -> ResetResult {
         if let seed {
             _key = MLX.key(seed)
-        } else if _key == nil {
-            _key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            _renderKey = MLX.key(seed ^ 0x9E3779B97F4A7C15)
+        } else {
+            if _key == nil {
+                let s = UInt64.random(in: 0...UInt64.max)
+                _key = MLX.key(s)
+            }
+            if _renderKey == nil {
+                let s = UInt64.random(in: 0...UInt64.max)
+                _renderKey = MLX.key(s)
+            }
         }
         
         guard var key = _key else {
             fatalError("Failed to initialize RNG key")
         }
+        guard var renderKey = _renderKey else {
+            fatalError("Failed to initialize render RNG key")
+        }
         
         let (dealerHand, k1) = Self.drawHand(key: key)
         key = k1
-        let (playerHand, k2) = Self.drawHand(key: key)
-        _key = k2
+        var (playerHand, k2) = Self.drawHand(key: key)
+        key = k2
+        
+        while Self.sumHand(playerHand) < 12 {
+            let (drawKey, nextKey) = MLX.split(key: key)
+            key = nextKey
+            playerHand.append(Self.drawCard(key: drawKey))
+        }
+        _key = key
         
         dealer = dealerHand
         player = playerHand
         
         let obs = getObs()
         
-        var currentKey = _key!
-        let (dealerValStr, dealerSuit, displayKey) = generateCardDisplay(value: dealer[0], key: currentKey)
+        let (dealerValStr, dealerSuit, displayKey) = generateCardDisplay(value: dealer[0], key: renderKey)
         dealerTopCardValueStr = dealerValStr
         dealerTopCardSuit = dealerSuit
-        currentKey = displayKey
+        renderKey = displayKey
         
         playerCardSuits = []
         playerCardValueStrs = []
         for cardValue in player {
-            let (valStr, suit, nextKey) = generateCardDisplay(value: cardValue, key: currentKey)
+            let (valStr, suit, nextKey) = generateCardDisplay(value: cardValue, key: renderKey)
             playerCardValueStrs.append(valStr)
             playerCardSuits.append(suit)
-            currentKey = nextKey
+            renderKey = nextKey
         }
-        _key = currentKey
+        _renderKey = renderKey
         
         return (obs: obs, info: [:])
     }
@@ -316,10 +334,13 @@ public final class Blackjack: Env {
             let newCard = Self.drawCard(key: drawKey)
             player.append(newCard)
             
-            let (valStr, suit, k) = generateCardDisplay(value: newCard, key: _key!)
+            if _renderKey == nil {
+                _renderKey = MLX.key(UInt64.random(in: 0...UInt64.max))
+            }
+            let (valStr, suit, k) = generateCardDisplay(value: newCard, key: _renderKey!)
+            _renderKey = k
             playerCardValueStrs.append(valStr)
             playerCardSuits.append(suit)
-            _key = k
             
             if Self.isBust(player) {
                 terminated = true

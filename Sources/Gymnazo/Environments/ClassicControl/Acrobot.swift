@@ -67,7 +67,7 @@ public struct Acrobot: Env {
     public let maxVel2: Float = 9 * Float.pi
     
     public let availableTorques: [Float] = [-1.0, 0.0, 1.0]
-    public let torqueNoiseMax: Float = 0.0
+    public let torqueNoiseMax: Float
     
     // Use "book" dynamics (Sutton & Barto) by default
     public var bookOrNips: String = "book"
@@ -90,8 +90,9 @@ public struct Acrobot: Env {
         ]
     }
     
-    public init(render_mode: String? = nil) {
+    public init(render_mode: String? = nil, torque_noise_max: Float = 0.0) {
         self.render_mode = render_mode
+        self.torqueNoiseMax = torque_noise_max
         
         // Action Space: 0 = -1 torque, 1 = 0 torque, 2 = +1 torque
         self.action_space = Discrete(n: 3)
@@ -118,7 +119,12 @@ public struct Acrobot: Env {
         
         // Add noise to the torque if configured
         if torqueNoiseMax > 0 {
-            let noise = Float.random(in: -torqueNoiseMax...torqueNoiseMax)
+            guard let key = _key else {
+                fatalError("Call reset() before step()")
+            }
+            let (noiseKey, nextKey) = MLX.split(key: key)
+            _key = nextKey
+            let noise = MLX.uniform(low: -torqueNoiseMax, high: torqueNoiseMax, [1], key: noiseKey)[0].item(Float.self)
             torque += noise
         }
         
