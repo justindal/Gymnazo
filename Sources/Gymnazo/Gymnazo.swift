@@ -2,23 +2,51 @@
 // Gymnazo.swift
 //
 
+import os
+
+private final class GymnazoStateRef: @unchecked Sendable {
+    var registry: [String: EnvSpec] = [:]
+    var factories: [String: AnyEnvFactory] = [:]
+    var didInitialize = false
+}
+
+private final class RefBox<T>: @unchecked Sendable {
+    var value: T
+    init(_ value: T) { self.value = value }
+}
+
+private let gymnazoStateLock = OSAllocatedUnfairLock(
+    initialState: Unmanaged.passRetained(GymnazoStateRef())
+)
+
 /// The registry of all available environments.
 @MainActor
-public private(set) var registry: [String: EnvSpec] = [:]
+public var registry: [String: EnvSpec] {
+    let box = gymnazoStateLock.withLock { unmanaged in
+        let state = unmanaged.takeUnretainedValue()
+        return Unmanaged.passRetained(RefBox(state.registry))
+    }
+    return box.takeRetainedValue().value
+}
 
-
-@MainActor
-private var factories: [String: AnyEnvFactory] = [:]
-
-@MainActor
-private var didInitialize = false
+func isRegistered(_ id: String) -> Bool {
+    gymnazoStateLock.withLock { unmanaged in
+        unmanaged.takeUnretainedValue().registry[id] != nil
+    }
+}
 
 /// Ensures the default environments are registered, called automatically on use.
-@MainActor
 private func ensureInitialized() {
-    guard !didInitialize else { return }
-    didInitialize = true
-    GymnazoRegistrations().registerDefaultEnvironments()
+    let shouldInitialize = gymnazoStateLock.withLock { unmanaged in
+        let state = unmanaged.takeUnretainedValue()
+        if state.didInitialize { return false }
+        state.didInitialize = true
+        return true
+    }
+
+    if shouldInitialize {
+        GymnazoRegistrations().registerDefaultEnvironments()
+    }
 }
 
 private struct WrapperConfig {
@@ -31,7 +59,6 @@ private struct WrapperConfig {
     let recordStatsKey: String
 }
 
-@MainActor
 private class AnyEnvFactory {
     func make(
         kwargs: [String: Any],
@@ -41,7 +68,6 @@ private class AnyEnvFactory {
     }
 }
 
-@MainActor
 private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
     private let builder: ([String: Any]) -> EnvType
 
@@ -67,7 +93,6 @@ private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
 ///   - maxEpisodeSteps: Optional maximum steps per episode.
 ///   - rewardThreshold: Optional reward threshold for solving the environment.
 ///   - nondeterministic: Whether the environment is nondeterministic.
-@MainActor
 public func register<EnvType: Env>(
     id: String,
     entryPoint: @escaping ([String: Any]) -> EnvType,
@@ -85,8 +110,14 @@ public func register<EnvType: Env>(
         maxEpisodeSteps: maxEpisodeSteps
     )
 
-    registry[id] = spec
-    factories[id] = EnvFactory(builder: entryPoint)
+    let specBox = Unmanaged.passRetained(RefBox(spec))
+    let factoryBox = Unmanaged.passRetained(RefBox(EnvFactory(builder: entryPoint) as AnyEnvFactory))
+
+    gymnazoStateLock.withLock { unmanaged in
+        let state = unmanaged.takeUnretainedValue()
+        state.registry[id] = specBox.takeRetainedValue().value
+        state.factories[id] = factoryBox.takeRetainedValue().value
+    }
 }
 
 /// Creates an environment instance from the registry.
@@ -101,7 +132,6 @@ public func register<EnvType: Env>(
 ///   - recordStatsKey: Key for statistics in the info dict.
 ///   - kwargs: Additional keyword arguments passed to the environment.
 /// - Returns: The created environment instance.
-@MainActor
 public func make(
     _ id: String,
     maxEpisodeSteps: Int? = nil,
@@ -114,12 +144,18 @@ public func make(
 ) -> any Env {
     ensureInitialized()
 
-    guard let spec: EnvSpec = registry[id] else {
-        fatalError("No environment registered with id \(id). Available: \(Array(registry.keys))")
+    let specBox = gymnazoStateLock.withLock { unmanaged -> Unmanaged<RefBox<EnvSpec>>? in
+        let state = unmanaged.takeUnretainedValue()
+        guard let spec = state.registry[id] else { return nil }
+        return Unmanaged.passRetained(RefBox(spec))
+    }
+
+    guard let specBox else {
+        fatalError("No environment registered with id \(id)")
     }
 
     return make(
-        spec,
+        specBox.takeRetainedValue().value,
         maxEpisodeSteps: maxEpisodeSteps,
         disableEnvChecker: disableEnvChecker,
         disableRenderOrderEnforcing: disableRenderOrderEnforcing,
@@ -142,7 +178,6 @@ public func make(
 ///   - recordStatsKey: Key for statistics in the info dict.
 ///   - kwargs: Additional keyword arguments passed to the environment.
 /// - Returns: The created environment instance.
-@MainActor
 public func make(
     _ spec: EnvSpec,
     maxEpisodeSteps: Int? = nil,
@@ -155,9 +190,18 @@ public func make(
 ) -> any Env {
     ensureInitialized()
 
-    guard let factory = factories[spec.id] else {
+    let specId = spec.id
+    let factoryBox = gymnazoStateLock.withLock { unmanaged -> Unmanaged<RefBox<AnyEnvFactory>>? in
+        let state = unmanaged.takeUnretainedValue()
+        guard let factory = state.factories[specId] else { return nil }
+        return Unmanaged.passRetained(RefBox(factory))
+    }
+
+    guard let factoryBox else {
         fatalError("No factory registered for id \(spec.id)")
     }
+
+    let factory = factoryBox.takeRetainedValue().value
 
     guard let entryPoint = spec.entry_point else {
         fatalError("\(spec.id) registered but entry_point is not specified.")
@@ -253,11 +297,21 @@ public func make_vec(
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     autoresetMode: AutoresetMode = .nextStep,
-    kwargs: [String: Any] = [:]
+    kwargs: [String: any Sendable] = [:]
 ) -> SyncVectorEnv {
     precondition(numEnvs > 0, "numEnvs must be positive")
-    
-    // Create factory functions for each sub-environment
+    ensureInitialized()
+
+    guard isRegistered(id) else {
+        fatalError("No environment registered with id \(id)")
+    }
+
+    var anyKwargs: [String: Any] = [:]
+    anyKwargs.reserveCapacity(kwargs.count)
+    for (k, v) in kwargs {
+        anyKwargs[k] = v
+    }
+
     let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
         return {
             make(
@@ -268,18 +322,17 @@ public func make_vec(
                 recordEpisodeStatistics: recordEpisodeStatistics,
                 recordBufferLength: recordBufferLength,
                 recordStatsKey: recordStatsKey,
-                kwargs: kwargs
+                kwargs: anyKwargs
             )
         }
     }
-    
+
     let vectorEnv = SyncVectorEnv(
         envFns: envFns,
         copyObservations: true,
         autoresetMode: autoresetMode
     )
     
-    // Set spec from registry
     if let spec = registry[id] {
         vectorEnv.spec = spec
     }
@@ -366,12 +419,45 @@ public func make_vec(
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     autoresetMode: AutoresetMode = .nextStep,
-    kwargs: [String: Any] = [:]
+    kwargs: [String: any Sendable] = [:]
 ) -> any VectorEnv {
     precondition(numEnvs > 0, "numEnvs must be positive")
+    ensureInitialized()
     
-    let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
-        return {
+    guard isRegistered(id) else {
+        fatalError("No environment registered with id \(id)")
+    }
+
+    var anyKwargs: [String: Any] = [:]
+    anyKwargs.reserveCapacity(kwargs.count)
+    for (k, v) in kwargs {
+        anyKwargs[k] = v
+    }
+
+    let vectorEnv: any VectorEnv
+    switch vectorizationMode {
+    case .sync:
+        let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
+            return {
+                make(
+                    id,
+                    maxEpisodeSteps: maxEpisodeSteps,
+                    disableEnvChecker: disableEnvChecker,
+                    disableRenderOrderEnforcing: disableRenderOrderEnforcing,
+                    recordEpisodeStatistics: recordEpisodeStatistics,
+                    recordBufferLength: recordBufferLength,
+                    recordStatsKey: recordStatsKey,
+                    kwargs: anyKwargs
+                )
+            }
+        }
+        let syncEnv = SyncVectorEnv(envFns: envFns, copyObservations: true, autoresetMode: autoresetMode)
+        if let spec = registry[id] {
+            syncEnv.spec = spec
+        }
+        vectorEnv = syncEnv
+    case .async:
+        let envs = (0..<numEnvs).map { _ in
             make(
                 id,
                 maxEpisodeSteps: maxEpisodeSteps,
@@ -380,26 +466,11 @@ public func make_vec(
                 recordEpisodeStatistics: recordEpisodeStatistics,
                 recordBufferLength: recordBufferLength,
                 recordStatsKey: recordStatsKey,
-                kwargs: kwargs
+                kwargs: anyKwargs
             )
         }
-    }
-    
-    let vectorEnv: any VectorEnv
-    switch vectorizationMode {
-    case .sync:
-        let syncEnv = SyncVectorEnv(
-            envFns: envFns,
-            copyObservations: true,
-            autoresetMode: autoresetMode
-        )
-        if let spec = registry[id] {
-            syncEnv.spec = spec
-        }
-        vectorEnv = syncEnv
-    case .async:
         let asyncEnv = AsyncVectorEnv(
-            envFns: envFns,
+            envs: envs,
             copyObservations: true,
             autoresetMode: autoresetMode
         )
@@ -453,27 +524,36 @@ public func make_vec_async(
     recordBufferLength: Int = 100,
     recordStatsKey: String = "episode",
     autoresetMode: AutoresetMode = .nextStep,
-    kwargs: [String: Any] = [:]
+    kwargs: [String: any Sendable] = [:]
 ) -> AsyncVectorEnv {
     precondition(numEnvs > 0, "numEnvs must be positive")
+    ensureInitialized()
     
-    let envFns: [() -> any Env] = (0..<numEnvs).map { _ in
-        return {
-            make(
-                id,
-                maxEpisodeSteps: maxEpisodeSteps,
-                disableEnvChecker: disableEnvChecker,
-                disableRenderOrderEnforcing: disableRenderOrderEnforcing,
-                recordEpisodeStatistics: recordEpisodeStatistics,
-                recordBufferLength: recordBufferLength,
-                recordStatsKey: recordStatsKey,
-                kwargs: kwargs
-            )
-        }
+    guard isRegistered(id) else {
+        fatalError("No environment registered with id \(id)")
+    }
+
+    var anyKwargs: [String: Any] = [:]
+    anyKwargs.reserveCapacity(kwargs.count)
+    for (k, v) in kwargs {
+        anyKwargs[k] = v
+    }
+    
+    let envs = (0..<numEnvs).map { _ in
+        make(
+            id,
+            maxEpisodeSteps: maxEpisodeSteps,
+            disableEnvChecker: disableEnvChecker,
+            disableRenderOrderEnforcing: disableRenderOrderEnforcing,
+            recordEpisodeStatistics: recordEpisodeStatistics,
+            recordBufferLength: recordBufferLength,
+            recordStatsKey: recordStatsKey,
+            kwargs: anyKwargs
+        )
     }
     
     let vectorEnv = AsyncVectorEnv(
-        envFns: envFns,
+        envs: envs,
         copyObservations: true,
         autoresetMode: autoresetMode
     )
@@ -506,7 +586,7 @@ public func make_vec_async(
 /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
 @MainActor
 public func make_vec_async(
-    envFns: [() -> any Env],
+    envFns: [@Sendable () -> any Env],
     autoresetMode: AutoresetMode = .nextStep
 ) -> AsyncVectorEnv {
     return AsyncVectorEnv(
@@ -516,7 +596,6 @@ public func make_vec_async(
     )
 }
 
-@MainActor
 private func applyDefaultWrappers<E: Env>(
     env: E,
     config: WrapperConfig
@@ -524,7 +603,6 @@ private func applyDefaultWrappers<E: Env>(
     applyPassiveChecker(env: env, config: config)
 }
 
-@MainActor
 private func applyPassiveChecker<E: Env>(
     env: E,
     config: WrapperConfig
@@ -536,7 +614,6 @@ private func applyPassiveChecker<E: Env>(
     return applyOrderEnforcing(env: env, config: config)
 }
 
-@MainActor
 private func applyOrderEnforcing<E: Env>(
     env: E,
     config: WrapperConfig
@@ -551,7 +628,6 @@ private func applyOrderEnforcing<E: Env>(
     return applyTimeLimit(env: env, config: config)
 }
 
-@MainActor
 private func applyTimeLimit<E: Env>(
     env: E,
     config: WrapperConfig
@@ -564,7 +640,6 @@ private func applyTimeLimit<E: Env>(
     return applyRecordEpisodeStatistics(env: wrapped, config: config)
 }
 
-@MainActor
 private func applyRecordEpisodeStatistics<E: Env>(
     env: E,
     config: WrapperConfig
