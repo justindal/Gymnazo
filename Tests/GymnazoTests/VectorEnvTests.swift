@@ -21,14 +21,13 @@ struct VectorEnvTests {
     
     @Test
     @MainActor
-    func testSyncVectorEnvFromPreCreatedEnvs() async throws {
-        let cartPole1 = CartPole()
-        let cartPole2 = CartPole()
-        
-        let envs = SyncVectorEnv(envs: [cartPole1, cartPole2])
+    func testSyncVectorEnvFromEnvFns() async throws {
+        let envs = SyncVectorEnv(envFns: [
+            { CartPole() },
+            { CartPole() }
+        ])
         
         #expect(envs.num_envs == 2)
-        #expect(envs.environments.count == 2)
     }
     
     @Test
@@ -103,8 +102,8 @@ struct VectorEnvTests {
         // Create individual environments with seeds 42 and 43 to verify
         var singleEnv1 = CartPole()
         var singleEnv2 = CartPole()
-        let (obs1, _) = singleEnv1.reset(seed: 42)
-        let (obs2, _) = singleEnv2.reset(seed: 43)
+        let obs1 = singleEnv1.reset(seed: 42).obs
+        let obs2 = singleEnv2.reset(seed: 43).obs
         
         eval(result.observations, obs1, obs2)
         
@@ -207,9 +206,8 @@ struct VectorEnvTests {
             
             if term {
                 terminated = true
-                // Check that final_observation is in infos
-                if let finalObs = result.infos["final_observation"] as? [Int: MLXArray] {
-                    finalObsStored = finalObs[0] != nil
+                if let finals = result.finals {
+                    finalObsStored = finals.observations[0] != nil
                 }
                 break
             }
@@ -217,6 +215,41 @@ struct VectorEnvTests {
         
         #expect(terminated == true)
         #expect(finalObsStored == true)
+    }
+
+    @Test
+    @MainActor
+    func testSameStepAutoresetReturnsResetObservation() async throws {
+        let envs = SyncVectorEnv(
+            envFns: [{ CartPole() }],
+            autoresetMode: .sameStep
+        )
+        _ = envs.reset(seed: 42)
+        
+        var terminated = false
+        var checked = false
+        
+        for _ in 0..<500 {
+            let result = envs.step([0])
+            eval(result.terminations)
+            let term = result.terminations[0].item(Bool.self)
+            
+            if term {
+                terminated = true
+                #expect(result.finals?.indices.contains(0) == true)
+                #expect(result.finals?.observations[0] != nil)
+                
+                let obs = result.observations[0]
+                eval(obs)
+                let maxVal = abs(obs).max().item(Float.self)
+                #expect(maxVal < 0.2)
+                checked = true
+                break
+            }
+        }
+        
+        #expect(terminated == true)
+        #expect(checked == true)
     }
     
     @Test
@@ -273,7 +306,7 @@ struct VectorEnvTests {
             let result = envs.step([0, 1]) // Different actions for each env
             eval(result.terminations)
             
-            if let indices = result.infos["_final_observation_indices"] as? [Int] {
+            if let indices = result.finals?.indices {
                 for idx in indices {
                     terminatedIndices.insert(idx)
                 }
@@ -444,7 +477,7 @@ struct VectorStepResultTests {
         
         #expect(result.observations.shape == [3])
         #expect(result.rewards.shape == [1])
-        #expect(result.infos["key"] as? String == "value")
+        #expect(result.infos["key"]?.string == "value")
     }
 }
 

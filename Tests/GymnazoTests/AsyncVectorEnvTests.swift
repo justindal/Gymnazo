@@ -23,12 +23,12 @@ struct AsyncVectorEnvTests {
         #expect(envs.autoreset_mode == .nextStep)
     }
     
-    @Test("AsyncVectorEnv from pre-created envs")
-    func testAsyncVectorEnvFromPreCreatedEnvs() {
-        let cartPole1 = CartPole()
-        let cartPole2 = CartPole()
-        
-        let envs = AsyncVectorEnv(envs: [cartPole1, cartPole2])
+    @Test("AsyncVectorEnv from factory functions")
+    func testAsyncVectorEnvFromFactoryFunctions() {
+        let envs = AsyncVectorEnv(envFns: [
+            { CartPole() },
+            { CartPole() }
+        ])
         
         #expect(envs.num_envs == 2)
     }
@@ -172,14 +172,45 @@ struct AsyncVectorEnvTests {
         for _ in 0..<1000 {
             let result = envs.step([1])
             
-            if let finalObs = result.infos["final_observation"] as? [Int: MLXArray] {
+            if let finals = result.finals, finals.observations[0] != nil {
                 foundFinalObs = true
-                #expect(finalObs[0] != nil)
                 break
             }
         }
         
         #expect(foundFinalObs, "Should have found final_observation in autoreset")
+    }
+
+    @Test("Same-step autoreset returns reset observation")
+    func testSameStepAutoresetReturnsResetObservation() async {
+        let envs = AsyncVectorEnv(envFns: [{ CartPole() }], autoresetMode: .sameStep)
+        
+        _ = await envs.resetAsync(seed: 42)
+        
+        var terminated = false
+        var checked = false
+        
+        for _ in 0..<500 {
+            let result = await envs.stepAsync([0])
+            eval(result.terminations)
+            let term = result.terminations[0].item(Bool.self)
+            
+            if term {
+                terminated = true
+                #expect(result.finals?.indices.contains(0) == true)
+                #expect(result.finals?.observations[0] != nil)
+                
+                let obs = result.observations[0]
+                eval(obs)
+                let maxVal = abs(obs).max().item(Float.self)
+                #expect(maxVal < 0.2)
+                checked = true
+                break
+            }
+        }
+        
+        #expect(terminated == true)
+        #expect(checked == true)
     }
     
     @Test("Autoreset indices tracked")
@@ -191,7 +222,7 @@ struct AsyncVectorEnvTests {
         for _ in 0..<1000 {
             let result = envs.step([1, 1])
             
-            if let indices = result.infos["_final_observation_indices"] as? [Int] {
+            if let indices = result.finals?.indices {
                 #expect(!indices.isEmpty)
                 break
             }

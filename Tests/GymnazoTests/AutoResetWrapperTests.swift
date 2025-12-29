@@ -15,20 +15,14 @@ struct AutoResetWrapperTests {
 
         var state: Int = 0
 
-        mutating func step(_ action: Int) -> StepResult {
+        mutating func step(_ action: Int) -> Step<Observation> {
             state += 1
-            return (
-                obs: state,
-                reward: 1,
-                terminated: true,
-                truncated: false,
-                info: ["step": state]
-            )
+            return Step(obs: state, reward: 1, terminated: true, truncated: false, info: ["step": .int(state)])
         }
 
-        mutating func reset(seed: UInt64?, options: [String: Any]?) -> ResetResult {
+        mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
             state = 0
-            return (obs: 0, info: ["reset": true])
+            return Reset(obs: 0, info: ["reset": true])
         }
     }
 
@@ -39,10 +33,9 @@ struct AutoResetWrapperTests {
         let step = env.step(0)
         #expect(step.obs == 0)
         #expect(step.terminated)
-        #expect((step.info["reset"] as? Bool) == true)
-        #expect((step.info["final_observation"] as? Int) == 1)
-        let finalInfo = step.info["final_info"] as? [String: Any]
-        #expect((finalInfo?["step"] as? Int) == 1)
+        #expect(step.info["reset"]?.bool == true)
+        #expect(step.final?.obs == 1)
+        #expect(step.final?.info["step"]?.int == 1)
     }
 
     @Test
@@ -52,7 +45,7 @@ struct AutoResetWrapperTests {
         let step1 = env.step(0)
         #expect(step1.obs == 1)
         #expect(step1.terminated)
-        #expect((step1.info["final_observation"] as? Int) == 1)
+        #expect(step1.final?.obs == 1)
         let step2 = env.step(0)
         #expect(step2.obs == 1)
         #expect(step2.terminated)

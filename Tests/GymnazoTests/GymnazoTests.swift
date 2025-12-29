@@ -24,7 +24,7 @@ struct GymnazoTests {
             "FrozenLake",
             kwargs: ["render_mode": "ansi", "is_slippery": false]
         )
-        _ = env.reset(seed: 123)
+        _ = env.resetAny(seed: 123)
         // should not crash; we don't assert output here.
         env.render()
     }

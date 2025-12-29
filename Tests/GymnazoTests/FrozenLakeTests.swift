@@ -9,7 +9,7 @@ struct FrozenLakeTests {
         let r1 = env.reset(seed: 7)
         let r2 = env.reset(seed: 7)
         #expect(r1.obs == r2.obs)
-        #expect((r1.info["prob"] as? Double) == 1.0)
+        #expect(r1.info["prob"]?.double == 1.0)
     }
     
     @Test

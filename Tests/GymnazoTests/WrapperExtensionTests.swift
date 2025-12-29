@@ -112,7 +112,7 @@ struct WrapperExtensionTests {
             .orderEnforced()
             .timeLimited(10)
         
-        let (obs, _) = env.reset(seed: 42, options: nil)
+        let obs = env.reset(seed: 42, options: nil).obs
         #expect(obs.shape == [4])
         
         let result = env.step(0)
@@ -176,10 +176,10 @@ struct WrapperExtensionTests {
             obs * 2
         }
         
-        let (obs, _) = env.reset(seed: 42, options: nil)
+        let obs = env.reset(seed: 42, options: nil).obs
         
         var baseEnv = CartPole()
-        let (baseObs, _) = baseEnv.reset(seed: 42, options: nil)
+        let baseObs = baseEnv.reset(seed: 42, options: nil).obs
         
         let obsValues: [Float] = obs.asArray(Float.self)
         let baseValues: [Float] = baseObs.asArray(Float.self)

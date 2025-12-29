@@ -24,7 +24,7 @@ struct WrapperBehaviorTests {
         )
         // should not crash due to disabled order enforcement
         env.render()
-        _ = env.reset(seed: 1)
+        _ = env.resetAny(seed: 1)
         env.render()
     }
 }

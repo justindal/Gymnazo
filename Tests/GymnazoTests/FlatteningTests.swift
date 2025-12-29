@@ -55,7 +55,7 @@ struct FlatteningTests {
     @Test
     func testFlattenObservationFrozenLakeIsOneHot() async throws {
         var env = FrozenLake().observationsFlattened()
-        let (obs, _) = env.reset(seed: 0, options: nil)
+        let obs = env.reset(seed: 0, options: nil).obs
         eval(obs)
         let values = obs.asArray(Float.self)
         let sum = values.reduce(0, +)

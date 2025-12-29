@@ -8,31 +8,25 @@ final class FrozenLakeInfoTagWrapper: Wrapper {
     
     var env: FrozenLake
     let tagKey: String
-    let tagValue: Any
+    let tagValue: InfoValue
     
     required init(env: FrozenLake) {
         self.env = env
         self.tagKey = "wrapped"
-        self.tagValue = true
+        self.tagValue = .bool(true)
     }
     
-    init(env: FrozenLake, tagKey: String, tagValue: Any) {
+    init(env: FrozenLake, tagKey: String, tagValue: InfoValue) {
         self.env = env
         self.tagKey = tagKey
         self.tagValue = tagValue
     }
     
-    func step(_ action: Int) -> (
-        obs: Int,
-        reward: Double,
-        terminated: Bool,
-        truncated: Bool,
-        info: [String : Any]
-    ) {
+    func step(_ action: Int) -> Step<Observation> {
         let r = env.step(action)
         var info = r.info
         info[tagKey] = tagValue
-        return (r.obs, r.reward, r.terminated, r.truncated, info)
+        return Step(obs: r.obs, reward: r.reward, terminated: r.terminated, truncated: r.truncated, info: info)
     }
 }
 
@@ -53,7 +47,21 @@ struct AdditionalWrappersTests {
             entryPoint: { env, kwargs in
                 guard let fl = env as? FrozenLake else { return env }
                 let key = (kwargs["key"] as? String) ?? "wrapped"
-                let value = kwargs["value"] ?? true
+                let rawValue = kwargs["value"]
+                let value: InfoValue
+                if let b = rawValue as? Bool {
+                    value = .bool(b)
+                } else if let i = rawValue as? Int {
+                    value = .int(i)
+                } else if let d = rawValue as? Double {
+                    value = .double(d)
+                } else if let f = rawValue as? Float {
+                    value = .double(Double(f))
+                } else if let s = rawValue as? String {
+                    value = .string(s)
+                } else {
+                    value = .bool(true)
+                }
                 return FrozenLakeInfoTagWrapper(env: fl, tagKey: key, tagValue: value)
             },
             kwargs: ["key": "extra", "value": "ok"]

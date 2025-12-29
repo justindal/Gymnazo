@@ -77,7 +77,9 @@ struct LunarLanderTests {
     @Test
     func testResetReturnsObservation() async throws {
         var env = LunarLander()
-        let (obs, info) = env.reset(seed: 42)
+        let result = env.reset(seed: 42)
+        let obs = result.obs
+        let info = result.info
         
         #expect(obs.shape == [8])
         #expect(info.isEmpty || info.count >= 0)
@@ -88,8 +90,8 @@ struct LunarLanderTests {
         var env1 = LunarLander()
         var env2 = LunarLander()
         
-        let (obs1, _) = env1.reset(seed: 123)
-        let (obs2, _) = env2.reset(seed: 123)
+        let obs1 = env1.reset(seed: 123).obs
+        let obs2 = env2.reset(seed: 123).obs
         
         eval(obs1, obs2)
         
@@ -103,8 +105,8 @@ struct LunarLanderTests {
         var env1 = LunarLander()
         var env2 = LunarLander()
         
-        let (obs1, _) = env1.reset(seed: 1)
-        let (obs2, _) = env2.reset(seed: 999)
+        let obs1 = env1.reset(seed: 1).obs
+        let obs2 = env2.reset(seed: 999).obs
         
         eval(obs1, obs2)
         
@@ -118,7 +120,9 @@ struct LunarLanderTests {
         var env = LunarLander()
         _ = env.reset(seed: 42)
         
-        let (obs, reward, terminated, truncated, _) = env.step(0)
+        let result = env.step(0)
+        let obs = result.obs
+        let truncated = result.truncated
         
         #expect(obs.shape == [8])
         #expect(truncated == false)  // Truncation handled by TimeLimit wrapper
@@ -134,7 +138,7 @@ struct LunarLanderTests {
             var testEnv = LunarLander()
             _ = testEnv.reset(seed: 42)
             
-            let (obs, _, _, _, _) = testEnv.step(action)
+            let obs = testEnv.step(action).obs
             #expect(obs.shape == [8])
         }
     }
@@ -145,11 +149,11 @@ struct LunarLanderTests {
         _ = env.reset(seed: 42)
         
         // Take a step with no action
-        let (obsNoAction, _, _, _, _) = env.step(0)
+        let obsNoAction = env.step(0).obs
         
         // Reset and fire main engine
         _ = env.reset(seed: 42)
-        let (obsMainEngine, _, _, _, _) = env.step(2)
+        let obsMainEngine = env.step(2).obs
         
         eval(obsNoAction, obsMainEngine)
         
@@ -169,8 +173,8 @@ struct LunarLanderTests {
         _ = envLeft.reset(seed: 42)
         _ = envRight.reset(seed: 42)
         
-        let (obsLeft, _, _, _, _) = envLeft.step(1)   // Fire left engine
-        let (obsRight, _, _, _, _) = envRight.step(3) // Fire right engine
+        let obsLeft = envLeft.step(1).obs   // Fire left engine
+        let obsRight = envRight.step(3).obs // Fire right engine
         
         eval(obsLeft, obsRight)
         
@@ -184,7 +188,7 @@ struct LunarLanderTests {
     @Test
     func testGravityApplied() async throws {
         var env = LunarLander()
-        let (obsInit, _) = env.reset(seed: 42)
+        let obsInit = env.reset(seed: 42).obs
         
         // Take multiple steps with no action
         var obs = obsInit
@@ -234,8 +238,8 @@ struct LunarLanderTests {
             _ = envMainEngine.step(2)
         }
         
-        let (_, rewardNoAction, _, _, _) = envNoAction.step(0)
-        let (_, rewardMainEngine, _, _, _) = envMainEngine.step(2)
+        let rewardNoAction = envNoAction.step(0).reward
+        let rewardMainEngine = envMainEngine.step(2).reward
         
         // Main engine should have lower reward due to fuel cost
         // (Assuming similar positions, which may not always hold)
@@ -247,7 +251,7 @@ struct LunarLanderTests {
     @Test
     func testObservationContainsLegContact() async throws {
         var env = LunarLander()
-        let (obs, _) = env.reset(seed: 42)
+        let obs = env.reset(seed: 42).obs
         
         eval(obs)
         
@@ -359,7 +363,7 @@ struct LunarLanderContinuousTests {
     @Test
     func testResetReturnsObservation() async throws {
         var env = LunarLanderContinuous()
-        let (obs, _) = env.reset(seed: 42)
+        let obs = env.reset(seed: 42).obs
         
         #expect(obs.shape == [8])
     }
@@ -371,7 +375,7 @@ struct LunarLanderContinuousTests {
         
         // Main engine at 50%, no lateral
         let action = MLXArray([0.5, 0.0] as [Float32])
-        let (obs, reward, _, _, _) = env.step(action)
+        let obs = env.step(action).obs
         
         #expect(obs.shape == [8])
     }
@@ -383,7 +387,7 @@ struct LunarLanderContinuousTests {
         
         // Action beyond allowed range should be clipped internally
         let action = MLXArray([2.0, -2.0] as [Float32])
-        let (obs, _, _, _, _) = env.step(action)
+        let obs = env.step(action).obs
         
         #expect(obs.shape == [8])
         // Contacts remain within bounds after stepping
@@ -399,9 +403,9 @@ struct LunarLanderContinuousTests {
         var env2 = LunarLanderContinuous(enableWind: true)
         var env3 = LunarLanderContinuous(enableWind: true)
         
-        let (obs1, _) = env1.reset(seed: 7)
-        let (obs2, _) = env2.reset(seed: 7)
-        let (obs3, _) = env3.reset(seed: 8)
+        let obs1 = env1.reset(seed: 7).obs
+        let obs2 = env2.reset(seed: 7).obs
+        let obs3 = env3.reset(seed: 8).obs
         
         let diffSame = abs(obs1 - obs2).sum().item(Float.self)
         let diffDifferent = abs(obs1 - obs3).sum().item(Float.self)
@@ -423,8 +427,8 @@ struct LunarLanderContinuousTests {
         // High throttle (100% power)
         let actionHigh = MLXArray([1.0, 0.0] as [Float32])
         
-        let (obsLow, _, _, _, _) = envLow.step(actionLow)
-        let (obsHigh, _, _, _, _) = envHigh.step(actionHigh)
+        let obsLow = envLow.step(actionLow).obs
+        let obsHigh = envHigh.step(actionHigh).obs
         
         eval(obsLow, obsHigh)
         
@@ -448,8 +452,8 @@ struct LunarLanderContinuousTests {
         // Lateral outside deadzone (fires right)
         let actionOn = MLXArray([0.0, 0.8] as [Float32])
         
-        let (obsOff, _, _, _, _) = envOff.step(actionOff)
-        let (obsOn, _, _, _, _) = envOn.step(actionOn)
+        let obsOff = envOff.step(actionOff).obs
+        let obsOn = envOn.step(actionOn).obs
         
         eval(obsOff, obsOn)
         
@@ -468,7 +472,7 @@ struct LunarLanderContinuousTests {
         
         // Negative main engine value means off
         let action = MLXArray([-0.5, 0.0] as [Float32])
-        let (obs, _, _, _, _) = env.step(action)
+        let obs = env.step(action).obs
         
         #expect(obs.shape == [8])
     }
@@ -478,8 +482,8 @@ struct LunarLanderContinuousTests {
         var env1 = LunarLanderContinuous()
         var env2 = LunarLanderContinuous()
         
-        let (obs1, _) = env1.reset(seed: 456)
-        let (obs2, _) = env2.reset(seed: 456)
+        let obs1 = env1.reset(seed: 456).obs
+        let obs2 = env2.reset(seed: 456).obs
         
         eval(obs1, obs2)
         
@@ -495,7 +499,7 @@ struct LunarLanderRegistrationTests {
     @MainActor
     func testMakeDiscreteEnvironment() async throws {
         var env = make("LunarLander")
-        let (obs, _) = env.reset(seed: 42)
+        let obs = env.resetAny(seed: 42).obs
         
         eval(obs as! MLXArray)
         #expect((obs as! MLXArray).shape == [8])
@@ -505,7 +509,7 @@ struct LunarLanderRegistrationTests {
     @MainActor
     func testMakeContinuousEnvironment() async throws {
         var env = make("LunarLanderContinuous")
-        let (obs, _) = env.reset(seed: 42)
+        let obs = env.resetAny(seed: 42).obs
         
         eval(obs as! MLXArray)
         #expect((obs as! MLXArray).shape == [8])
@@ -515,7 +519,7 @@ struct LunarLanderRegistrationTests {
     @MainActor
     func testMakeWithCustomGravity() async throws {
         var env = make("LunarLander", kwargs: ["gravity": -5.0])
-        let (obs, _) = env.reset(seed: 42)
+        let obs = env.resetAny(seed: 42).obs
         
         eval(obs as! MLXArray)
         #expect((obs as! MLXArray).shape == [8])
@@ -529,7 +533,7 @@ struct LunarLanderRegistrationTests {
             "wind_power": 10.0,
             "turbulence_power": 1.0
         ])
-        let (obs, _) = env.reset(seed: 42)
+        let obs = env.resetAny(seed: 42).obs
         
         eval(obs as! MLXArray)
         #expect((obs as! MLXArray).shape == [8])

@@ -46,7 +46,9 @@ struct CartPoleTests {
     @Test
     func testResetReturnsObservation() async throws {
         var env = CartPole()
-        let (obs, info) = env.reset(seed: 42)
+        let result = env.reset(seed: 42)
+        let obs = result.obs
+        let info = result.info
         
         #expect(obs.shape == [4])
         #expect(info.isEmpty || info.count >= 0) // info can be empty
@@ -57,8 +59,8 @@ struct CartPoleTests {
         var env1 = CartPole()
         var env2 = CartPole()
         
-        let (obs1, _) = env1.reset(seed: 123)
-        let (obs2, _) = env2.reset(seed: 123)
+        let obs1 = env1.reset(seed: 123).obs
+        let obs2 = env2.reset(seed: 123).obs
         
         eval(obs1, obs2)
         
@@ -72,8 +74,8 @@ struct CartPoleTests {
         var env1 = CartPole()
         var env2 = CartPole()
         
-        let (obs1, _) = env1.reset(seed: 1)
-        let (obs2, _) = env2.reset(seed: 999)
+        let obs1 = env1.reset(seed: 1).obs
+        let obs2 = env2.reset(seed: 999).obs
         
         eval(obs1, obs2)
         
@@ -87,7 +89,7 @@ struct CartPoleTests {
         var env = CartPole()
         
         for seed in 0..<10 {
-            let (obs, _) = env.reset(seed: UInt64(seed))
+            let obs = env.reset(seed: UInt64(seed)).obs
             eval(obs)
             
             // Initial state should be within [-0.05, 0.05]

@@ -19,13 +19,13 @@ final class DummyBoxEnv: Env {
         self.observation_space = Box(low: low, high: high, shape: shape, dtype: .float32)
     }
 
-    func step(_ action: MLXArray) -> (obs: MLXArray, reward: Double, terminated: Bool, truncated: Bool, info: [String : Any]) {
-        return (obs: action, reward: 0.0, terminated: false, truncated: false, info: [:])
+    func step(_ action: MLXArray) -> Step<Observation> {
+        return Step(obs: action, reward: 0.0, terminated: false, truncated: false, info: [:])
     }
 
-    func reset(seed: UInt64?, options: [String : Any]?) -> (obs: MLXArray, info: [String : Any]) {
+    func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
         let zeros = MLXArray.zeros(action_space.shape ?? [1], type: Float.self)
-        return (obs: zeros, info: [:])
+        return Reset(obs: zeros, info: [:])
     }
 }
 

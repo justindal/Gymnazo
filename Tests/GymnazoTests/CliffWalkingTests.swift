@@ -13,7 +13,7 @@ struct CliffWalkingTests {
         let env = CliffWalking()
         
         for seed in [42, 123, 999, 0, 12345] as [UInt64] {
-            let (obs, _) = env.reset(seed: seed)
+            let obs = env.reset(seed: seed).obs
             #expect(obs == CliffWalking.startState)
         }
     }
@@ -72,7 +72,10 @@ struct CliffWalkingTests {
         let env = CliffWalking()
         _ = env.reset(seed: 42)
         
-        let (obs, reward, terminated, _, _) = env.step(0)
+        let result = env.step(0)
+        let obs = result.obs
+        let reward = result.reward
+        let terminated = result.terminated
         
         let expectedState = CliffWalking.positionToState(row: 2, col: 0)
         #expect(obs == expectedState)
@@ -85,7 +88,10 @@ struct CliffWalkingTests {
         let env = CliffWalking()
         _ = env.reset(seed: 42)
         
-        let (obs, reward, terminated, _, _) = env.step(3)
+        let result = env.step(3)
+        let obs = result.obs
+        let reward = result.reward
+        let terminated = result.terminated
         
         #expect(obs == CliffWalking.startState)
         #expect(reward == -1.0)
@@ -97,7 +103,10 @@ struct CliffWalkingTests {
         let env = CliffWalking()
         _ = env.reset(seed: 42)
         
-        let (obs, reward, terminated, _, _) = env.step(1)
+        let result = env.step(1)
+        let obs = result.obs
+        let reward = result.reward
+        let terminated = result.terminated
         
         #expect(obs == CliffWalking.startState)
         #expect(reward == -100.0)
@@ -110,7 +119,9 @@ struct CliffWalkingTests {
         
         for _ in 0..<5 {
             _ = env.reset(seed: 42)
-            let (obs, reward, _, _, _) = env.step(1)
+            let result = env.step(1)
+            let obs = result.obs
+            let reward = result.reward
             #expect(obs == CliffWalking.startState)
             #expect(reward == -100.0)
         }
@@ -124,11 +135,13 @@ struct CliffWalkingTests {
         _ = env.step(0)
         
         for _ in 0..<11 {
-            let (_, _, terminated, _, _) = env.step(1)
-            if terminated { break }
+            let result = env.step(1)
+            if result.terminated { break }
         }
         
-        let (obs, _, terminated, _, _) = env.step(2)
+        let result = env.step(2)
+        let obs = result.obs
+        let terminated = result.terminated
         
         #expect(obs == CliffWalking.goalState)
         #expect(terminated)
@@ -154,7 +167,7 @@ struct CliffWalkingTests {
         for seed in 0..<100 as Range<UInt64> {
             _ = env.reset(seed: seed)
             _ = env.step(0)
-            let (obs, _, _, _, _) = env.step(0)
+            let obs = env.step(0).obs
             outcomes.insert(obs)
         }
         
@@ -168,8 +181,7 @@ struct CliffWalkingTests {
         var outcomes: [Int] = []
         for seed in 0..<10 as Range<UInt64> {
             _ = env.reset(seed: seed)
-            let (obs, _, _, _, _) = env.step(0)
-            outcomes.append(obs)
+            outcomes.append(env.step(0).obs)
         }
         
         let expected = CliffWalking.positionToState(row: 2, col: 0)
@@ -185,11 +197,11 @@ struct CliffWalkingTests {
         
         _ = env.step(0)
         _ = env.step(0)
-        let (obs1, _, _, _, _) = env.step(0)
+        let obs1 = env.step(0).obs
         
         #expect(obs1 == CliffWalking.positionToState(row: 0, col: 0))
         
-        let (obs2, _, _, _, _) = env.step(0)
+        let obs2 = env.step(0).obs
         #expect(obs2 == CliffWalking.positionToState(row: 0, col: 0))
     }
     
@@ -204,7 +216,7 @@ struct CliffWalkingTests {
             _ = env.step(1)
         }
         
-        let (obs, _, _, _, _) = env.step(1)
+        let obs = env.step(1).obs
         #expect(obs == CliffWalking.positionToState(row: 2, col: 11))
     }
     
@@ -213,7 +225,7 @@ struct CliffWalkingTests {
     func testGymnazoMakeCliffWalking() async throws {
         let env = Gymnazo.make("CliffWalking")
         let cliffWalking = env.unwrapped as! CliffWalking
-        let (obs, _) = cliffWalking.reset(seed: 123)
+        let obs = cliffWalking.reset(seed: 123).obs
         #expect(obs == CliffWalking.startState)
     }
     
@@ -222,7 +234,7 @@ struct CliffWalkingTests {
     func testGymnazoMakeCliffWalkingWithKwargs() async throws {
         let env = Gymnazo.make("CliffWalking", kwargs: ["render_mode": "ansi"])
         let cliffWalking = env.unwrapped as! CliffWalking
-        let (obs, _) = cliffWalking.reset(seed: 42)
+        let obs = cliffWalking.reset(seed: 42).obs
         #expect(obs == CliffWalking.startState)
     }
 }

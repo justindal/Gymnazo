@@ -73,7 +73,9 @@ struct AcrobotTests {
     @Test
     func testResetReturnsObservation() async throws {
         var env = Acrobot()
-        let (obs, info) = env.reset(seed: 42)
+        let result = env.reset(seed: 42)
+        let obs = result.obs
+        let info = result.info
         
         eval(obs)
         
@@ -86,8 +88,8 @@ struct AcrobotTests {
         var env1 = Acrobot()
         var env2 = Acrobot()
         
-        let (obs1, _) = env1.reset(seed: 123)
-        let (obs2, _) = env2.reset(seed: 123)
+        let obs1 = env1.reset(seed: 123).obs
+        let obs2 = env2.reset(seed: 123).obs
         
         eval(obs1, obs2)
         
@@ -101,8 +103,8 @@ struct AcrobotTests {
         var env1 = Acrobot()
         var env2 = Acrobot()
         
-        let (obs1, _) = env1.reset(seed: 1)
-        let (obs2, _) = env2.reset(seed: 999)
+        let obs1 = env1.reset(seed: 1).obs
+        let obs2 = env2.reset(seed: 999).obs
         
         eval(obs1, obs2)
         

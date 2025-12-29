@@ -43,7 +43,7 @@ struct TaxiTests {
         let env = Taxi()
         let result = env.reset(seed: 123)
         
-        #expect((result.info["prob"] as? Double) == 1.0)
+        #expect(result.info["prob"]?.double == 1.0)
         #expect(result.info["action_mask"] == nil)
     }
     
