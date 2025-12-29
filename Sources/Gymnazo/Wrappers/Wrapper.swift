@@ -48,14 +48,14 @@ public extension Wrapper {
         return env.unwrapped
     }
     
-    mutating func step(_ action: Action) -> StepResult {
+    mutating func step(_ action: Action) -> Step<Observation> {
         return env.step(action)
     }
 
     mutating func reset(
         seed: UInt64?,
         options: [String: Any]?
-    ) -> ResetResult {
+    ) -> Reset<Observation> {
         return env.reset(seed: seed, options: options)
     }
 

@@ -262,7 +262,7 @@ public struct LunarLander: Env {
         self.observation_space = Box(low: low, high: high, dtype: .float32)
     }
     
-    public mutating func step(_ action: Action) -> StepResult {
+    public mutating func step(_ action: Action) -> Step<Observation> {
         guard let worldId = worldId, let landerId = landerId else {
             fatalError("Call reset() before step()")
         }
@@ -361,21 +361,21 @@ public struct LunarLander: Env {
             reward = 100
         }
         
-        return (
+        return Step(
             obs: obs,
             reward: Double(reward),
             terminated: terminated,
             truncated: false,
-            info: render_mode == nil ? [:] : [
-                "lander_awake": isAwake,
-                "left_leg_contact": leftLegContact,
-                "right_leg_contact": rightLegContact,
-                "landing_stable_time": landingStableTime,
+            info: render_mode == nil ? Info() : [
+                "lander_awake": .bool(isAwake),
+                "left_leg_contact": .bool(leftLegContact),
+                "right_leg_contact": .bool(rightLegContact),
+                "landing_stable_time": .double(Double(landingStableTime)),
             ]
         )
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> ResetResult {
+    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {
@@ -461,7 +461,7 @@ public struct LunarLander: Env {
         let obs = getObservation()
         prevShaping = computeShaping(from: obs)
         
-        return (obs: obs, info: [:])
+        return Reset(obs: obs, info: [:])
     }
     
     @discardableResult

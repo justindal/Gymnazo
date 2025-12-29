@@ -415,7 +415,7 @@ public final class FrozenLake: Env {
     public func reset(
         seed: UInt64? = nil,
         options: [String : Any]? = nil
-    ) -> ResetResult {
+    ) -> Reset<Observation> {
         
         let key = self.prepareKey(with: seed)
         
@@ -426,10 +426,10 @@ public final class FrozenLake: Env {
         self.s = s_ml.item(Int.self)
         self.lastAction = nil
         
-        return (obs: self.s, info: ["prob": 1.0])
+        return Reset(obs: self.s, info: ["prob": 1.0])
     }
 
-    public func step(_ action: Action) -> StepResult {
+    public func step(_ action: Action) -> Step<Observation> {
         
         let transitions = self.P[self.s][action]
         
@@ -450,7 +450,7 @@ public final class FrozenLake: Env {
         self.s = s
         self.lastAction = action
         
-        return (obs: self.s, reward: r, terminated: t, truncated: false, info: ["prob": p])
+        return Step(obs: self.s, reward: r, terminated: t, truncated: false, info: ["prob": .double(p)])
     }
 
     /// returns an ansi representation of the current grid, independent of `render_mode`.

@@ -23,9 +23,9 @@ public struct TransformReward<InnerEnv: Env>: Wrapper {
         fatalError("Must provide transform function")
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
         let result = env.step(action)
-        return (
+        return Step(
             obs: result.obs,
             reward: transform(result.reward),
             terminated: result.terminated,
@@ -34,7 +34,7 @@ public struct TransformReward<InnerEnv: Env>: Wrapper {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> ResetResult {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
         env.reset(seed: seed, options: options)
     }
 }

@@ -36,20 +36,36 @@ public struct VectorStepResult {
     
     /// Combined info dictionary from all sub-environments.
     /// May contain `final_observation` and `final_info` arrays for autoreset.
-    public let infos: [String: Any]
+    public let infos: Info
+
+    public let finals: VectorFinals?
     
     public init(
         observations: MLXArray,
         rewards: MLXArray,
         terminations: MLXArray,
         truncations: MLXArray,
-        infos: [String: Any]
+        infos: Info,
+        finals: VectorFinals? = nil
     ) {
         self.observations = observations
         self.rewards = rewards
         self.terminations = terminations
         self.truncations = truncations
         self.infos = infos
+        self.finals = finals
+    }
+}
+
+public struct VectorFinals {
+    public let observations: [Int: MLXArray]
+    public let infos: [Int: Info]
+    public let indices: [Int]
+
+    public init(observations: [Int: MLXArray], infos: [Int: Info], indices: [Int]) {
+        self.observations = observations
+        self.infos = infos
+        self.indices = indices
     }
 }
 
@@ -59,9 +75,9 @@ public struct VectorResetResult {
     public let observations: MLXArray
     
     /// Combined info dictionary from all sub-environments.
-    public let infos: [String: Any]
+    public let infos: Info
     
-    public init(observations: MLXArray, infos: [String: Any]) {
+    public init(observations: MLXArray, infos: Info) {
         self.observations = observations
         self.infos = infos
     }

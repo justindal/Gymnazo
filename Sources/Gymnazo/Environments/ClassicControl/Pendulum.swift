@@ -120,7 +120,7 @@ public struct Pendulum: Env {
         )
     }
     
-    public mutating func step(_ action: Action) -> StepResult {
+    public mutating func step(_ action: Action) -> Step<Observation> {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
         }
@@ -146,7 +146,7 @@ public struct Pendulum: Env {
         let observation = getObservation()
         let reward = Double(-costs)
         
-        return (
+        return Step(
             obs: observation,
             reward: reward,
             terminated: false,
@@ -155,7 +155,7 @@ public struct Pendulum: Env {
         )
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> ResetResult {
+    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {
@@ -174,7 +174,7 @@ public struct Pendulum: Env {
         state = (theta: theta, thetaDot: thetaDot)
         lastTorque = nil
         
-        return (obs: getObservation(), info: [:])
+        return Reset(obs: getObservation(), info: [:])
     }
     
     @discardableResult

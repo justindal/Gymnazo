@@ -24,13 +24,13 @@ public final class OrderEnforcing<InnerEnv: Env>: Wrapper {
         self.disableRenderOrderEnforcing = disableRenderOrderEnforcing
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> ResetResult {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
         hasReset = true
         cachedSpec = nil
         return env.reset(seed: seed, options: options)
     }
 
-    public func step(_ action: Action) -> StepResult {
+    public func step(_ action: Action) -> Step<Observation> {
         guard hasReset else {
             fatalError("OrderEnforcing: Cannot call env.step() before env.reset().")
         }

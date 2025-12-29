@@ -50,12 +50,12 @@ public struct NormalizeReward<InnerEnv: Env>: Wrapper {
         self.init(env: env, gamma: 0.99, epsilon: 1e-8)
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> ResetResult {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
         returns = 0
         return env.reset(seed: seed, options: options)
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
         let result = env.step(action)
 
         returns = gamma * returns + result.reward
@@ -68,7 +68,7 @@ public struct NormalizeReward<InnerEnv: Env>: Wrapper {
             returns = 0
         }
 
-        return (
+        return Step(
             obs: result.obs,
             reward: normalized,
             terminated: result.terminated,

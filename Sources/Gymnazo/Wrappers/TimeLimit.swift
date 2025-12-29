@@ -9,8 +9,6 @@ public final class TimeLimit<InnerEnv: Env>: Wrapper {
     public typealias Action = InnerEnv.Action
     public typealias ObservationSpace = InnerEnv.ObservationSpace
     public typealias ActionSpace = InnerEnv.ActionSpace
-    public typealias StepResult = InnerEnv.StepResult
-    public typealias ResetResult = InnerEnv.ResetResult
 
     public var env: InnerEnv
 
@@ -34,7 +32,7 @@ public final class TimeLimit<InnerEnv: Env>: Wrapper {
     }
 
     /// resets the wrapped environment and clears the elapsed step counter.
-    public func reset(seed: UInt64?, options: [String : Any]?) -> ResetResult {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
         elapsedSteps = 0
         cachedSpec = nil
         return env.reset(seed: seed, options: options)
@@ -42,13 +40,13 @@ public final class TimeLimit<InnerEnv: Env>: Wrapper {
 
     /// steps the wrapped environment and converts the step into a truncation when the
     /// elapsed step counter hits the configured limit.
-    public func step(_ action: Action) -> StepResult {
-        let result: (obs: InnerEnv.Observation, reward: Double, terminated: Bool, truncated: Bool, info: [String : Any]) = env.step(action)
+    public func step(_ action: Action) -> Step<Observation> {
+        let result = env.step(action)
         elapsedSteps += 1
 
         let truncated = result.truncated || (elapsedSteps >= maxEpisodeSteps)
 
-        return (
+        return Step(
             obs: result.obs,
             reward: result.reward,
             terminated: result.terminated,

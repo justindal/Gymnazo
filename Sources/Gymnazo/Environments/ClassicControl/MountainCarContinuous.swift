@@ -130,7 +130,7 @@ public struct MountainCarContinuous: Env {
     ///
     /// - Parameter action: An `MLXArray` with shape `(1,)` representing the force to apply (clipped to `[-1, 1]`).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
-    public mutating func step(_ action: MLXArray) -> StepResult {
+    public mutating func step(_ action: MLXArray) -> Step<Observation> {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
         }
@@ -162,7 +162,7 @@ public struct MountainCarContinuous: Env {
         }
         reward -= Double(force * force) * 0.1
         
-        return (
+        return Step(
             obs: self.state!,
             reward: reward,
             terminated: terminated,
@@ -177,7 +177,7 @@ public struct MountainCarContinuous: Env {
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> ResetResult {
+    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {
@@ -193,7 +193,7 @@ public struct MountainCarContinuous: Env {
         
         self.state = MLXArray([position, velocity] as [Float32])
         
-        return (obs: self.state!, info: [:])
+        return Reset(obs: self.state!, info: [:])
     }
     
     /// Render the environment.

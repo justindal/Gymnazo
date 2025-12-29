@@ -22,15 +22,15 @@ enum PassiveEnvChecks {
         }
     }
 
-    static func step<E: Env>(env: inout E, action: E.Action) -> E.StepResult {
+    static func step<E: Env>(env: inout E, action: E.Action) -> Step<E.Observation> {
         validateAction(env, action: action)
-        let result: (obs: E.Observation, reward: Double, terminated: Bool, truncated: Bool, info: [String : Any]) = env.step(action)
+        let result = env.step(action)
         validateObservation(env, observation: result.obs)
         return result
     }
 
-    static func reset<E: Env>(env: inout E, seed: UInt64?, options: [String: Any]?) -> E.ResetResult {
-        let result: (obs: E.Observation, info: [String : Any]) = env.reset(seed: seed, options: options)
+    static func reset<E: Env>(env: inout E, seed: UInt64?, options: [String: Any]?) -> Reset<E.Observation> {
+        let result = env.reset(seed: seed, options: options)
         validateObservation(env, observation: result.obs)
         return result
     }

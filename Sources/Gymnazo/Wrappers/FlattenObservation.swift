@@ -27,22 +27,22 @@ public struct FlattenObservation<InnerEnv: Env>: TransformingWrapper {
         self.observation_space = box
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> ResetResult {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
         let result = env.reset(seed: seed, options: options)
         let flattened = flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
             fatalError("FlattenObservation expects MLXArray output from flatten(space:sample:)")
         }
-        return (obs: flatObs, info: result.info)
+        return Reset(obs: flatObs, info: result.info)
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
         let result = env.step(action)
         let flattened = flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
             fatalError("FlattenObservation expects MLXArray output from flatten(space:sample:)")
         }
-        return (
+        return Step(
             obs: flatObs,
             reward: result.reward,
             terminated: result.terminated,

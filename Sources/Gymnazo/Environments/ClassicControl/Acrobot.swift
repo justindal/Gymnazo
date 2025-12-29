@@ -108,7 +108,7 @@ public struct Acrobot: Env {
         )
     }
     
-    public mutating func step(_ action: Int) -> StepResult {
+    public mutating func step(_ action: Int) -> Step<Observation> {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
         }
@@ -147,7 +147,7 @@ public struct Acrobot: Env {
         let terminated = isTerminal()
         let reward: Double = terminated ? 0.0 : -1.0
         
-        return (
+        return Step(
             obs: getObservation(),
             reward: reward,
             terminated: terminated,
@@ -156,7 +156,7 @@ public struct Acrobot: Env {
         )
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> ResetResult {
+    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {
@@ -179,7 +179,7 @@ public struct Acrobot: Env {
             randomState[3].item(Float.self)
         ]
         
-        return (obs: getObservation(), info: [:])
+        return Reset(obs: getObservation(), info: [:])
     }
     
     /// Get the 6D observation from the internal state

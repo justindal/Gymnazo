@@ -29,12 +29,12 @@ public struct AutoReset<InnerEnv: Env>: Wrapper {
         self.init(env: env, mode: .nextStep)
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> ResetResult {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
         needsReset = false
         return env.reset(seed: seed, options: options)
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
         if needsReset && mode == .nextStep {
             _ = env.reset(seed: nil, options: nil)
             needsReset = false
@@ -53,34 +53,27 @@ public struct AutoReset<InnerEnv: Env>: Wrapper {
 
         if mode == .nextStep {
             needsReset = true
-            let baseInfo = result.info
-            var info = baseInfo
-            info["final_observation"] = result.obs
-            info["final_info"] = baseInfo
-            return (
+            return Step(
                 obs: result.obs,
                 reward: result.reward,
                 terminated: result.terminated,
                 truncated: result.truncated,
-                info: info
+                info: result.info,
+                final: Final(obs: result.obs, info: result.info)
             )
         }
 
-        let baseInfo = result.info
         let finalObs = result.obs
         let resetResult = env.reset(seed: nil, options: nil)
         needsReset = false
 
-        var info = resetResult.info
-        info["final_observation"] = finalObs
-        info["final_info"] = baseInfo
-
-        return (
+        return Step(
             obs: resetResult.obs,
             reward: result.reward,
             terminated: result.terminated,
             truncated: result.truncated,
-            info: info
+            info: resetResult.info,
+            final: Final(obs: finalObs, info: result.info)
         )
     }
 }

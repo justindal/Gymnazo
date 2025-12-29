@@ -263,7 +263,7 @@ public final class Blackjack: Env {
     public func reset(
         seed: UInt64? = nil,
         options: [String: Any]? = nil
-    ) -> ResetResult {
+    ) -> Reset<Observation> {
         if let seed {
             _key = MLX.key(seed)
             _renderKey = MLX.key(seed ^ 0x9E3779B97F4A7C15)
@@ -317,10 +317,10 @@ public final class Blackjack: Env {
         }
         _renderKey = renderKey
         
-        return (obs: obs, info: [:])
+        return Reset(obs: obs, info: [:])
     }
     
-    public func step(_ action: Action) -> StepResult {
+    public func step(_ action: Action) -> Step<Observation> {
         guard _key != nil else {
             fatalError("Call reset() before step()")
         }
@@ -364,7 +364,7 @@ public final class Blackjack: Env {
             }
         }
         
-        return (
+        return Step(
             obs: getObs(),
             reward: reward,
             terminated: terminated,

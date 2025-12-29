@@ -14,20 +14,14 @@ open class ObservationWrapper<InnerEnv: Env>: Wrapper {
         fatalError("observation(_:) must be overridden in a subclass")
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> (obs: Observation, info: [String: Any]) {
-        let result: (obs: InnerEnv.Observation, info: [String : Any]) = env.reset(seed: seed, options: options)
-        return (obs: observation(result.obs), info: result.info)
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+        let result = env.reset(seed: seed, options: options)
+        return Reset(obs: observation(result.obs), info: result.info)
     }
 
-    public func step(_ action: Action) -> (
-        obs: Observation,
-        reward: Double,
-        terminated: Bool,
-        truncated: Bool,
-        info: [String: Any]
-    ) {
-        let result: (obs: InnerEnv.Observation, reward: Double, terminated: Bool, truncated: Bool, info: [String : Any]) = env.step(action)
-        return (
+    public func step(_ action: Action) -> Step<Observation> {
+        let result = env.step(action)
+        return Step(
             obs: observation(result.obs),
             reward: result.reward,
             terminated: result.terminated,
@@ -49,15 +43,9 @@ open class RewardWrapper<InnerEnv: Env>: Wrapper {
         fatalError("reward(_:) must be overridden in a subclass")
     }
 
-    public func step(_ action: Action) -> (
-        obs: Observation,
-        reward: Double,
-        terminated: Bool,
-        truncated: Bool,
-        info: [String: Any]
-    ) {
+    public func step(_ action: Action) -> Step<Observation> {
         let result = env.step(action)
-        return (
+        return Step(
             obs: result.obs,
             reward: reward(result.reward),
             terminated: result.terminated,
@@ -79,13 +67,7 @@ open class ActionWrapper<InnerEnv: Env>: Wrapper {
         fatalError("action(_:) must be overridden in a subclass")
     }
 
-    public func step(_ action: Action) -> (
-        obs: Observation,
-        reward: Double,
-        terminated: Bool,
-        truncated: Bool,
-        info: [String: Any]
-    ) {
+    public func step(_ action: Action) -> Step<Observation> {
         return env.step(self.action(action))
     }
 }

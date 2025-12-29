@@ -401,7 +401,7 @@ public final class Taxi: Env {
     public func reset(
         seed: UInt64? = nil,
         options: [String: Any]? = nil
-    ) -> ResetResult {
+    ) -> Reset<Observation> {
         let key = prepareKey(with: seed)
         let (sampleKey, nextKey) = MLX.split(key: key)
         _key = nextKey
@@ -424,10 +424,10 @@ public final class Taxi: Env {
             fickleStep = false
         }
         
-        return (obs: s, info: ["prob": 1.0])
+        return Reset(obs: s, info: ["prob": 1.0])
     }
     
-    public func step(_ action: Action) -> StepResult {
+    public func step(_ action: Action) -> Step<Observation> {
         guard let transitions = P[s][action], !transitions.isEmpty else {
             fatalError("Invalid state or action")
         }
@@ -471,12 +471,12 @@ public final class Taxi: Env {
             taxiOrientation = action
         }
         
-        return (
+        return Step(
             obs: s,
             reward: reward,
             terminated: terminated,
             truncated: false,
-            info: ["prob": p]
+            info: ["prob": .double(p)]
         )
     }
     

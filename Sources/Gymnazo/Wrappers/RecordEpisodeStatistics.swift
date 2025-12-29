@@ -37,7 +37,7 @@ public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
         self.statsKey = statsKey
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> ResetResult {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
         let result = env.reset(seed: seed, options: options)
         episodeStartTime = RecordEpisodeStatistics.now()
         episodeReturns = 0.0
@@ -45,7 +45,7 @@ public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
         return result
     }
 
-    public func step(_ action: Action) -> StepResult {
+    public func step(_ action: Action) -> Step<Observation> {
         let result = env.step(action)
 
         episodeReturns += result.reward
@@ -59,11 +59,11 @@ public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
             let now = RecordEpisodeStatistics.now()
             let elapsed = RecordEpisodeStatistics.roundTime(now - episodeStartTime)
 
-            info[statsKey] = [
-                "r": episodeReturns,
-                "l": episodeLengths,
-                "t": elapsed,
-            ]
+            info[statsKey] = .object([
+                "r": .double(episodeReturns),
+                "l": .int(episodeLengths),
+                "t": .double(elapsed),
+            ])
 
             append(elapsed, to: &timeQueue)
             append(episodeReturns, to: &returnQueue)
@@ -73,7 +73,7 @@ public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
             episodeStartTime = now
         }
 
-        return (
+        return Step(
             obs: result.obs,
             reward: result.reward,
             terminated: result.terminated,

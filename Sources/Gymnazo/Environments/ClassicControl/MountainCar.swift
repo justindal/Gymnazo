@@ -129,7 +129,7 @@ public struct MountainCar: Env {
     ///
     /// - Parameter action: An action to take (0: left, 1: no push, 2: right).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
-    public mutating func step(_ action: Int) -> StepResult {
+    public mutating func step(_ action: Int) -> Step<Observation> {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
         }
@@ -158,7 +158,7 @@ public struct MountainCar: Env {
         // Reward is -1 for each step
         let reward: Double = -1.0
         
-        return (
+        return Step(
             obs: self.state!,
             reward: reward,
             terminated: terminated,
@@ -173,7 +173,7 @@ public struct MountainCar: Env {
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> ResetResult {
+    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {
@@ -189,7 +189,7 @@ public struct MountainCar: Env {
         
         self.state = MLXArray([position, velocity] as [Float32])
         
-        return (obs: self.state!, info: [:])
+        return Reset(obs: self.state!, info: [:])
     }
     
     /// Render the environment.

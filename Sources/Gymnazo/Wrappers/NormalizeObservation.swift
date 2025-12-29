@@ -57,12 +57,12 @@ public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observ
         self.rms = RunningMeanStd(shape: shape)
     }
     
-    public mutating func step(_ action: InnerEnv.Action) -> StepResult {
+    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
         let result = env.step(action)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
         
-        return (
+        return Step(
             obs: normalized_obs,
             reward: result.reward,
             terminated: result.terminated,
@@ -71,14 +71,11 @@ public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observ
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> ResetResult {
+    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
         let result = env.reset(seed: seed, options: options)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
         
-        return (
-            obs: normalized_obs,
-            info: result.info
-        )
+        return Reset(obs: normalized_obs, info: result.info)
     }
 }

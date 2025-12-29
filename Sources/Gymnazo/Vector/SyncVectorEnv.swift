@@ -187,16 +187,18 @@ public final class SyncVectorEnv: VectorEnv {
         observations.reserveCapacity(num_envs)
         
         var finalObservations: [Int: MLXArray] = [:]
-        var finalInfos: [Int: [String: Any]] = [:]
-        var infos: [String: Any] = [:]
+        var finalInfos: [Int: Info] = [:]
+        let infos = Info()
         
         for i in 0..<num_envs {
-            if needsReset[i] && autoreset_mode == .nextStep {
-                let resetResult = envs[i].reset(seed: nil, options: nil)
-                if let obs = resetResult.obs as? MLXArray {
-                    lastObservations[i] = obs
-                }
+            if needsReset[i] {
+                if autoreset_mode == .nextStep {
+                    let resetResult = resetEnvironment(index: i, seed: nil, options: nil)
+                    lastObservations[i] = resetResult.obs
                 needsReset[i] = false
+                } else {
+                    precondition(false, "Cannot step environment \(i) because it needs reset")
+                }
             }
             
             let action = actions[i]
@@ -210,26 +212,39 @@ public final class SyncVectorEnv: VectorEnv {
                 fatalError("SyncVectorEnv currently only supports MLXArray observations")
             }
             
-            if done && autoreset_mode == .nextStep {
-                // Use identity operation to force a copy if needed
-                finalObservations[i] = copyObservations ? (obs + MLXArray(Float(0))) : obs
+            if done {
+                let finalObs = copyObservations ? (obs + MLXArray(Float(0))) : obs
+                finalObservations[i] = finalObs
                 finalInfos[i] = stepResult.info
+
+                if autoreset_mode == .sameStep {
+                    let resetResult = resetEnvironment(index: i, seed: nil, options: nil)
+                    needsReset[i] = false
+                    let returnedObs = copyObservations ? (resetResult.obs + MLXArray(Float(0))) : resetResult.obs
+                    observations.append(returnedObs)
+                    lastObservations[i] = resetResult.obs
+                } else {
                 needsReset[i] = true
-            }
-            
+                    observations.append(finalObs)
+                    lastObservations[i] = obs
+                }
+            } else {
             observations.append(copyObservations ? (obs + MLXArray(Float(0))) : obs)
             lastObservations[i] = obs
+            }
             
             rewardsBuffer[i] = Float(stepResult.reward)
             terminationsBuffer[i] = terminated
             truncationsBuffer[i] = truncated
         }
         
-        if !finalObservations.isEmpty {
-            infos["final_observation"] = finalObservations
-            infos["final_info"] = finalInfos
-            infos["_final_observation_indices"] = Array(finalObservations.keys)
-        }
+        let finals: VectorFinals? = finalObservations.isEmpty
+            ? nil
+            : VectorFinals(
+                observations: finalObservations,
+                infos: finalInfos,
+                indices: finalObservations.keys.sorted()
+            )
         
         let batchedObs = MLX.stacked(observations, axis: 0)
         let batchedRewards = MLXArray(rewardsBuffer)
@@ -243,7 +258,8 @@ public final class SyncVectorEnv: VectorEnv {
             rewards: batchedRewards,
             terminations: batchedTerminations,
             truncations: batchedTruncations,
-            infos: infos
+            infos: infos,
+            finals: finals
         )
     }
     
@@ -258,16 +274,13 @@ public final class SyncVectorEnv: VectorEnv {
         
         var observations: [MLXArray] = []
         observations.reserveCapacity(num_envs)
-        let combinedInfo: [String: Any] = [:]
+        let combinedInfo = Info()
         
         for i in 0..<num_envs {
             let envSeed: UInt64? = seed.map { $0 + UInt64(i) }
             
-            let resetResult = envs[i].reset(seed: envSeed, options: options)
-            
-            guard let obs = resetResult.obs as? MLXArray else {
-                fatalError("SyncVectorEnv currently only supports MLXArray observations")
-            }
+            let resetResult = resetEnvironment(index: i, seed: envSeed, options: options)
+            let obs = resetResult.obs
             
             observations.append(copyObservations ? (obs + MLXArray(Float(0))) : obs)
             lastObservations[i] = obs
@@ -296,7 +309,7 @@ public final class SyncVectorEnv: VectorEnv {
     }
     
     /// Steps a single environment with the given action.
-    private func stepEnvironment(index: Int, action: Any) -> (obs: Any, reward: Double, terminated: Bool, truncated: Bool, info: [String: Any]) {
+    private func stepEnvironment(index: Int, action: Any) -> (obs: Any, reward: Double, terminated: Bool, truncated: Bool, info: Info) {
         if let intAction = action as? Int {
             return stepWithAction(index: index, action: intAction)
         } else if let mlxAction = action as? MLXArray {
@@ -311,7 +324,7 @@ public final class SyncVectorEnv: VectorEnv {
     }
     
     /// Type-safe step helper.
-    private func stepWithAction<A>(index: Int, action: A) -> (obs: Any, reward: Double, terminated: Bool, truncated: Bool, info: [String: Any]) {
+    private func stepWithAction<A>(index: Int, action: A) -> (obs: Any, reward: Double, terminated: Bool, truncated: Bool, info: Info) {
         let env = envs[index]
         
         if var discreteEnv = env as? any Env<MLXArray, Int>, let intAction = action as? Int {
@@ -325,6 +338,24 @@ public final class SyncVectorEnv: VectorEnv {
         }
         
         fatalError("Could not step environment with action type \(type(of: action))")
+    }
+
+    private func resetEnvironment(index: Int, seed: UInt64?, options: [String: Any]?) -> Reset<MLXArray> {
+        let env = envs[index]
+
+        if var discreteEnv = env as? any Env<MLXArray, Int> {
+            let result = discreteEnv.reset(seed: seed, options: options)
+            envs[index] = discreteEnv as any Env
+            return result
+        }
+
+        if var continuousEnv = env as? any Env<MLXArray, MLXArray> {
+            let result = continuousEnv.reset(seed: seed, options: options)
+            envs[index] = continuousEnv as any Env
+            return result
+        }
+
+        fatalError("SyncVectorEnv currently only supports MLXArray observations")
     }
     
     /// Access the underlying environments (read-only).

@@ -142,7 +142,7 @@ public struct CartPole: Env {
     ///   - `terminated`: `true` if cart or pole exceeded thresholds
     ///   - `truncated`: Always `false` (truncation handled by wrappers)
     ///   - `info`: Empty dictionary
-    public mutating func step(_ action: Int) -> StepResult {
+    public mutating func step(_ action: Int) -> Step<Observation> {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
         }
@@ -203,7 +203,7 @@ public struct CartPole: Env {
             reward = 0.0
         }
         
-        return (
+        return Step(
             obs: self.state!,
             reward: reward,
             terminated: terminated,
@@ -222,7 +222,7 @@ public struct CartPole: Env {
     /// - Returns: A tuple containing:
     ///   - `obs`: The initial observation `[x, x_dot, theta, theta_dot]`
     ///   - `info`: Empty dictionary
-    public mutating func reset(seed: UInt64? = nil, options: [String : Any]? = nil) -> ResetResult {
+    public mutating func reset(seed: UInt64? = nil, options: [String : Any]? = nil) -> Reset<Observation> {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {
@@ -237,7 +237,7 @@ public struct CartPole: Env {
         self.state = MLX.uniform(low: -0.05, high: 0.05, [4], key: stepKey)
         self.steps_beyond_terminated = nil
         
-        return (obs: self.state!, info: [:])
+        return Reset(obs: self.state!, info: [:])
     }
     
     /// Renders the environment.

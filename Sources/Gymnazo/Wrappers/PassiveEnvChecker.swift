@@ -23,7 +23,7 @@ public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
         PassiveEnvChecks.ensureSpacesExist(for: env)
     }
 
-    public func step(_ action: Action) -> StepResult {
+    public func step(_ action: Action) -> Step<Observation> {
         if !checkedStep {
             checkedStep = true
             return PassiveEnvChecks.step(env: &env, action: action)
@@ -31,7 +31,7 @@ public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
         return env.step(action)
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> ResetResult {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
         if !checkedReset {
             checkedReset = true
             cachedSpec = nil
