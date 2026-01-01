@@ -234,6 +234,40 @@ public final class GymnazoRegistrations {
                 )
             }, maxEpisodeSteps: 1000)
         }
+        
+        if !isRegistered("CarRacing") {
+            register(id: "CarRacing", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let lapCompletePercent = GymnazoRegistrations.floatValue(
+                    from: kwargs["lap_complete_percent"],
+                    default: 0.95
+                )
+                let domainRandomize = kwargs["domain_randomize"] as? Bool ?? false
+                
+                return CarRacing(
+                    render_mode: renderMode,
+                    lapCompletePercent: lapCompletePercent,
+                    domainRandomize: domainRandomize
+                )
+            }, maxEpisodeSteps: 1000, rewardThreshold: 900)
+        }
+        
+        if !isRegistered("CarRacingDiscrete") {
+            register(id: "CarRacingDiscrete", entryPoint: { kwargs in
+                let renderMode = kwargs["render_mode"] as? String
+                let lapCompletePercent = GymnazoRegistrations.floatValue(
+                    from: kwargs["lap_complete_percent"],
+                    default: 0.95
+                )
+                let domainRandomize = kwargs["domain_randomize"] as? Bool ?? false
+                
+                return CarRacingDiscrete(
+                    render_mode: renderMode,
+                    lapCompletePercent: lapCompletePercent,
+                    domainRandomize: domainRandomize
+                )
+            }, maxEpisodeSteps: 1000, rewardThreshold: 900)
+        }
     }
     
     private func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
