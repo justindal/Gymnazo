@@ -40,6 +40,23 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``FrozenLake``
 - ``LunarLander``
 - ``LunarLanderContinuous``
+- ``CarRacing``
+- ``CarRacingDiscrete``
+
+### Environment Guides
+
+- <doc:CartPole>
+- <doc:MountainCar>
+- <doc:MountainCarContinuous>
+- <doc:Acrobot>
+- <doc:Pendulum>
+- <doc:FrozenLake>
+- <doc:Taxi>
+- <doc:CliffWalking>
+- <doc:Blackjack>
+- <doc:LunarLander>
+- <doc:LunarLanderContinuous>
+- <doc:CarRacing>
 
 ### Spaces
 
