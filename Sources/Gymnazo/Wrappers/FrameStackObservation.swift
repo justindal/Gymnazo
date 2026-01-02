@@ -7,23 +7,49 @@
 
 import MLX
 
-/// Padding type for frame stacking.
+/// Padding strategy for frame stacking.
+///
+/// Determines how initial frames are filled before enough observations
+/// have been collected to fill the stack.
 public enum FrameStackPadding {
+    /// Repeat the reset observation for all initial frames.
     case reset
+    /// Fill initial frames with zeros, placing the reset observation last.
     case zero
 }
 
 /// Stacks the last N observations for temporal information.
 ///
-/// Essential for image-based environments where the agent needs to
-/// perceive motion and velocity from pixel observations.
+/// This wrapper is essential for image-based environments where the agent needs to
+/// perceive motion and velocity from static pixel observations.
+///
+/// ## Overview
+///
+/// `FrameStackObservation` maintains a circular buffer of the most recent observations.
+/// By providing multiple consecutive frames to the agent, it enables:
+/// - Detection of motion direction and speed
+/// - Understanding of temporal dynamics
+/// - Better state estimation in partially observable environments
 ///
 /// ## Example
+///
 /// ```swift
+/// // Standard CarRacing preprocessing pipeline
 /// var env = CarRacing()
-/// var stackedEnv = FrameStackObservation(env: env, stackSize: 4)
-/// // Observation shape: [96, 96, 3] -> [4, 96, 96, 3]
+///     .grayscale()
+///     .resized(to: (84, 84))
+///     .frameStacked(4)           // [84, 84] -> [4, 84, 84]
+///     .timeLimited(1000)
 /// ```
+///
+/// ## Topics
+///
+/// ### Creating a Frame Stack Wrapper
+/// - ``init(env:stackSize:paddingType:)``
+///
+/// ### Configuration
+/// - ``stackSize``
+/// - ``paddingType``
 public struct FrameStackObservation<InnerEnv: Env>: Env
     where InnerEnv.Observation == MLXArray
 {
