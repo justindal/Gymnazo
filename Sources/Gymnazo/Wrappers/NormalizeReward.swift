@@ -12,26 +12,7 @@ public struct NormalizeReward<InnerEnv: Env>: Wrapper {
     public let gamma: Double
     public let epsilon: Double
 
-    private final class RunningMeanStd {
-        var mean: Double = 0
-        var varSum: Double = 0
-        var count: Double = 0
-
-        func update(_ x: Double) {
-            count += 1
-            let delta = x - mean
-            mean += delta / count
-            let delta2 = x - mean
-            varSum += delta * delta2
-        }
-
-        var variance: Double {
-            if count < 2 { return 1 }
-            return varSum / (count - 1)
-        }
-    }
-
-    private let rms = RunningMeanStd()
+    private let rms = RunningMeanStd<Double>()
     private var returns: Double = 0
 
     /// Creates the wrapper.

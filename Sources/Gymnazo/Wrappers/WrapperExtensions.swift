@@ -119,6 +119,35 @@ public extension Env where Observation == MLXArray {
     ) -> TransformObservation<Self> {
         TransformObservation(env: self, transform: transform, observation_space: observationSpace)
     }
+    
+    /// Converts RGB observations to grayscale.
+    ///
+    /// - Parameter keepDim: If true, keeps channel dimension as [H, W, 1]. Default is [H, W].
+    /// - Returns: The wrapped environment.
+    func grayscale(keepDim: Bool = false) -> GrayscaleObservation<Self> {
+        GrayscaleObservation(env: self, keepDim: keepDim)
+    }
+    
+    /// Resizes observations to the target dimensions.
+    ///
+    /// - Parameter shape: Target (height, width) for the resized observations.
+    /// - Returns: The wrapped environment.
+    func resized(to shape: (Int, Int)) -> ResizeObservation<Self> {
+        ResizeObservation(env: self, shape: shape)
+    }
+    
+    /// Stacks the last N observations for temporal information.
+    ///
+    /// - Parameters:
+    ///   - stackSize: Number of frames to stack (typically 4).
+    ///   - paddingType: How to pad initial frames: `.reset` or `.zero`.
+    /// - Returns: The wrapped environment.
+    func frameStacked(
+        _ stackSize: Int,
+        paddingType: FrameStackPadding = .reset
+    ) -> FrameStackObservation<Self> {
+        FrameStackObservation(env: self, stackSize: stackSize, paddingType: paddingType)
+    }
 }
 
 public extension Env where ActionSpace == Box {
