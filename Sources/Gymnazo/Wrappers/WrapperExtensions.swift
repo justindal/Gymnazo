@@ -148,6 +148,20 @@ public extension Env where Observation == MLXArray {
     ) -> FrameStackObservation<Self> {
         FrameStackObservation(env: self, stackSize: stackSize, paddingType: paddingType)
     }
+    
+    /// Applies state-aware reward shaping.
+    ///
+    /// Unlike ``rewardsTransformed(_:)`` which only transforms based on the reward value,
+    /// this method provides access to the observation and termination status.
+    ///
+    /// - Parameter shaper: A closure receiving (reward, observation, terminated)
+    ///                     and returning the shaped reward.
+    /// - Returns: The wrapped environment.
+    func rewardsShaped(
+        _ shaper: @escaping (Double, MLXArray, Bool) -> Double
+    ) -> ShapeReward<Self> {
+        ShapeReward(env: self, shaper: shaper)
+    }
 }
 
 public extension Env where ActionSpace == Box {
