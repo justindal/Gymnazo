@@ -33,7 +33,7 @@ public final class RunningMeanStd<T: FloatingPoint> {
     
     /// The unbiased sample variance.
     public var variance: T {
-        if count < 2 { return 1 as! T }
+        if count < 2 { return T(1) }
         return varSum / (count - 1)
     }
     
