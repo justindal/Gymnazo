@@ -261,7 +261,8 @@ public struct Car {
                 x: pForce * side.x + fForce * forw.x,
                 y: pForce * side.y + fForce * forw.y
             )
-            b2Body_ApplyForceToCenter(wheelBodyId, forceVec, true)
+            let wheelPos = b2Body_GetPosition(wheelBodyId)
+            b2Body_ApplyForce(hullId, forceVec, wheelPos, true)
         }
     }
     
