@@ -48,6 +48,7 @@ public struct ShapeReward<InnerEnv: Env>: Wrapper where InnerEnv.Observation == 
 
     public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
         let result = env.step(action)
+        eval(result.obs)
         let shapedReward = shaper(result.reward, result.obs, result.terminated)
         return Step(
             obs: result.obs,
