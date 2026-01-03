@@ -310,6 +310,7 @@ public struct TrackGenerator {
             
             var shapeDef = b2DefaultShapeDef()
             shapeDef.isSensor = true
+            shapeDef.enableSensorEvents = true
             shapeDef.filter.categoryBits = TrackConstants.tileCategory
             
             let shapeId = b2CreatePolygonShape(groundBodyId, &shapeDef, &polygon)

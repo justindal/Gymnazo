@@ -171,7 +171,7 @@ public struct CarRacing: Env {
         car.step(dt: 1.0 / TrackConstants.fps, tileFrictions: tileFrictions)
         self.car = car
         
-        b2World_Step(worldId, 1.0 / TrackConstants.fps, 4)
+        b2World_Step(worldId, 1.0 / TrackConstants.fps, 8)
         
         t += 1.0 / TrackConstants.fps
         
@@ -218,39 +218,47 @@ public struct CarRacing: Env {
         
         for i in 0..<car.wheels.count {
             car.wheels[i].tiles.removeAll()
+        }
+        
+        var wheelBodyToIndex: [Int32: Int] = [:]
+        for i in 0..<car.wheels.count {
+            wheelBodyToIndex[car.wheels[i].bodyId.index1] = i
+        }
+        
+        for k in 0..<trackData.tiles.count {
+            guard let tileShape = trackData.tiles[k].shapeId else { continue }
             
-            let wheelBodyId = car.wheels[i].bodyId
-            let capacity = b2Body_GetContactCapacity(wheelBodyId)
+            let capacity = b2Shape_GetSensorCapacity(tileShape)
             guard capacity > 0 else { continue }
             
-            var contactData = [b2ContactData](repeating: b2ContactData(), count: Int(capacity))
-            let count = contactData.withUnsafeMutableBufferPointer { ptr in
-                b2Body_GetContactData(wheelBodyId, ptr.baseAddress, capacity)
+            var overlaps = [b2ShapeId](repeating: b2ShapeId(), count: Int(capacity))
+            let overlapCount = overlaps.withUnsafeMutableBufferPointer { ptr in
+                b2Shape_GetSensorOverlaps(tileShape, ptr.baseAddress, capacity)
             }
             
-            for j in 0..<Int(count) {
-                let contact = contactData[j]
-                guard contact.manifold.pointCount > 0 else { continue }
+            for j in 0..<Int(overlapCount) {
+                let overlappingShape = overlaps[j]
+                guard b2Shape_IsValid(overlappingShape) else { continue }
                 
-                let shapeA = contact.shapeIdA
-                let shapeB = contact.shapeIdB
+                let bodyId = b2Shape_GetBody(overlappingShape)
                 
-                for k in 0..<trackData.tiles.count {
-                    if let tileShape = trackData.tiles[k].shapeId {
-                        if (shapeA.index1 == tileShape.index1 && shapeA.world0 == tileShape.world0) ||
-                           (shapeB.index1 == tileShape.index1 && shapeB.world0 == tileShape.world0) {
-                            car.wheels[i].tiles.insert(k)
+                if let wheelIndex = wheelBodyToIndex[bodyId.index1] {
+                    let wheelBodyId = car.wheels[wheelIndex].bodyId
+                    if bodyId.index1 == wheelBodyId.index1 && 
+                       bodyId.world0 == wheelBodyId.world0 && 
+                       bodyId.generation == wheelBodyId.generation {
+                        
+                        car.wheels[wheelIndex].tiles.insert(k)
+                        
+                        if !trackData.tiles[k].roadVisited {
+                            trackData.tiles[k].roadVisited = true
+                            reward += 1000.0 / Float(trackData.tiles.count)
+                            tileVisitedCount += 1
                             
-                            if !trackData.tiles[k].roadVisited {
-                                trackData.tiles[k].roadVisited = true
-                                reward += 1000.0 / Float(trackData.tiles.count)
-                                tileVisitedCount += 1
-                                
-                                if trackData.tiles[k].idx == 0 {
-                                    let visitRatio = Float(tileVisitedCount) / Float(trackData.tiles.count)
-                                    if visitRatio > lapCompletePercent {
-                                        newLap = true
-                                    }
+                            if trackData.tiles[k].idx == 0 {
+                                let visitRatio = Float(tileVisitedCount) / Float(trackData.tiles.count)
+                                if visitRatio > lapCompletePercent {
+                                    newLap = true
                                 }
                             }
                         }

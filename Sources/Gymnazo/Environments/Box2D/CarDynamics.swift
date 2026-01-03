@@ -149,6 +149,7 @@ public struct Car {
             shapeDef.filter.categoryBits = CarConstants.wheelCategory
             shapeDef.filter.maskBits = CarConstants.wheelMask
             shapeDef.material.restitution = 0.0
+            shapeDef.enableSensorEvents = true
             _ = b2CreatePolygonShape(wheelId, &shapeDef, &polygon)
             
             var jointDef = b2DefaultRevoluteJointDef()
@@ -199,9 +200,16 @@ public struct Car {
     public mutating func step(dt: Float, tileFrictions: [Int: Float]) {
         for i in 0..<wheels.count {
             let jointAngle = b2RevoluteJoint_GetAngle(wheels[i].jointId)
-            let dir = (wheels[i].steer - jointAngle) >= 0 ? Float(1) : Float(-1)
-            let val = abs(wheels[i].steer - jointAngle)
-            b2RevoluteJoint_SetMotorSpeed(wheels[i].jointId, dir * min(50.0 * val, 3.0))
+            let diff = wheels[i].steer - jointAngle
+            let motorSpeed: Float
+            if diff > 0.1 {
+                motorSpeed = 35.0
+            } else if diff < -0.1 {
+                motorSpeed = -35.0
+            } else {
+                motorSpeed = 0.0
+            }
+            b2RevoluteJoint_SetMotorSpeed(wheels[i].jointId, motorSpeed)
             
             var grass = true
             var frictionLimit = CarConstants.frictionLimit * 0.6
@@ -261,8 +269,8 @@ public struct Car {
                 x: pForce * side.x + fForce * forw.x,
                 y: pForce * side.y + fForce * forw.y
             )
-            let wheelPos = b2Body_GetPosition(wheelBodyId)
-            b2Body_ApplyForce(hullId, forceVec, wheelPos, true)
+            let wheelCenterOfMass = b2Body_GetWorldCenterOfMass(wheelBodyId)
+            b2Body_ApplyForce(wheelBodyId, forceVec, wheelCenterOfMass, true)
         }
     }
     
@@ -291,15 +299,19 @@ public struct Car {
     
     /// Destroy all car bodies from the world.
     public mutating func destroy() {
+        for i in 0..<wheels.count {
+            if b2Body_IsValid(wheels[i].bodyId) {
+                b2DestroyBody(wheels[i].bodyId)
+            }
+            wheels[i].bodyId = b2_nullBodyId
+            wheels[i].jointId = b2_nullJointId
+        }
+        wheels.removeAll()
+        
         if b2Body_IsValid(hullId) {
             b2DestroyBody(hullId)
         }
-        for wheel in wheels {
-            if b2Body_IsValid(wheel.bodyId) {
-                b2DestroyBody(wheel.bodyId)
-            }
-        }
-        wheels.removeAll()
+        hullId = b2_nullBodyId
     }
 }
 
