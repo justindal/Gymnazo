@@ -3,6 +3,7 @@
 //  Gymnazo
 //
 
+import Foundation
 import MLX
 import MLXNN
 import MLXOptimizers
@@ -16,16 +17,76 @@ import MLXOptimizers
 /// - Parameters:
 ///     - observationSpace: The observation space of the environment.
 ///     - actionSpace: The action space of the environment.
-///     - featuresExtractorClass: Features extractor to use.
-///     - featuresExtractorKwargs: Keyword arguments to pass to the features extractor.
 ///     - featuresExtractor: Network to extract features.
 ///     - normalizeImages: Whether to normalize images or not, dividing by 255.0. True by default.
-///     - optimizerClass: The optimizer to use. `MLXOptimizers.Adam` is default.
-///     - optimizerKwargs: Keyword arguements to pass to the optimizer.
-///
-protocol Model: Module {
-    var observationSpace: Space { get }
-    var actionSpace: Space { get }
+public protocol Model: Module {
+    var observationSpace: any Space { get }
+    var actionSpace: any Space { get }
+    var featuresExtractor: (any FeaturesExtractor)? { get }
+    var normalizeImages: Bool { get }
     
+    /// Creates a new features extractor instance.
+    ///
+    /// - Returns: A features extractor configured for the observation space.
+    func makeFeatureExtractor() -> any FeaturesExtractor
     
+    /// Preprocesses the observation if needed and extracts features.
+    ///
+    /// - Parameters:
+    ///   - obs: The observation to process.
+    ///   - featuresExtractor: The features extractor to use.
+    /// - Returns: The extracted features as an MLXArray.
+    func extractFeatures(obs: MLXArray, featuresExtractor: any FeaturesExtractor) -> MLXArray
+}
+
+extension Model {
+    public var normalizeImages: Bool { true }
+    
+    public var featuresExtractor: (any FeaturesExtractor)? { nil }
+    
+    /// Preprocesses the observation and extracts features using the provided extractor.
+    ///
+    /// - Parameters:
+    ///   - obs: The observation to process.
+    ///   - featuresExtractor: The features extractor to use.
+    /// - Returns: The extracted features.
+    public func extractFeatures(obs: MLXArray, featuresExtractor: any FeaturesExtractor) -> MLXArray {
+        var preprocessed = obs
+        
+        if normalizeImages && obs.dtype == .uint8 {
+            preprocessed = obs.asType(.float32) / 255.0
+        }
+        
+        if let unaryExtractor = featuresExtractor as? any UnaryLayer {
+            return unaryExtractor(preprocessed)
+        }
+        
+        return preprocessed
+    }
+    
+    /// Sets the model to training or evaluation mode.
+    ///
+    /// - Parameter mode: If `true`, set to training mode; otherwise, evaluation mode.
+    public func setTrainingMode(_ mode: Bool) {
+        self.train(mode)
+    }
+    
+    /// Saves the model parameters to a file.
+    ///
+    /// - Parameter url: The file URL to save to.
+    /// - Throws: An error if saving fails.
+    public func save(to url: URL) throws {
+        let flattened = self.parameters().flattened()
+        let weights = Dictionary(uniqueKeysWithValues: flattened)
+        try MLX.save(arrays: weights, url: url)
+    }
+    
+    /// Loads model parameters from a file.
+    ///
+    /// - Parameter url: The file URL to load from.
+    /// - Throws: An error if loading fails.
+    public func load(from url: URL) throws {
+        let loaded = try MLX.loadArrays(url: url)
+        try self.update(parameters: ModuleParameters.unflattened(loaded), verify: .noUnusedKeys)
+    }
 }
