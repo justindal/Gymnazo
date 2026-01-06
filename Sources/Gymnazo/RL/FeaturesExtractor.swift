@@ -10,7 +10,7 @@ import MLXNN
 /// Protocol for a Features Extractor
 ///
 /// - Parameter featuresDim: Number of features extracted.
-protocol FeaturesExtractor: Module, UnaryLayer {
+public protocol FeaturesExtractor: Module, UnaryLayer {
     var featuresDim: Int { get }
 }
 
