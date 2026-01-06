@@ -11,6 +11,9 @@ public protocol FlattenableSpace {
     var shape: [Int]? { get }
 }
 
+/// Flatten the input, used as a placeholder when
+/// feature extraction is not needed.
+/// - Parameter featuresDim: The number of features that the extractor outputs.
 public class FlattenExtractor: Module, UnaryLayer, FeaturesExtractor {
     public let featuresDim: Int
     
