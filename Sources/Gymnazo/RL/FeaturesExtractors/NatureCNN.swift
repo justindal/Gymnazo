@@ -17,6 +17,20 @@ private func convOut(
     return (input + 2 * padding - kernel) / stride + 1
 }
 
+/// CNN from DQN Nature paper:
+/// Mnih, Volodymyr, et al.
+/// "Human-level control through deep reinforcement learning."
+/// Nature 518.7540 (2015)
+/// `NatureCNN` is a convolutional feature extractor intended for image observations.
+/// It maps an input image tensor to a fixed-size latent feature vector.
+///
+/// - Parameters:
+///     - observationSpace: The observation space of the environment. Must be a ``Box`` with 3 dimensions `[C, H, W]`.
+///     - featuresDim: Number of features extracted (output feature dimension). This corresponds to the number of
+///       units in the final linear layer.
+///     - normalizedImage: Whether to assume the image is already normalized.
+///         - If `true`, only the shape is validated (Box with 3 dimensions). Dtype/bounds checks are skipped.
+///         - If `false`, the space is expected to use `uint8` inputs (typically representing pixel values in `[0, 255]`).
 public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
     public let featuresDim: Int
     private let normalizedImage: Bool
@@ -98,7 +112,7 @@ public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
             Linear(nFlatten, featuresDim)
             ReLU()
         }
-        
+
         self.nFlatten = nFlatten
 
         super.init()
