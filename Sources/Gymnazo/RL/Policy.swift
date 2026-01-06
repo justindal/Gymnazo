@@ -121,7 +121,7 @@ public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) {
         let fanOut = shape[0]
         let fanIn = shape[1..<shape.count].reduce(1, *)
 
-        let random = MLXRandom.normal([max(fanOut, fanIn), max(fanOut, fanIn)])
+        let random = MLX.normal([max(fanOut, fanIn), max(fanOut, fanIn)])
         let (q, _) = MLXLinalg.qr(random, stream: .default)
 
         let orthogonal = q[0..<fanOut, 0..<fanIn].reshaped(shape) * gain
