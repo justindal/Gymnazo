@@ -96,7 +96,7 @@ extension Policy {
 /// - Parameters:
 ///   - module: The module to initialize.
 ///   - gain: The scaling factor for the weights.
-public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) {
+public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) throws {
     if let linear = module as? Linear {
         let shape = linear.weight.shape
         let rows = shape[0]
@@ -109,9 +109,10 @@ public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) {
 
         var params: [String: MLXArray] = ["weight": orthogonal]
         if linear.bias != nil {
-            params["bias"] = MLX.zeros([cols])
+            params["bias"] = MLX.zeros([rows])
         }
-        try? linear.update(
+
+        try linear.update(
             parameters: ModuleParameters.unflattened(params),
             verify: .none
         )
@@ -130,7 +131,7 @@ public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) {
         if conv.bias != nil {
             params["bias"] = MLX.zeros([shape[0]])
         }
-        try? conv.update(
+        try conv.update(
             parameters: ModuleParameters.unflattened(params),
             verify: .none
         )
