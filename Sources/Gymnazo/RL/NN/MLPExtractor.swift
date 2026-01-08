@@ -4,20 +4,8 @@
 //
 //
 
-
 import MLX
 import MLXNN
-
-/// Enum for architechture for MLPs.
-///
-/// - `pi` = policy network
-/// - `vf` = value function network
-public enum MLPNetArch {
-    case shared([Int])
-
-    case separate(pi: [Int], vf: [Int])
-}
-
 
 /// Constructs an MLP that receives the output from a previous feature extractor or
 /// the observations and outputs latent representations for the policy network `pi` or
@@ -37,22 +25,14 @@ public final class MLPExtractor: Module {
 
     public init(
         featureDim: Int,
-        netArch: MLPNetArch,
+        netArch: NetArch,
         activation: () -> any UnaryLayer = { ReLU() },
         withBias: Bool = true
     ) {
         precondition(featureDim > 0)
 
-        let piDims: [Int]
-        let vfDims: [Int]
-        switch netArch {
-        case .shared(let dims):
-            piDims = dims
-            vfDims = dims
-        case .separate(let pi, let vf):
-            piDims = pi
-            vfDims = vf
-        }
+        let piDims = netArch.actor
+        let vfDims = netArch.critic
 
         // Build policy network
         var piLayers: [any UnaryLayer] = []
@@ -72,8 +52,10 @@ public final class MLPExtractor: Module {
             lastVf = dim
         }
 
-        let policyNetLocal: Sequential = piLayers.isEmpty ? Sequential(layers: [Identity()]) : Sequential(layers: piLayers)
-        let valueNetLocal: Sequential  = vfLayers.isEmpty ? Sequential(layers: [Identity()]) : Sequential(layers: vfLayers)
+        let policyNetLocal: Sequential =
+            piLayers.isEmpty ? Sequential(layers: [Identity()]) : Sequential(layers: piLayers)
+        let valueNetLocal: Sequential =
+            vfLayers.isEmpty ? Sequential(layers: [Identity()]) : Sequential(layers: vfLayers)
 
         self.latentDimPi = lastPi
         self.latentDimVf = lastVf
