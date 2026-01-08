@@ -75,7 +75,7 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
     }
     
     public func sample() -> MLXArray {
-        MLXRandom.categorical(logits, axis: -1)
+        MLX.categorical(logits, axis: -1)
     }
     
     public func mode() -> MLXArray {
