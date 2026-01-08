@@ -42,12 +42,12 @@ public protocol Algorithm {
     mutating func learn(totalTimesteps: Int) -> Self
 }
 
-public extension Algorithm {
-    mutating func updateProgressRemaining(numTimesteps: Int, totalTimesteps: Int) {
+extension Algorithm {
+    public mutating func updateProgressRemaining(numTimesteps: Int, totalTimesteps: Int) {
         currentProgressRemaining = 1.0 - Double(numTimesteps) / Double(totalTimesteps)
     }
 
-    func currentLearningRate() -> Double {
+    public func currentLearningRate() -> Double {
         learningRate.value(at: currentProgressRemaining)
     }
 }
