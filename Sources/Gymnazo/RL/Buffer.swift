@@ -35,64 +35,6 @@ public protocol BufferPersisting: Buffer {
     mutating func load(from url: URL) throws
 }
 
-/// A single replay transition.
-public struct ReplayTransition {
-    public let observation: MLXArray
-    public let action: MLXArray
-    public let reward: MLXArray
-    public let nextObservation: MLXArray
-    public let terminated: MLXArray
-    public let truncated: MLXArray
-
-    public init(
-        observation: MLXArray,
-        action: MLXArray,
-        reward: MLXArray,
-        nextObservation: MLXArray,
-        terminated: MLXArray,
-        truncated: MLXArray
-    ) {
-        self.observation = observation
-        self.action = action
-        self.reward = reward
-        self.nextObservation = nextObservation
-        self.terminated = terminated
-        self.truncated = truncated
-    }
-}
-
-/// A sampled replay batch.
-public struct ReplayBatch {
-    public let observations: MLXArray
-    public let actions: MLXArray
-    public let rewards: MLXArray
-    public let nextObservations: MLXArray
-    public let terminated: MLXArray
-    public let truncated: MLXArray
-
-    public init(
-        observations: MLXArray,
-        actions: MLXArray,
-        rewards: MLXArray,
-        nextObservations: MLXArray,
-        terminated: MLXArray,
-        truncated: MLXArray
-    ) {
-        self.observations = observations
-        self.actions = actions
-        self.rewards = rewards
-        self.nextObservations = nextObservations
-        self.terminated = terminated
-        self.truncated = truncated
-    }
-}
-
-/// Replay buffer protocol for off-policy algorithms.
-public protocol ReplayBuffer: Buffer {
-    mutating func append(_ transition: ReplayTransition)
-    func sample(batchSize: Int) -> ReplayBatch
-}
-
 /// A single rollout step.
 public struct RolloutStep {
     public let observation: MLXArray

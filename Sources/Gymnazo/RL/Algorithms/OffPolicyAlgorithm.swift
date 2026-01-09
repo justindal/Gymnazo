@@ -10,11 +10,9 @@ import MLXNN
 ///
 /// - Parameters:
 ///     - config: Hyperparameters that define the off-policy learning loop.
-///     - replayBuffer: Replay buffer for storing experiences.
 ///     - actionNoise: Optional action noise for exploration.
 public protocol OffPolicyAlgorithm: Algorithm {
     var config: OffPolicyConfig { get }
-    var replayBuffer: (any ReplayBuffer)? { get set }
     var actionNoise: (any ActionNoise)? { get set }
 
     mutating func train(gradientSteps: Int, batchSize: Int)
