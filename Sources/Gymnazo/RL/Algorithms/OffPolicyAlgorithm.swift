@@ -10,10 +10,8 @@ import MLXNN
 ///
 /// - Parameters:
 ///     - config: Hyperparameters that define the off-policy learning loop.
-///     - actionNoise: Optional action noise for exploration.
 public protocol OffPolicyAlgorithm: Algorithm {
     var config: OffPolicyConfig { get }
-    var actionNoise: (any ActionNoise)? { get set }
 
     mutating func train(gradientSteps: Int, batchSize: Int)
 }
@@ -86,10 +84,4 @@ public struct OffPolicyConfig: Sendable {
         self.sdeSampleFreq = sdeSampleFreq
         self.sdeSupported = sdeSupported
     }
-}
-
-/// Action noise for exploration in continuous action spaces.
-public protocol ActionNoise {
-    mutating func reset()
-    mutating func sample() -> MLXArray
 }
