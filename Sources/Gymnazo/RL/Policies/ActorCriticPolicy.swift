@@ -19,7 +19,7 @@ import MLXNN
 ///     - useExpln: Whether to use expln() instead of exp() for positive std.
 ///     - shareFeatureExtractor: Whether to share features extractor between actor and critic.
 public protocol ActorCriticPolicy: Policy {
-    var netArch: MLPNetArch { get }
+    var netArch: NetArch { get }
     var orthoInit: Bool { get }
     var useSDE: Bool { get }
     var logStdInit: Float { get }
