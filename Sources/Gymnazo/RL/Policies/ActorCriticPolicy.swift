@@ -16,7 +16,6 @@ import MLXNN
 ///     - useSDE: Whether to use State-Dependent Exploration.
 ///     - logStdInit: Initial value for log standard deviation.
 ///     - fullStd: Whether to use (features x actions) parameters for std in gSDE.
-///     - useExpln: Whether to use expln() instead of exp() for positive std.
 ///     - shareFeatureExtractor: Whether to share features extractor between actor and critic.
 public protocol ActorCriticPolicy: Policy {
     var netArch: NetArch { get }
@@ -24,7 +23,6 @@ public protocol ActorCriticPolicy: Policy {
     var useSDE: Bool { get }
     var logStdInit: Float { get }
     var fullStd: Bool { get }
-    var useExpln: Bool { get }
     var shareFeatureExtractor: Bool { get }
 
     var featuresDim: Int { get }
@@ -77,7 +75,6 @@ extension ActorCriticPolicy {
     public var useSDE: Bool { false }
     public var logStdInit: Float { 0.0 }
     public var fullStd: Bool { true }
-    public var useExpln: Bool { false }
     public var shareFeatureExtractor: Bool { true }
 
     public var piFeatureExtractor: any FeaturesExtractor {

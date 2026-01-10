@@ -19,7 +19,6 @@ import MLXNN
 ///     - useSDE: Whether to use State-Dependent Exploration.
 ///     - logStdInit: Initial value for log standard deviation.
 ///     - fullStd: Whether to use (features x actions) parameters for std in gSDE.
-///     - useExpln: Whether to use expln() instead of exp() for positive std.
 ///     - squashOutput: Whether to squash output using tanh (for gSDE).
 ///     - shareFeatureExtractor: Whether to share feature extractor between actor and critic.
 ///     - normalizeImages: Whether to normalize images by dividing by 255.0.

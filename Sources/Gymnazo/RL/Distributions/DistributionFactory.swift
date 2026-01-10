@@ -10,18 +10,15 @@ import MLXNN
 public struct SDEConfig {
     public let fullStd: Bool
     public let squashOutput: Bool
-    public let useExpln: Bool
     public let learnFeatures: Bool
     
     public init(
         fullStd: Bool = true,
         squashOutput: Bool = false,
-        useExpln: Bool = false,
         learnFeatures: Bool = false
     ) {
         self.fullStd = fullStd
         self.squashOutput = squashOutput
-        self.useExpln = useExpln
         self.learnFeatures = learnFeatures
     }
 }
@@ -57,7 +54,6 @@ public enum DistributionFactory {
                 return StateDependentNoiseDistribution(
                     actionDim: actionDim,
                     fullStd: config.fullStd,
-                    useExpln: config.useExpln,
                     squashOutput: config.squashOutput,
                     learnFeatures: config.learnFeatures
                 )
@@ -105,7 +101,6 @@ public enum DistributionFactory {
             return StateDependentNoiseDistribution(
                 actionDim: actionDim,
                 fullStd: config.fullStd,
-                useExpln: config.useExpln,
                 squashOutput: config.squashOutput,
                 learnFeatures: config.learnFeatures
             )
