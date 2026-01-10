@@ -32,6 +32,9 @@ public struct Box: Space {
     /// Tracks which dimensions are bounded above (not +inf)
     public let boundedAbove: [Bool]
 
+    private let effectiveLow: MLXArray
+    private let effectiveHigh: MLXArray
+
     /// Create a Box with scalar bounds broadcast to the provided shape.
     public init(low: Float, high: Float, shape: [Int], dtype: DType = .float32) {
         precondition(high >= low, "Box: high must be >= low")
@@ -44,6 +47,17 @@ public struct Box: Space {
         let count = shape.reduce(1, *)
         self.boundedBelow = [Bool](repeating: !low.isInfinite, count: count)
         self.boundedAbove = [Bool](repeating: !high.isInfinite, count: count)
+        
+        let flatLow = [Float](repeating: low, count: count)
+        let flatHigh = [Float](repeating: high, count: count)
+        let (effLow, effHigh) = Box.computeEffectiveBounds(
+            flatLow: flatLow,
+            flatHigh: flatHigh,
+            boundedBelow: self.boundedBelow,
+            boundedAbove: self.boundedAbove
+        )
+        self.effectiveLow = MLXArray(effLow).reshaped(shape).asType(dtype)
+        self.effectiveHigh = MLXArray(effHigh).reshaped(shape).asType(dtype)
     }
 
     /// Create a Box with array bounds.
@@ -64,6 +78,16 @@ public struct Box: Space {
         let flatHigh = highC.reshaped([-1]).asArray(Float.self)
         self.boundedBelow = flatLow.map { !$0.isInfinite }
         self.boundedAbove = flatHigh.map { !$0.isInfinite }
+        
+        // Cache effective bounds as MLXArrays
+        let (effLow, effHigh) = Box.computeEffectiveBounds(
+            flatLow: flatLow,
+            flatHigh: flatHigh,
+            boundedBelow: self.boundedBelow,
+            boundedAbove: self.boundedAbove
+        )
+        self.effectiveLow = MLXArray(effLow).reshaped(ls).asType(dtype)
+        self.effectiveHigh = MLXArray(effHigh).reshaped(ls).asType(dtype)
     }
     
     /// Returns whether the space is bounded in all dimensions.
@@ -118,42 +142,8 @@ public struct Box: Space {
         let (k, _) = MLX.split(key: key)
         let u01 = MLX.uniform(0 ..< 1, shp, key: k).asType(dtype ?? .float32)
         
-        let flatLow = low.reshaped([-1]).asArray(Float.self)
-        let flatHigh = high.reshaped([-1]).asArray(Float.self)
-        
-        let defaultRange: Float = 1e6
-        var effectiveLow = [Float](repeating: 0, count: flatLow.count)
-        var effectiveHigh = [Float](repeating: 0, count: flatHigh.count)
-        
-        for i in 0..<flatLow.count {
-            let bBelow = boundedBelow[i]
-            let bAbove = boundedAbove[i]
-            
-            if bBelow && bAbove {
-                // Fully bounded
-                effectiveLow[i] = flatLow[i]
-                effectiveHigh[i] = flatHigh[i]
-            } else if bBelow {
-                // Bounded below only
-                effectiveLow[i] = flatLow[i]
-                effectiveHigh[i] = flatLow[i] + defaultRange
-            } else if bAbove {
-                // Bounded above only
-                effectiveLow[i] = flatHigh[i] - defaultRange
-                effectiveHigh[i] = flatHigh[i]
-            } else {
-                // Unbounded
-                effectiveLow[i] = -defaultRange
-                effectiveHigh[i] = defaultRange
-            }
-        }
-        
-        let effLowArray = MLXArray(effectiveLow).reshaped(shp).asType(dtype ?? .float32)
-        let effHighArray = MLXArray(effectiveHigh).reshaped(shp).asType(dtype ?? .float32)
-        
-        let span = effHighArray - effLowArray
-        let sample = effLowArray + u01 * span
-        return sample
+        let span = effectiveHigh - effectiveLow
+        return effectiveLow + u01 * span
     }
 }
 
@@ -164,17 +154,34 @@ extension Box: MLXSpace {
         let batchShape = [count] + elementShape
         let u01 = MLX.uniform(0 ..< 1, batchShape, key: key).asType(dtype ?? .float32)
 
-        let flatLow = low.reshaped([-1]).asArray(Float.self)
-        let flatHigh = high.reshaped([-1]).asArray(Float.self)
+        let span = effectiveHigh - effectiveLow
+        return effectiveLow + u01 * span
+    }
+}
 
+private extension Box {
+    static func full(shape: [Int], value: Float, dtype: DType) -> MLXArray {
+        let count = shape.reduce(1, *)
+        let flat = MLXArray([Float](repeating: value, count: count))
+        let reshaped = flat.reshaped(shape)
+        return reshaped.asType(dtype)
+    }
+    
+    /// Computes effective bounds for sampling, handling unbounded dimensions.
+    static func computeEffectiveBounds(
+        flatLow: [Float],
+        flatHigh: [Float],
+        boundedBelow: [Bool],
+        boundedAbove: [Bool]
+    ) -> ([Float], [Float]) {
         let defaultRange: Float = 1e6
         var effectiveLow = [Float](repeating: 0, count: flatLow.count)
         var effectiveHigh = [Float](repeating: 0, count: flatHigh.count)
-
+        
         for i in 0..<flatLow.count {
             let bBelow = boundedBelow[i]
             let bAbove = boundedAbove[i]
-
+            
             if bBelow && bAbove {
                 effectiveLow[i] = flatLow[i]
                 effectiveHigh[i] = flatHigh[i]
@@ -189,20 +196,8 @@ extension Box: MLXSpace {
                 effectiveHigh[i] = defaultRange
             }
         }
-
-        let effLow = MLXArray(effectiveLow).reshaped(elementShape).asType(dtype ?? .float32)
-        let effHigh = MLXArray(effectiveHigh).reshaped(elementShape).asType(dtype ?? .float32)
-
-        let span = effHigh - effLow
-        return effLow + u01 * span
+        
+        return (effectiveLow, effectiveHigh)
     }
 }
 
-private extension Box {
-    static func full(shape: [Int], value: Float, dtype: DType) -> MLXArray {
-        let count = shape.reduce(1, *)
-        let flat = MLXArray([Float](repeating: value, count: count))
-        let reshaped = flat.reshaped(shape)
-        return reshaped.asType(dtype)
-    }
-}

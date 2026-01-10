@@ -244,5 +244,82 @@ struct CarRacingTests {
             #expect(result.obs.shape == [96, 96, 3])
         }
     }
+    
+    @Test
+    func testSteeringCausesDirectionChange() async throws {
+        var env = CarRacing()
+        _ = env.reset(seed: 42)
+        
+        // Build up speed first
+        for _ in 0..<50 {
+            let action = MLXArray([0.0, 1.0, 0.0] as [Float32])
+            _ = env.step(action)
+        }
+        
+        let snapshot1 = env.currentSnapshot!
+        let initialAngle = snapshot1.carAngle
+        let initialSpeed = snapshot1.trueSpeed
+        
+        // Verify we have some speed
+        #expect(initialSpeed > 1.0, "Car should have built up speed")
+        
+        // Now steer left while maintaining gas
+        for _ in 0..<100 {
+            let action = MLXArray([-1.0, 0.5, 0.0] as [Float32])
+            _ = env.step(action)
+        }
+        
+        let snapshot2 = env.currentSnapshot!
+        let finalAngle = snapshot2.carAngle
+        
+        let angleDiff = abs(finalAngle - initialAngle)
+        
+        // Car should have turned significantly (more than 0.1 radians ≈ 5.7 degrees)
+        #expect(angleDiff > 0.1, "Car should turn when steering is applied. Angle only changed by \(angleDiff)")
+    }
+    
+    @Test
+    func testDiscreteSteeringCausesDirectionChange() async throws {
+        var env = CarRacingDiscrete()
+        _ = env.reset(seed: 42)
+        
+        // Build up speed first
+        for _ in 0..<100 {
+            _ = env.step(3)
+        }
+        
+        let snapshot1 = env.currentSnapshot!
+        let initialAngle = snapshot1.carAngle
+        let initialSpeed = snapshot1.trueSpeed
+        
+        print("DEBUG: Initial speed = \(initialSpeed), initial angle = \(initialAngle)")
+        
+        // Verify we have some speed
+        #expect(initialSpeed > 1.0, "Car should have built up speed")
+        
+        for i in 0..<200 {
+            if i % 2 == 0 {
+                _ = env.step(1)
+            } else {
+                _ = env.step(3)
+            }
+            
+            if i % 40 == 0 {
+                let snap = env.currentSnapshot!
+                print("DEBUG: Step \(i): angle = \(snap.carAngle), speed = \(snap.trueSpeed), steeringAngle = \(snap.steeringAngle)")
+            }
+        }
+        
+        let snapshot2 = env.currentSnapshot!
+        let finalAngle = snapshot2.carAngle
+        let finalSpeed = snapshot2.trueSpeed
+        
+        print("DEBUG: Final speed = \(finalSpeed), final angle = \(finalAngle)")
+        
+        let angleDiff = abs(finalAngle - initialAngle)
+        print("DEBUG: Angle difference = \(angleDiff) radians = \(angleDiff * 180 / .pi) degrees")
+        
+        #expect(angleDiff > 0.1, "Car should turn when steering is applied. Angle only changed by \(angleDiff)")
+    }
 }
 

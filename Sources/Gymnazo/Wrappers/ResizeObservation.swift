@@ -9,14 +9,33 @@ import MLX
 
 /// Resizes image observations to a specified shape.
 ///
-/// Uses bilinear interpolation for resizing.
+/// This wrapper resizes image observations using nearest-neighbor interpolation,
+/// allowing you to standardize observation dimensions across different environments.
+///
+/// ## Overview
+///
+/// `ResizeObservation` is commonly used to:
+/// - Match observations to standard CNN input sizes (e.g., 84×84 for Atari-style networks)
+/// - Reduce observation dimensionality for faster training
+/// - Standardize inputs when combining different environments
 ///
 /// ## Example
+///
 /// ```swift
 /// var env = CarRacing()
-/// var resizedEnv = ResizeObservation(env: env, shape: (84, 84))
-/// // Observation shape: [96, 96, 3] -> [84, 84, 3]
+///     .resized(to: (84, 84))     // [96, 96, 3] -> [84, 84, 3]
+///     .frameStacked(4)
+///     .timeLimited(1000)
 /// ```
+///
+/// ## Topics
+///
+/// ### Creating a Resize Wrapper
+/// - ``init(env:shape:)``
+///
+/// ### Configuration
+/// - ``targetHeight``
+/// - ``targetWidth``
 public struct ResizeObservation<InnerEnv: Env>: Env
     where InnerEnv.Observation == MLXArray
 {

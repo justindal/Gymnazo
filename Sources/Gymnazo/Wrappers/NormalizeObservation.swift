@@ -5,8 +5,9 @@
 import Foundation
 import MLX
 
-/// normalize observation to mean 0 and variance 1.
-/// this wrapper maintains a running mean and variance of the observations.
+/// Normalizes observations to approximately mean 0 and variance 1.
+///
+/// Uses Welford's online algorithm to maintain running statistics.
 public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observation == MLXArray {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
@@ -17,44 +18,14 @@ public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observ
     public var env: InnerEnv
     public let epsilon: Float = 1e-8
     
-    private class RunningMeanStd {
-        var mean: MLXArray
-        var var_sum: MLXArray
-        var count: Float
-        
-        init(shape: [Int]) {
-            self.mean = MLX.zeros(shape)
-            self.var_sum = MLX.zeros(shape)
-            self.count = 0
-        }
-        
-        func update(_ x: MLXArray) {
-
-            count += 1
-            let delta = x - mean
-            mean = mean + delta / count
-            let delta2 = x - mean
-            var_sum = var_sum + delta * delta2
-        }
-        
-        var variance: MLXArray {
-            if count < 2 { return MLX.ones(mean.shape) }
-            return var_sum / (count - 1)
-        }
-        
-        var std: MLXArray {
-            return MLX.sqrt(variance)
-        }
-    }
-    
-    private let rms: RunningMeanStd
+    private let rms: RunningMeanStdMLX
     
     public init(env: InnerEnv) {
         self.env = env
         guard let shape = env.observation_space.shape else {
             fatalError("NormalizeObservation requires an observation space with a defined shape")
         }
-        self.rms = RunningMeanStd(shape: shape)
+        self.rms = RunningMeanStdMLX(shape: shape)
     }
     
     public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
@@ -79,3 +50,4 @@ public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observ
         return Reset(obs: normalized_obs, info: result.info)
     }
 }
+

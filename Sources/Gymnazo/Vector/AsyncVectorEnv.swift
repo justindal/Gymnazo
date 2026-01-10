@@ -617,7 +617,7 @@ public final class AsyncVectorEnv: VectorEnv {
         guard !closed else { return }
 
         let actors = self.actors
-        _ = Self.blockingWait { await Self.closeActors(actors: actors) }
+        Self.blockingWait { await Self.closeActors(actors: actors) }
         closed = true
     }
     

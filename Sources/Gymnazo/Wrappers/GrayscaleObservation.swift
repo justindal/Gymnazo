@@ -9,15 +9,38 @@ import MLX
 
 /// Converts RGB image observations to grayscale.
 ///
-/// Uses standard luminance weights (ITU-R BT.601):
-/// `grayscale = 0.299*R + 0.587*G + 0.114*B`
+/// This wrapper reduces the dimensionality of image observations by converting
+/// 3-channel RGB images to single-channel grayscale using standard luminance weights.
+///
+/// ## Overview
+///
+/// `GrayscaleObservation` uses the ITU-R BT.601 standard for luminance:
+/// ```
+/// grayscale = 0.299*R + 0.587*G + 0.114*B
+/// ```
+///
+/// This is commonly used in reinforcement learning to reduce the observation space
+/// complexity while preserving important visual information.
 ///
 /// ## Example
+///
 /// ```swift
 /// var env = CarRacing()
-/// var grayEnv = GrayscaleObservation(env: env)
-/// // Observation shape: [96, 96, 3] -> [96, 96] or [96, 96, 1]
+///     .grayscale()           // [96, 96, 3] -> [96, 96]
+///     .timeLimited(1000)
+///
+/// // Or with keepDim to preserve channel dimension:
+/// var env = CarRacing()
+///     .grayscale(keepDim: true)  // [96, 96, 3] -> [96, 96, 1]
 /// ```
+///
+/// ## Topics
+///
+/// ### Creating a Grayscale Wrapper
+/// - ``init(env:keepDim:)``
+///
+/// ### Configuration
+/// - ``keepDim``
 public struct GrayscaleObservation<InnerEnv: Env>: Env
     where InnerEnv.Observation == MLXArray
 {
