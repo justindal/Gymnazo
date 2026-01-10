@@ -21,12 +21,12 @@ import MLXNN
 ///     - featuresExtractor: Network to extract features.
 ///     - featuresDim: Number of features from the extractor.
 ///     - nCritics: Number of critic networks (default 2).
-///     - shareFeatureExtractor: Whether the extractor is shared with the actor.
+///     - shareFeaturesExtractor: Whether the extractor is shared with the actor.
 public protocol ContinuousCritic: Model {
     var netArch: [Int] { get }
     var featuresDim: Int { get }
     var nCritics: Int { get }
-    var shareFeatureExtractor: Bool { get }
+    var shareFeaturesExtractor: Bool { get }
     var qNetworks: [Sequential] { get }
     
     /// Forward pass through all critic networks.
@@ -51,7 +51,7 @@ public protocol ContinuousCritic: Model {
 
 extension ContinuousCritic {
     public var nCritics: Int { 2 }
-    public var shareFeatureExtractor: Bool { true }
+    public var shareFeaturesExtractor: Bool { true }
     
     public func forward(obs: MLXArray, actions: MLXArray) -> [MLXArray] {
         guard let extractor = featuresExtractor else {
