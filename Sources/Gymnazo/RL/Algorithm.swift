@@ -36,8 +36,6 @@ public protocol Algorithm {
     var numTimesteps: Int { get set }
     var totalTimesteps: Int { get set }
 
-    mutating func setupModel()
-
     @discardableResult
     mutating func learn(totalTimesteps: Int) -> Self
 }
