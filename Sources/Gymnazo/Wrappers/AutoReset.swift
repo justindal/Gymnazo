@@ -1,8 +1,7 @@
 /// Automatically resets an environment when an episode ends.
 ///
-/// When autoreset happens, the wrapper stores the terminated episode’s final transition under:
-/// - `info["final_observation"]`
-/// - `info["final_info"]`
+/// The wrapper sets `Step.final` with the terminal observation and autoreset
+/// transition information, for correct handling of episode information.
 public struct AutoReset<InnerEnv: Env>: Wrapper {
     public typealias InnerEnv = InnerEnv
     public typealias Observation = InnerEnv.Observation
@@ -59,11 +58,16 @@ public struct AutoReset<InnerEnv: Env>: Wrapper {
                 terminated: result.terminated,
                 truncated: result.truncated,
                 info: result.info,
-                final: Final(obs: result.obs, info: result.info)
+                final: EpisodeFinal(
+                    terminalObservation: result.obs,
+                    terminalInfo: result.info,
+                    autoReset: .willResetOnNextStep
+                )
             )
         }
 
-        let finalObs = result.obs
+        let terminalObs = result.obs
+        let terminalInfo = result.info
         let resetResult = env.reset(seed: nil, options: nil)
         needsReset = false
 
@@ -73,8 +77,11 @@ public struct AutoReset<InnerEnv: Env>: Wrapper {
             terminated: result.terminated,
             truncated: result.truncated,
             info: resetResult.info,
-            final: Final(obs: finalObs, info: result.info)
+            final: EpisodeFinal(
+                terminalObservation: terminalObs,
+                terminalInfo: terminalInfo,
+                autoReset: .didReset(observation: resetResult.obs, info: resetResult.info)
+            )
         )
     }
 }
-
