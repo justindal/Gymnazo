@@ -61,6 +61,43 @@ extension Policy {
         return actions
     }
 
+    /// Get the policy action from a Dict observation.
+    ///
+    /// - Parameters:
+    ///   - observation: The Dict observation.
+    ///   - deterministic: Whether to return deterministic actions.
+    /// - Returns: The action to take.
+    public func predict(observation: [String: MLXArray], deterministic: Bool = false)
+        -> MLXArray
+    {
+        setTrainingMode(false)
+
+        guard let dictExtractor = featuresExtractor as? any DictFeaturesExtractor else {
+            preconditionFailure(
+                "predict(observation: [String: MLXArray]) requires a DictFeaturesExtractor")
+        }
+
+        let features = extractFeatures(
+            obs: observation,
+            featuresExtractor: dictExtractor
+        )
+
+        var actions = predictInternal(
+            observation: features,
+            deterministic: deterministic
+        )
+
+        if let box = actionSpace as? Box {
+            if squashOutput {
+                actions = unscaleAction(actions)
+            } else {
+                actions = MLX.clip(actions, min: box.low, max: box.high)
+            }
+        }
+
+        return actions
+    }
+
     /// Rescale the action from [low, high] to [-1, 1].
     ///
     /// - Parameter action: Action to scale.
