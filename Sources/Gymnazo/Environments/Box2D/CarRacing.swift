@@ -175,7 +175,9 @@ public struct CarRacing: Env {
         
         t += 1.0 / TrackConstants.fps
         
-        updateWheelTileContacts()
+        let vel = b2Body_GetLinearVelocity(car.hullId)
+        let trueSpeed = sqrt(vel.x * vel.x + vel.y * vel.y)
+        updateWheelTileContacts(awardReward: trueSpeed > 0.1)
         
         let state = renderStatePixels()
         
@@ -213,7 +215,7 @@ public struct CarRacing: Env {
         )
     }
     
-    private mutating func updateWheelTileContacts() {
+    private mutating func updateWheelTileContacts(awardReward: Bool) {
         guard var car = car, let trackData = trackData else { return }
         
         for i in 0..<car.wheels.count {
@@ -252,8 +254,10 @@ public struct CarRacing: Env {
                         
                         if !trackData.tiles[k].roadVisited {
                             trackData.tiles[k].roadVisited = true
-                            reward += 1000.0 / Float(trackData.tiles.count)
                             tileVisitedCount += 1
+                            if awardReward {
+                                reward += 1000.0 / Float(trackData.tiles.count)
+                            }
                             
                             if trackData.tiles[k].idx == 0 {
                                 let visitRatio = Float(tileVisitedCount) / Float(trackData.tiles.count)

@@ -34,6 +34,10 @@ public struct CarRacingDiscrete: Env {
     private var t: Float = 0
     private var newLap: Bool = false
     
+    private var currentSteer: Float = 0
+    private var currentGas: Float = 0
+    private var currentBrake: Float = 0
+    
     private var _key: MLXArray?
     
     nonisolated(unsafe) private static let fallbackObservation: MLXArray = {
@@ -133,13 +137,28 @@ public struct CarRacingDiscrete: Env {
         
         precondition(action_space.contains(action), "Invalid action: \(action)")
         
-        let steerValue: Float = -0.6 * (action == 1 ? 1 : 0) + 0.6 * (action == 2 ? 1 : 0)
-        let gasValue: Float = 0.2 * (action == 3 ? 1 : 0)
-        let brakeValue: Float = 0.8 * (action == 4 ? 1 : 0)
+        switch action {
+        case 0:
+            currentSteer = 0
+            currentGas = 0
+            currentBrake = 0
+        case 1:
+            currentSteer = 1
+        case 2:
+            currentSteer = -1
+        case 3:
+            currentGas = 1
+            currentBrake = 0
+        case 4:
+            currentBrake = 0.8
+            currentGas = 0
+        default:
+            break
+        }
         
-        car.steer(steerValue)
-        car.gas(gasValue)
-        car.brake(brakeValue)
+        car.steer(currentSteer)
+        car.gas(currentGas)
+        car.brake(currentBrake)
         
         var tileFrictions: [Int: Float] = [:]
         for tile in trackData.tiles {
@@ -153,7 +172,9 @@ public struct CarRacingDiscrete: Env {
         
         t += 1.0 / TrackConstants.fps
         
-        updateWheelTileContacts()
+        let vel = b2Body_GetLinearVelocity(car.hullId)
+        let trueSpeed = sqrt(vel.x * vel.x + vel.y * vel.y)
+        updateWheelTileContacts(awardReward: trueSpeed > 0.1)
         
         let state = renderStatePixels()
         
@@ -191,7 +212,7 @@ public struct CarRacingDiscrete: Env {
         )
     }
     
-    private mutating func updateWheelTileContacts() {
+    private mutating func updateWheelTileContacts(awardReward: Bool) {
         guard var car = car, let trackData = trackData else { return }
         
         for i in 0..<car.wheels.count {
@@ -230,8 +251,10 @@ public struct CarRacingDiscrete: Env {
                         
                         if !trackData.tiles[k].roadVisited {
                             trackData.tiles[k].roadVisited = true
-                            reward += 1000.0 / Float(trackData.tiles.count)
                             tileVisitedCount += 1
+                            if awardReward {
+                                reward += 1000.0 / Float(trackData.tiles.count)
+                            }
                             
                             if trackData.tiles[k].idx == 0 {
                                 let visitRatio = Float(tileVisitedCount) / Float(trackData.tiles.count)
@@ -271,6 +294,9 @@ public struct CarRacingDiscrete: Env {
         tileVisitedCount = 0
         t = 0
         newLap = false
+        currentSteer = 0
+        currentGas = 0
+        currentBrake = 0
         
         var attempts = 0
         while true {
