@@ -17,7 +17,6 @@ public final class StateDependentNoiseDistribution: Distribution {
     private let actionDim: Int
     private let latentSDEDim: Int
     private let fullStd: Bool
-    private let useExpln: Bool
     private let squashOutput: Bool
     private let learnFeatures: Bool
 
@@ -33,14 +32,12 @@ public final class StateDependentNoiseDistribution: Distribution {
     /// - Parameters:
     ///   - actionDim: Dimension of the action space.
     ///   - fullStd: If true, use (latent_dim x action_dim) parameters for std.
-    ///   - useExpln: If true, use expln() instead of exp() for positive std.
     ///   - squashOutput: If true, squash output using tanh.
     ///   - learnFeatures: If true, learn features for exploration.
     ///   - latentSDEDim: Dimension of the latent SDE features (defaults to actionDim).
     public init(
         actionDim: Int,
         fullStd: Bool = true,
-        useExpln: Bool = false,
         squashOutput: Bool = false,
         learnFeatures: Bool = false,
         latentSDEDim: Int? = nil
@@ -48,7 +45,6 @@ public final class StateDependentNoiseDistribution: Distribution {
         self.actionDim = actionDim
         self.latentSDEDim = latentSDEDim ?? actionDim
         self.fullStd = fullStd
-        self.useExpln = useExpln
         self.squashOutput = squashOutput
         self.learnFeatures = learnFeatures
 
@@ -160,20 +156,7 @@ public final class StateDependentNoiseDistribution: Distribution {
     }
 
     private func getStdInternal(_ logStd: MLXArray) -> MLXArray {
-        if useExpln {
-            return expln(logStd)
-        }
         return MLX.exp(logStd)
-    }
-
-    /// Exponential linear unit for ensuring positive std.
-    ///
-    /// expln(x) = exp(x) if x <= 0 else x + 1
-    /// This prevents std from growing too fast while keeping it positive.
-    private func expln(_ x: MLXArray) -> MLXArray {
-        let belowZero = MLX.exp(x)
-        let aboveZero = x + 1.0
-        return MLX.where(x .<= 0, belowZero, aboveZero)
     }
 
     /// Computes exploration noise from latent features.
