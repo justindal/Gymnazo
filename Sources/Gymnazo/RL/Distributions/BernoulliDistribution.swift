@@ -76,8 +76,11 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
         return MLX.sum(entropy, axis: -1)
     }
     
-    public func sample() -> MLXArray {
-        MLX.bernoulli(probs).asType(.float32)
+    public func sample(key: MLXArray? = nil) -> MLXArray {
+        if let key = key {
+            return MLX.bernoulli(probs, key: key).asType(.float32)
+        }
+        return MLX.bernoulli(probs).asType(.float32)
     }
     
     public func mode() -> MLXArray {

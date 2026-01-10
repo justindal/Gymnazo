@@ -74,8 +74,11 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
         return entropy
     }
     
-    public func sample() -> MLXArray {
-        MLX.categorical(logits, axis: -1)
+    public func sample(key: MLXArray? = nil) -> MLXArray {
+        if let key = key {
+            return MLX.categorical(logits, axis: -1, key: key)
+        }
+        return MLX.categorical(logits, axis: -1)
     }
     
     public func mode() -> MLXArray {
@@ -154,9 +157,18 @@ public final class MultiCategoricalDistribution: Distribution {
         return totalEntropy
     }
     
-    public func sample() -> MLXArray {
-        let samples = distributions.map { $0.sample() }
-        return MLX.stacked(samples, axis: -1)
+    public func sample(key: MLXArray? = nil) -> MLXArray {
+        if let key = key {
+            var currentKey = key
+            var samples: [MLXArray] = []
+            for dist in distributions {
+                let (sampleKey, nextKey) = MLX.split(key: currentKey)
+                currentKey = nextKey
+                samples.append(dist.sample(key: sampleKey))
+            }
+            return MLX.stacked(samples, axis: -1)
+        }
+        return MLX.stacked(distributions.map { $0.sample() }, axis: -1)
     }
     
     public func mode() -> MLXArray {

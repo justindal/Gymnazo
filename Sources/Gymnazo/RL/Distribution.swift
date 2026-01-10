@@ -16,35 +16,43 @@ public protocol Distribution {
     /// - Parameter actions: The actions to evaluate.
     /// - Returns: Log probability of each action.
     func logProb(_ actions: MLXArray) -> MLXArray
-    
+
     /// Returns the entropy of the distribution.
     ///
     /// - Returns: Entropy value, or nil if not computable.
     func entropy() -> MLXArray?
-    
+
     /// Samples actions from the distribution.
     ///
+    /// - Parameter key: Optional RNG key for reproducible sampling. If nil, uses non-deterministic sampling.
     /// - Returns: Sampled actions.
-    func sample() -> MLXArray
-    
+    func sample(key: MLXArray?) -> MLXArray
+
     /// Returns the most likely actions (mode of the distribution).
     ///
     /// - Returns: Deterministic actions.
     func mode() -> MLXArray
-    
+
     /// Returns actions, either sampled or deterministic.
     ///
-    /// - Parameter deterministic: If true, returns the mode; otherwise samples.
+    /// - Parameters:
+    ///   - deterministic: If true, returns the mode; otherwise samples.
+    ///   - key: Optional RNG key for reproducible sampling.
     /// - Returns: Actions tensor.
-    func getActions(deterministic: Bool) -> MLXArray
+    func getActions(deterministic: Bool, key: MLXArray?) -> MLXArray
 }
 
 extension Distribution {
-    public func getActions(deterministic: Bool) -> MLXArray {
+    /// Default implementation without explicit key (non-deterministic).
+    public func sample() -> MLXArray {
+        sample(key: nil)
+    }
+
+    public func getActions(deterministic: Bool, key: MLXArray? = nil) -> MLXArray {
         if deterministic {
             return mode()
         }
-        return sample()
+        return sample(key: key)
     }
 }
 

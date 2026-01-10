@@ -84,9 +84,14 @@ public final class DiagGaussianDistribution: Distribution, DistributionWithNet {
         return MLX.sum(entropy, axis: -1)
     }
     
-    public func sample() -> MLXArray {
+    public func sample(key: MLXArray? = nil) -> MLXArray {
         let std = MLX.exp(logStd)
-        let noise = MLX.normal(mean.shape)
+        let noise: MLXArray
+        if let key = key {
+            noise = MLX.normal(mean.shape, key: key)
+        } else {
+            noise = MLX.normal(mean.shape)
+        }
         return mean + std * noise
     }
     
