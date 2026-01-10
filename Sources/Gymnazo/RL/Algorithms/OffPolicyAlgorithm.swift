@@ -50,8 +50,9 @@ public struct OffPolicyConfig: Sendable {
     public let gamma: Double
     public let trainFrequency: TrainFrequency
     public let gradientSteps: GradientSteps
+    public let targetUpdateInterval: Int
     public let optimizeMemoryUsage: Bool
-    public let nSteps: Int
+    public let handleTimeoutTermination: Bool
     public let useSDEAtWarmup: Bool
     public let sdeSampleFreq: Int
     public let sdeSupported: Bool
@@ -64,8 +65,9 @@ public struct OffPolicyConfig: Sendable {
         gamma: Double = 0.99,
         trainFrequency: TrainFrequency = TrainFrequency(frequency: 1, unit: .step),
         gradientSteps: GradientSteps = .fixed(1),
+        targetUpdateInterval: Int = 1,
         optimizeMemoryUsage: Bool = false,
-        nSteps: Int = 1,
+        handleTimeoutTermination: Bool = true,
         useSDEAtWarmup: Bool = false,
         sdeSampleFreq: Int = -1,
         sdeSupported: Bool = true
@@ -77,8 +79,9 @@ public struct OffPolicyConfig: Sendable {
         self.gamma = gamma
         self.trainFrequency = trainFrequency
         self.gradientSteps = gradientSteps
+        self.targetUpdateInterval = targetUpdateInterval
         self.optimizeMemoryUsage = optimizeMemoryUsage
-        self.nSteps = nSteps
+        self.handleTimeoutTermination = handleTimeoutTermination
         self.useSDEAtWarmup = useSDEAtWarmup
         self.sdeSampleFreq = sdeSampleFreq
         self.sdeSupported = sdeSupported
