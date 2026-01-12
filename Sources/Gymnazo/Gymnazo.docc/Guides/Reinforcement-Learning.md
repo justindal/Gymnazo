@@ -1,6 +1,6 @@
 # Reinforcement Learning
 
-This section is incomplete.
+> This section is incomplete and may contain incorrect information.
 
 Gymnazo includes an (experimental) reinforcement learning module inspired by Stable-Baselines3.
 
