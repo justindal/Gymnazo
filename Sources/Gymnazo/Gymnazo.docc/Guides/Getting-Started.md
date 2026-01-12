@@ -4,7 +4,7 @@ Learn how to create and interact with Gymnazo environments.
 
 ## Overview
 
-Gymnazo follows the OpenAI Gymnasium API, making it familiar to anyone who has used the Python library.
+Gymnazo follows the Gymnasium API, making it familiar to anyone who has used the Python library.
 
 ## Creating an Environment
 
@@ -16,6 +16,8 @@ import Gymnazo
 // Create an environment
 var env = Gymnazo.make("CartPole")
 ```
+
+See <doc:Environments> to learn more about the included environments.
 
 ## The Environment Loop
 
@@ -48,20 +50,6 @@ while !done {
 
 print("Episode finished with reward: \(totalReward)")
 ```
-
-## Available Environments
-
-Gymnazo includes several classic control and toy text environments:
-
-| Environment           | ID                      | Description                 |
-| --------------------- | ----------------------- | --------------------------- |
-| CartPole              | `CartPole`              | Balance a pole on a cart    |
-| MountainCar           | `MountainCar`           | Drive a car up a hill       |
-| MountainCarContinuous | `MountainCarContinuous` | Continuous action version   |
-| Acrobot               | `Acrobot`               | Swing up a two-link robot   |
-| Pendulum              | `Pendulum`              | Swing up a pendulum         |
-| FrozenLake            | `FrozenLake`            | Navigate a frozen lake grid |
-| FrozenLake 8x8        | `FrozenLake8x8`         | Larger frozen lake variant  |
 
 ## Vector Environments
 
