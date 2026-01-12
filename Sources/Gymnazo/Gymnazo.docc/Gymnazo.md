@@ -16,6 +16,7 @@ Gymnazo provides a collection of environments and utilities for developing and t
 
 - <doc:Core-Concepts>
 - <doc:Creating-Environments>
+- <doc:Reinforcement-Learning>
 - <doc:Spaces>
 - <doc:Wrappers-Gym>
 - <doc:Vector-Environments>

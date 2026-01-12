@@ -122,3 +122,9 @@ let env = CartPole()
 ```
 
 See <doc:Wrappers-Gym> for the complete wrapper guide.
+
+## Training With Built-in Reinforcement Learning Algorithms
+
+Gymnazo includes an (experimental) reinforcement learning module inspired by Stable-Baselines3.
+
+See <doc:Reinforcement-Learning>.
