@@ -1,21 +1,29 @@
 # ``Gymnazo``
 
-A Swift implementation of Farama's Gymnasium for reinforcement learning on Apple platforms.
+A reinforcement learning toolkit written in Swift for Apple Platforms.
 
 ## Overview
 
-Gymnazo provides a collection of environments and utilities for developing and testing reinforcement learning algorithms. Built with MLX Swift for Apple Silicon acceleration.
+Gymnazo provides a collection of environments and utilities for developing and testing reinforcement learning algorithms. Gymnazo also provides implementations of common reinforcement learning algorithms. Gymnazo is inspired by [Gymnasium](https://github.com/Farama-Foundation/Gymnasium) and [Stable-baselines3](https://github.com/DLR-RM/stable-baselines3), and closely follows their APIs, for easier development. MLX is also used to benefit Apple Silicon devices. 
 
 ## Topics
 
-### Getting Started
+### Introduction
 
-- <doc:GettingStarted>
+- <doc:Getting-Started>
 
 ### Guides
 
-- <doc:VectorEnvironments>
-- <doc:Wrappers-article>
+- <doc:Core-Concepts>
+- <doc:Creating-Environments>
+- <doc:Reinforcement-Learning>
+- <doc:Spaces>
+- <doc:Wrappers-Gym>
+- <doc:Vector-Environments>
+
+### Environment Catalog
+
+- <doc:Environments>
 
 ### Core Protocols
 
@@ -23,42 +31,7 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``Space``
 - ``Wrapper``
 
-### Creating Environments
-
-- ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)``
-- ``make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``
-- ``make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``
-- ``register(id:entryPoint:maxEpisodeSteps:rewardThreshold:nondeterministic:)``
-
-### Environments
-
-- ``CartPole``
-- ``MountainCar``
-- ``MountainCarContinuous``
-- ``Acrobot``
-- ``Pendulum``
-- ``FrozenLake``
-- ``LunarLander``
-- ``LunarLanderContinuous``
-- ``CarRacing``
-- ``CarRacingDiscrete``
-
-### Environment Guides
-
-- <doc:CartPole>
-- <doc:MountainCar>
-- <doc:MountainCarContinuous>
-- <doc:Acrobot>
-- <doc:Pendulum>
-- <doc:FrozenLake>
-- <doc:Taxi>
-- <doc:CliffWalking>
-- <doc:Blackjack>
-- <doc:LunarLander>
-- <doc:LunarLanderContinuous>
-- <doc:CarRacing>
-
-### Spaces
+### Space Types (API)
 
 - ``Discrete``
 - ``Box``
@@ -70,13 +43,14 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``SequenceSpace``
 - ``Graph``
 
-### Vector Environments
+### Vector Environment Types
 
 - ``VectorEnv``
 - ``SyncVectorEnv``
 - ``AsyncVectorEnv``
 - ``AutoresetMode``
 - ``VectorStepResult``
+- ``VectorResetResult``
 
 ### Wrappers
 

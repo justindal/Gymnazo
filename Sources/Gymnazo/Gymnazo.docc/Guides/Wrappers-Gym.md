@@ -8,7 +8,7 @@ Wrappers allow you to modify an environment's behavior without changing its unde
 
 ## Default Wrappers via make()
 
-When you call ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)``, wrappers are applied automatically in this order:
+When you call `Gymnazo.make(...)`, wrappers are applied automatically in this order:
 
 1. **PassiveEnvChecker** - Validates API compliance (disable with `disableEnvChecker: true`)
 2. **OrderEnforcing** - Ensures `reset(seed:options:)` is called before `step(_:)`
@@ -36,7 +36,7 @@ var env = Gymnazo.make("CartPole", maxEpisodeSteps: -1)
 
 ## Chainable Wrapper Extensions
 
-Gymnazo provides chainable extension methods for applying wrappers beyond what ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)`` provides:
+Gymnazo provides chainable extension methods for applying wrappers beyond what `Gymnazo.make(...)` provides:
 
 ```swift
 import Gymnazo
@@ -112,7 +112,9 @@ Truncates episodes after a maximum number of steps:
 var env = TimeLimit(env: CartPole(), maxEpisodeSteps: 200)
 
 // After 200 steps, truncated will be true
-let (_, _, _, truncated, _) = env.step(action)
+let _ = env.reset()
+let step = env.step(0)
+let truncated = step.truncated
 ```
 
 ### RecordEpisodeStatistics
@@ -138,6 +140,7 @@ env.episodeCount  // Total episodes completed
 When an episode ends, the statistics are also added to the step's info dictionary under the `"episode"` key:
 
 ```swift
+let action = 0
 let result = env.step(action)
 if result.terminated || result.truncated {
     if let stats = result.info["episode"] as? [String: Any] {
@@ -150,10 +153,11 @@ if result.terminated || result.truncated {
 
 ### OrderEnforcing
 
-Ensures `reset(seed:options:)` is called before `step(_:)`. Applied by default via `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)`.
+Ensures `reset(seed:options:)` is called before `step(_:)`. Applied by default via `Gymnazo.make(...)`.
 
 ```swift
 var env = OrderEnforcing(env: CartPole())
+let action = 0
 
 // This will trigger an assertion failure:
 // env.step(0)  // Error: reset() not called
@@ -164,7 +168,7 @@ let _ = env.step(action)  // OK
 
 ### PassiveEnvChecker
 
-Validates environment API compliance during runtime. Applied by default via `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)`.
+Validates environment API compliance during runtime. Applied by default via `Gymnazo.make(...)`.
 
 ```swift
 var env = PassiveEnvChecker(env: CartPole())
@@ -306,7 +310,8 @@ Flattens observations into a 1D `MLXArray` and updates the observation space to 
 import Gymnazo
 
 var env = FrozenLake().observationsFlattened()
-let (obs, _) = env.reset(seed: 0)
+let reset = env.reset(seed: 0)
+let obs = reset.obs
 ```
 
 ### TransformReward
@@ -343,31 +348,31 @@ var env = CartPole().autoReset(mode: .sameStep)
 
 ### Core Protocol
 
-- `Wrapper`
+- ``Wrapper``
 
 ### Time and Episode Management
 
-- `TimeLimit`
-- `RecordEpisodeStatistics`
-- `AutoReset`
+- ``TimeLimit``
+- ``RecordEpisodeStatistics``
+- ``AutoReset``
 
 ### Validation
 
-- `OrderEnforcing`
-- `PassiveEnvChecker`
+- ``OrderEnforcing``
+- ``PassiveEnvChecker``
 
 ### Observation Wrappers
 
-- `TransformObservation`
-- `NormalizeObservation`
-- `FlattenObservation`
+- ``TransformObservation``
+- ``NormalizeObservation``
+- ``FlattenObservation``
 
 ### Reward Wrappers
 
-- `TransformReward`
-- `NormalizeReward`
+- ``TransformReward``
+- ``NormalizeReward``
 
 ### Action Wrappers
 
-- `ClipAction`
-- `RescaleAction`
+- ``ClipAction``
+- ``RescaleAction``

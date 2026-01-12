@@ -51,7 +51,9 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ## Arguments
 
 ```swift
-let env = make("LunarLander", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("LunarLander", kwargs: [
     "render_mode": "rgb_array",
     "gravity": -10.0,
     "enable_wind": false,
@@ -67,10 +69,6 @@ let env = make("LunarLander", kwargs: [
 - `turbulence_power` (Float, default `1.5`): turbulence magnitude.
 
 ## Topics
-
-### Environment Types
-
-- ``LunarLander``
 
 ### Supporting Types
 

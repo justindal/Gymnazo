@@ -57,7 +57,9 @@ The episode finishes when all the tiles are visited. The car can also go outside
 ## Arguments
 
 ```swift
-let env = make("CarRacing", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("CarRacing", kwargs: [
     "render_mode": "rgb_array",
     "lap_complete_percent": 0.95,
     "domain_randomize": false
@@ -70,7 +72,9 @@ let env = make("CarRacing", kwargs: [
 For discrete actions, use `CarRacingDiscrete` instead:
 
 ```swift
-let env = make("CarRacingDiscrete", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("CarRacingDiscrete", kwargs: [
     "render_mode": "rgb_array"
 ])
 ```
@@ -109,14 +113,9 @@ Original environment created by Oleg Klimov. Swift port by Gymnazo.
 
 ## Topics
 
-### Environment Types
-
-- `CarRacing`
-- `CarRacingDiscrete`
-
 ### Supporting Types
 
-- `CarRacingSnapshot`
-- `Car`
-- `RoadTile`
-- `TrackData`
+- ``CarRacingSnapshot``
+- ``Car``
+- ``RoadTile``
+- ``TrackData``

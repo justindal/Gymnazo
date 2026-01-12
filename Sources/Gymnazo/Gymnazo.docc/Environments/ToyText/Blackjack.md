@@ -38,7 +38,9 @@ Terminates when the player busts or when the player sticks and the dealer finish
 ## Arguments
 
 ```swift
-let env = make("Blackjack", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("Blackjack", kwargs: [
     "render_mode": "human",
     "natural": false,
     "sab": false
@@ -50,10 +52,6 @@ let env = make("Blackjack", kwargs: [
 - `sab` (Bool, default `false`): Sutton & Barto rules; if `true`, `natural` is ignored.
 
 ## Topics
-
-### Environment Types
-
-- ``Blackjack``
 
 ### Supporting Types
 

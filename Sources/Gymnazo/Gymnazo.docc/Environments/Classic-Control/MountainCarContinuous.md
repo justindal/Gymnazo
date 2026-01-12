@@ -38,7 +38,9 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ## Arguments
 
 ```swift
-let env = make("MountainCarContinuous", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("MountainCarContinuous", kwargs: [
     "render_mode": "human",
     "goal_velocity": 0.0
 ])
@@ -49,10 +51,4 @@ let env = make("MountainCarContinuous", kwargs: [
 
 Note: `"rgb_array"` is currently not implemented for this environment and returns `nil`.
 
-## Topics
-
-### Environment Types
-
-- ``MountainCarContinuous``
-
-
+ 

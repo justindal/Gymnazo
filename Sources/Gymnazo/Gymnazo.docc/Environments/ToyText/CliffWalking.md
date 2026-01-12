@@ -39,17 +39,13 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ## Arguments
 
 ```swift
-let env = make("CliffWalking", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("CliffWalking", kwargs: [
     "render_mode": "ansi"
 ])
 ```
 
 - `render_mode` (String, optional): `"ansi"`, `"human"`, or `"rgb_array"`.
 
-## Topics
-
-### Environment Types
-
-- ``CliffWalking``
-
-
+ 

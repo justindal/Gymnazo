@@ -4,7 +4,7 @@ Learn how to create and interact with Gymnazo environments.
 
 ## Overview
 
-Gymnazo follows the OpenAI Gymnasium API, making it familiar to anyone who has used the Python library.
+Gymnazo follows the Gymnasium API, making it familiar to anyone who has used the Python library.
 
 ## Creating an Environment
 
@@ -17,15 +17,20 @@ import Gymnazo
 var env = Gymnazo.make("CartPole")
 ```
 
+See <doc:Environments> to learn more about the included environments.
+
 ## The Environment Loop
 
 Interact with environments using the standard `reset()` and `step(_:)` methods:
 
 ```swift
+import Gymnazo
 import MLX
 
 // Reset the environment
-var (observation, info) = env.reset()
+var env = Gymnazo.make("CartPole")
+let reset = env.reset()
+var observation = reset.obs
 var key = MLX.key(42)
 
 var totalReward = 0.0
@@ -36,35 +41,21 @@ while !done {
     let action = env.action_space.sample(key: key)
 
     // Take a step
-    let (nextObs, reward, terminated, truncated, stepInfo) = env.step(action)
+    let step = env.step(action)
 
-    totalReward += reward
-    observation = nextObs
-    done = terminated || truncated
+    totalReward += step.reward
+    observation = step.obs
+    done = step.terminated || step.truncated
 }
 
 print("Episode finished with reward: \(totalReward)")
 ```
 
-## Available Environments
-
-Gymnazo includes several classic control and toy text environments:
-
-| Environment           | ID                      | Description                 |
-| --------------------- | ----------------------- | --------------------------- |
-| CartPole              | `CartPole`              | Balance a pole on a cart    |
-| MountainCar           | `MountainCar`           | Drive a car up a hill       |
-| MountainCarContinuous | `MountainCarContinuous` | Continuous action version   |
-| Acrobot               | `Acrobot`               | Swing up a two-link robot   |
-| Pendulum              | `Pendulum`              | Swing up a pendulum         |
-| FrozenLake            | `FrozenLake`            | Navigate a frozen lake grid |
-| FrozenLake 8x8        | `FrozenLake8x8`         | Larger frozen lake variant  |
-
 ## Vector Environments
 
 For parallel training, use vector environments to run multiple instances simultaneously.
 
-The easiest way is with `make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)`:
+The easiest way is with `Gymnazo.make_vec(...)`:
 
 ```swift
 import Gymnazo
@@ -73,27 +64,29 @@ import Gymnazo
 let vecEnv = Gymnazo.make_vec("CartPole", numEnvs: 4)
 
 // Reset all environments at once
-let (observations, _) = vecEnv.reset(seed: 42)
-// observations.shape == [4, 4] for 4 envs with 4-dimensional observations
+let reset = vecEnv.reset(seed: 42)
+// reset.observations.shape == [4, 4] for 4 envs with 4-dimensional observations
 
 // Step all environments with batched actions
 let result = vecEnv.step([1, 0, 1, 0])
 ```
 
-For async execution, use `make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)`:
+For async execution, use `Gymnazo.make_vec_async(...)`:
 
 ```swift
+import Gymnazo
+
 let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
 
 // Use stepAsync for parallel execution
 let result = await asyncEnv.stepAsync([1, 0, 1, 0])
 ```
 
-See <doc:VectorEnvironments> for more details.
+See <doc:Vector-Environments> for more details.
 
 ## Default Wrappers
 
-When you call `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)`, wrappers are applied automatically:
+When you call `Gymnazo.make(...)`, wrappers are applied automatically:
 
 1. **PassiveEnvChecker** - Validates API compliance (disable with `disableEnvChecker: true`)
 2. **OrderEnforcing** - Ensures `reset()` is called before `step(_:)`
@@ -128,4 +121,10 @@ let env = CartPole()
     .timeLimited(500)
 ```
 
-See <doc:Wrappers-article> for the complete wrapper guide.
+See <doc:Wrappers-Gym> for the complete wrapper guide.
+
+## Training With Built-in Reinforcement Learning Algorithms
+
+Gymnazo includes an (experimental) reinforcement learning module inspired by Stable-Baselines3.
+
+See <doc:Reinforcement-Learning>.

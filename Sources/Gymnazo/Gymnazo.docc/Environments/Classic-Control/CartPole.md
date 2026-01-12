@@ -42,7 +42,9 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ## Arguments
 
 ```swift
-let env = make("CartPole", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("CartPole", kwargs: [
     "render_mode": "human"
 ])
 ```
@@ -52,10 +54,6 @@ let env = make("CartPole", kwargs: [
 Note: `"rgb_array"` is currently not implemented for this environment and returns `nil`.
 
 ## Topics
-
-### Environment Types
-
-- ``CartPole``
 
 ### Supporting Types
 

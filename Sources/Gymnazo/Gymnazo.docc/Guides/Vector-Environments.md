@@ -13,7 +13,7 @@ Vector environments allow you to run multiple instances of an environment simult
 
 ### Using make_vec() (Recommended)
 
-The simplest way to create vector environments is with `make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)` and `make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)`:
+The simplest way to create vector environments is with `Gymnazo.make_vec(...)` and `Gymnazo.make_vec_async(...)`:
 
 ```swift
 import Gymnazo
@@ -32,7 +32,7 @@ You can also use the `vectorizationMode` parameter:
 let asyncEnv = Gymnazo.make_vec("CartPole", numEnvs: 4, vectorizationMode: .async)
 ```
 
-These functions apply the same default wrappers as `make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)` to each sub-environment.
+These functions apply the same default wrappers as `Gymnazo.make(...)` to each sub-environment.
 
 ### Using Factory Closures
 
@@ -75,7 +75,10 @@ let envs = Gymnazo.make_vec(envFns: [
 Reset returns batched observations from all environments:
 
 ```swift
-let (observations, infos) = syncEnv.reset(seed: 42)
+let reset = syncEnv.reset(seed: 42)
+let observations = reset.observations
+let infos = reset.infos
+
 // observations.shape == [num_envs, obs_dim]
 // For CartPole with 4 envs: [4, 4]
 ```
@@ -112,9 +115,13 @@ let env = SyncVectorEnv(
 
 let result = env.step(actions)
 
-// If environment 2 terminated, access its final observation:
-if let finalObs = result.infos["final_observation"] as? [MLXArray?] {
-    let env2FinalObs = finalObs[2]
+// If any sub-environment finished, access terminal observations/infos:
+if let finals = result.finals {
+    for i in finals.indices {
+        let terminalObs = finals.observations[i]!
+        let terminalInfo = finals.infos[i]!
+        _ = (terminalObs, terminalInfo)
+    }
 }
 ```
 
@@ -148,11 +155,11 @@ let env = SyncVectorEnv(
 let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
 
 // Synchronous API (runs parallel internally but blocks)
-let (obs, _) = asyncEnv.reset(seed: 42)
+let reset = asyncEnv.reset(seed: 42)
 let result = asyncEnv.step([1, 0, 1, 0])
 
 // Asynchronous API (truly non-blocking)
-let (obs, _) = await asyncEnv.resetAsync(seed: 42)
+let reset = await asyncEnv.resetAsync(seed: 42)
 let result = await asyncEnv.stepAsync([1, 0, 1, 0])
 ```
 
@@ -193,7 +200,7 @@ func trainWithVectorEnv() {
     // Use make_vec for the simplest setup
     let env = Gymnazo.make_vec("CartPole", numEnvs: numEnvs)
 
-    var (observations, _) = env.reset(seed: 42)
+    var observations = env.reset(seed: 42).observations
     var key = MLX.key(0)
 
     for step in 0..<10000 {
@@ -220,18 +227,18 @@ func trainWithVectorEnv() {
 
 ### Vector Environment Types
 
-- `VectorEnv`
-- `SyncVectorEnv`
-- `AsyncVectorEnv`
+- ``VectorEnv``
+- ``SyncVectorEnv``
+- ``AsyncVectorEnv``
 
 ### Configuration
 
-- `AutoresetMode`
-- `VectorizationMode`
+- ``AutoresetMode``
+- ``VectorizationMode``
 
 ### Result Types
 
-- `VectorStepResult`
-- `VectorResetResult`
-- `EnvStepResult`
-- `EnvResetResult`
+- ``VectorStepResult``
+- ``VectorResetResult``
+- ``EnvStepResult``
+- ``EnvResetResult``

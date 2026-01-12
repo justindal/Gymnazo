@@ -40,17 +40,13 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ## Arguments
 
 ```swift
-let env = make("Taxi", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("Taxi", kwargs: [
     "render_mode": "ansi"
 ])
 ```
 
 - `render_mode` (String, optional): `"ansi"`, `"human"`, or `"rgb_array"`.
 
-## Topics
-
-### Environment Types
-
-- ``Taxi``
-
-
+ 

@@ -34,7 +34,9 @@ The reward is the negative of a quadratic cost on angle, angular velocity, and t
 ## Arguments
 
 ```swift
-let env = make("Pendulum", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("Pendulum", kwargs: [
     "render_mode": "human",
     "g": 10.0
 ])
@@ -51,10 +53,6 @@ Reset supports optional bounds:
 Note: `"rgb_array"` is currently not implemented for this environment and returns `nil`.
 
 ## Topics
-
-### Environment Types
-
-- ``Pendulum``
 
 ### Supporting Types
 

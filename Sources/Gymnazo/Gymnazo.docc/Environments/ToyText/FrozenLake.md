@@ -42,7 +42,9 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ## Arguments
 
 ```swift
-let env = make("FrozenLake", kwargs: [
+import Gymnazo
+
+let env = Gymnazo.make("FrozenLake", kwargs: [
     "render_mode": "ansi",
     "map_name": "4x4",
     "is_slippery": true
@@ -54,10 +56,4 @@ let env = make("FrozenLake", kwargs: [
 - `is_slippery` (Bool, default `true`): if `true`, the chosen action may slip to a side action.
 - `desc` ([String], optional): custom map layout (rows of characters).
 
-## Topics
-
-### Environment Types
-
-- ``FrozenLake``
-
-
+ 
