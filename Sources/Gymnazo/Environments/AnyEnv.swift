@@ -1,5 +1,16 @@
 import MLX
 
+/// Converts an environment into an `AnyEnv`.
+@inlinable
+public func asAnyEnv(_ env: any Env) -> AnyEnv {
+    guard let typed = env as? any Env<MLXArray, MLXArray> else {
+        preconditionFailure(
+            "Expected Env<MLXArray, MLXArray> but got \(type(of: env))"
+        )
+    }
+    return AnyEnv(typed)
+}
+
 /// A type-erased `Env` wrapper.
 public struct AnyEnv: Env {
     public typealias Observation = MLXArray

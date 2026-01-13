@@ -41,6 +41,8 @@ public protocol Algorithm {
 }
 
 extension Algorithm {
+    public var unwrappedEnv: (any Env)? { env?.unwrapped }
+
     public mutating func updateProgressRemaining(numTimesteps: Int, totalTimesteps: Int) {
         currentProgressRemaining = 1.0 - Double(numTimesteps) / Double(totalTimesteps)
     }

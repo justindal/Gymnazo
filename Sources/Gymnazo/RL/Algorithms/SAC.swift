@@ -53,13 +53,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         targetEntropy: Float? = nil,
         seed: UInt64? = nil
     ) where Environment == AnyEnv {
-        guard let typed = env as? any Env<MLXArray, MLXArray> else {
-            preconditionFailure(
-                "SAC(env:) requires an environment with MLXArray observations and actions, instead got \(type(of: env))"
-            )
-        }
-
-        let wrapped = AnyEnv(typed)
+        let wrapped = asAnyEnv(env)
 
         self.init(
             observationSpace: wrapped.observation_space,
