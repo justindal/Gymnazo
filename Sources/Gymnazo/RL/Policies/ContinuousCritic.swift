@@ -109,8 +109,10 @@ public func createQNetworks(
 /// - Parameter actionSpace: The action space (must be Box).
 /// - Returns: The flattened action dimension.
 public func getActionDim(_ actionSpace: any Space) -> Int {
-    guard let box = actionSpace as? Box else {
-        preconditionFailure("ContinuousCritic requires a Box action space")
+    guard let box = boxSpace(from: actionSpace) else {
+        preconditionFailure(
+            "ContinuousCritic requires a Box action space, got \(type(of: actionSpace))"
+        )
     }
     return box.shape?.reduce(1, *) ?? 1
 }

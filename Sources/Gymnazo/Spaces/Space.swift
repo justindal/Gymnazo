@@ -67,3 +67,20 @@ extension Space {
         return sampleN.compactMap { $0 as? T }
     }
 }
+
+/// Unwraps `AnySpace` back to its underlying space.
+@inlinable
+public func unwrapAnySpace(_ space: any Space) -> any Space {
+    if let erased = space as? AnySpace {
+        return erased.base
+    }
+    return space
+}
+
+/// Attempts to recover a concrete `Box` from a possibly type-erased space.
+@inlinable
+public func boxSpace(from space: any Space) -> Box? {
+    if let box = space as? Box { return box }
+    if let erased = space as? AnySpace, let box = erased.base as? Box { return box }
+    return nil
+}
