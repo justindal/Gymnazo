@@ -384,15 +384,16 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
         let (targetKey, actorKey) = MLX.split(key: actionKey)
         let (nextActions, nextLogProb) = actor.actionLogProb(obs: batch.nextObs, key: targetKey)
-        let targetQValues = computeTargetQ(
-            nextObs: batch.nextObs,
-            nextActions: nextActions,
-            nextLogProb: nextLogProb,
-            rewards: batch.rewards,
-            dones: batch.dones,
-            entCoef: entCoef,
-            gamma: gamma
-        )
+        let targetQValues = MLX.stopGradient(
+            computeTargetQ(
+                nextObs: batch.nextObs,
+                nextActions: MLX.stopGradient(nextActions),
+                nextLogProb: MLX.stopGradient(nextLogProb),
+                rewards: batch.rewards,
+                dones: batch.dones,
+                entCoef: entCoef,
+                gamma: gamma
+            ))
 
         typealias CriticArgs = (obs: MLXArray, actions: MLXArray, targetQ: MLXArray)
         let criticVG = valueAndGrad(model: critic) {
@@ -416,6 +417,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
             actorGrads = zeroExtractorGradients(actorGrads)
         }
         actorOptimizer.update(model: actor, gradients: actorGrads)
+        MLX.eval(actor.parameters())
 
         if entCoefConfig.isAuto, let entOpt = entropyOptimizer {
             let (_, newLogProb) = actor.actionLogProb(obs: batch.obs, key: entCoefKey)
@@ -427,6 +429,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
             }
             let (_, entGrads) = entVG(logEntCoefModule, 0)
             entOpt.update(model: logEntCoefModule, gradients: entGrads)
+            MLX.eval(logEntCoefModule.parameters())
         }
 
         numGradientSteps += 1
@@ -507,6 +510,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         let updated = polyakUpdate(target: targetParams, source: criticParams, tau: tau)
         _ = try? criticTarget.update(parameters: updated, verify: .noUnusedKeys)
         criticTarget.setTrainingMode(false)
+        MLX.eval(criticTarget.parameters())
     }
 
     private func zeroExtractorGradients(_ gradients: ModuleParameters) -> ModuleParameters {
