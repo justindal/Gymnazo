@@ -4,7 +4,6 @@
 
 import Foundation
 import MLX
-import Playgrounds
 import CoreGraphics
 #if canImport(SwiftUI)
 import SwiftUI
