@@ -1,5 +1,6 @@
 //
 // Gymnazo.swift
+// https://docs.swift.org/compiler/documentation/diagnostics/sendable-metatypes/
 //
 
 import Synchronization
