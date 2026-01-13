@@ -29,8 +29,10 @@ extension CNNPolicy {
     ///
     /// - Returns: A NatureCNN configured for the observation space.
     public func makeFeatureExtractor() -> any FeaturesExtractor {
-        guard let box = observationSpace as? Box else {
-            preconditionFailure("CNNPolicy requires a Box observation space")
+        guard let box = boxSpace(from: observationSpace) else {
+            preconditionFailure(
+                "CNNPolicy requires a Box observation space, got \(type(of: observationSpace))"
+            )
         }
         return NatureCNN(observationSpace: box, normalizedImage: !normalizeImages)
     }

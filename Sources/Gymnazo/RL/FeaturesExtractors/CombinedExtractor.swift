@@ -37,7 +37,7 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
         for k in sortedKeys {
             guard let subspace = observationSpace.spaces[k] else { continue }
 
-            if let box = subspace as? Box,
+            if let box = boxSpace(from: subspace),
                 CombinedExtractor.isImageSpace(
                     box,
                     normalizedImage: normalizedImage
@@ -49,11 +49,11 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
                     normalizedImage: normalizedImage
                 )
                 total += cnnOutputDim
-            } else if let box = subspace as? Box {
+            } else if let box = boxSpace(from: subspace) {
                 ex[k] = FlattenToBatch()
                 total += CombinedExtractor.flattenedObsDim(box)
             } else {
-                preconditionFailure("Unsupported")
+                preconditionFailure("Unsupported Dict subspace type: \(type(of: subspace))")
             }
         }
 
@@ -98,8 +98,7 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
 
     /// Must be Box with 3 dims.
     /// If not normalized, expect uint8.
-    private static func isImageSpace(_ box: Box, normalizedImage: Bool) -> Bool
-    {
+    private static func isImageSpace(_ box: Box, normalizedImage: Bool) -> Bool {
         guard let shp = box.shape, shp.count == 3 else { return false }
         if normalizedImage { return true }
         return box.dtype == .uint8

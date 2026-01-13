@@ -48,7 +48,7 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
             }
         }
 
-        if let box = observationSpace as? Box {
+        if let box = boxSpace(from: observationSpace) {
             let isImage = (box.shape?.count == 3)
             switch self {
             case .auto:
