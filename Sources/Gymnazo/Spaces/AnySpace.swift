@@ -1,20 +1,39 @@
 import MLX
 
 /// A type-erased wrapper around any ``MLXSpace``.
-///
-/// This is useful when higher-level code needs to store an `MLXSpace` without preserving the generic type.
-public struct AnyMLXSpace: MLXSpace {
+public struct AnySpace: MLXSpace {
     public typealias T = MLXArray
 
     public let shape: [Int]?
     public let dtype: DType?
 
+    /// The underlying (non-erased) space.
+    ///
+    /// This is useful when downstream code needs to recover concrete types
+    /// like `Box` to access bounds (`low`/`high`), etc.
+    public let base: any MLXSpace
+
     private let sampleFn: (MLXArray, MLXArray?, MLXArray?) -> MLXArray
     private let containsFn: (MLXArray) -> Bool
     private let sampleBatchFn: (MLXArray, Int) -> MLXArray
 
-    /// Creates a type-erased MLX space.
     public init<S: MLXSpace>(_ space: S) {
+        self.base = space
+        self.shape = space.shape
+        self.dtype = space.dtype
+        self.sampleFn = { key, mask, probability in
+            space.sample(key: key, mask: mask, probability: probability)
+        }
+        self.containsFn = { x in
+            space.contains(x)
+        }
+        self.sampleBatchFn = { key, count in
+            space.sampleBatch(key: key, count: count)
+        }
+    }
+
+    public init(_ space: any MLXSpace) {
+        self.base = space
         self.shape = space.shape
         self.dtype = space.dtype
         self.sampleFn = { key, mask, probability in
@@ -40,4 +59,3 @@ public struct AnyMLXSpace: MLXSpace {
         sampleBatchFn(key, count)
     }
 }
-

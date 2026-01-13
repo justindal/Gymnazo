@@ -2,7 +2,7 @@
 // Registration.swift
 //
 
-public typealias EnvCreator = ([String: Any]) -> any Env
+public typealias EnvCreator = @Sendable ([String: Any]) -> any Env
 
 public struct WrapperSpec {
     public let id: String
@@ -111,13 +111,13 @@ public final class GymnazoRegistrations {
     private func registerFrozenLake() {
         if !isRegistered("FrozenLake") {
             register(id: "FrozenLake", entryPoint: { kwargs in
-                self.createFrozenLake(kwargs: kwargs, defaultMap: "4x4")
+                GymnazoRegistrations.createFrozenLake(kwargs: kwargs, defaultMap: "4x4")
             }, maxEpisodeSteps: 100)
         }
 
         if !isRegistered("FrozenLake8x8") {
             register(id: "FrozenLake8x8", entryPoint: { kwargs in
-                self.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
+                GymnazoRegistrations.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
             }, maxEpisodeSteps: 200)
         }
     }
@@ -270,7 +270,7 @@ public final class GymnazoRegistrations {
         }
     }
     
-    private func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
+    private static func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
         let renderMode = kwargs["render_mode"] as? String
         let mapName = kwargs["map_name"] as? String ?? defaultMap
         let isSlippery = kwargs["is_slippery"] as? Bool ?? true

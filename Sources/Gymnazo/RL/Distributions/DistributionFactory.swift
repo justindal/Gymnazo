@@ -46,7 +46,7 @@ public enum DistributionFactory {
         useSDE: Bool = false,
         sdeConfig: SDEConfig? = nil
     ) -> any Distribution {
-        if let box = actionSpace as? Box {
+        if let box = boxSpace(from: actionSpace) {
             let actionDim = box.shape?.reduce(1, *) ?? 1
             
             if useSDE {

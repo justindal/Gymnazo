@@ -1,12 +1,12 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.2
 
 import PackageDescription
 
 let package = Package(
     name: "Gymnazo",
     platforms: [
-        .macOS(.v14),
-        .iOS(.v17),
+        .macOS(.v15),
+        .iOS(.v18),
     ],
     products: [
         .library(
@@ -55,7 +55,7 @@ let package = Package(
                 .process("Resources")
             ],
             swiftSettings: [
-                .enableExperimentalFeature("StrictConcurrency")
+                .enableUpcomingFeature("StrictConcurrency")
             ]
 
         ),
@@ -63,6 +63,5 @@ let package = Package(
             name: "GymnazoTests",
             dependencies: ["Gymnazo"]
         ),
-    ],
-    swiftLanguageVersions: [.version("6"), .v5]
+    ]
 )

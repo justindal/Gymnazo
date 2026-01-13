@@ -50,7 +50,7 @@ extension Policy {
             deterministic: deterministic
         )
 
-        if let box = actionSpace as? Box {
+        if let box = boxSpace(from: actionSpace) {
             if squashOutput {
                 actions = unscaleAction(actions)
             } else {
@@ -87,7 +87,7 @@ extension Policy {
             deterministic: deterministic
         )
 
-        if let box = actionSpace as? Box {
+        if let box = boxSpace(from: actionSpace) {
             if squashOutput {
                 actions = unscaleAction(actions)
             } else {
@@ -103,8 +103,9 @@ extension Policy {
     /// - Parameter action: Action to scale.
     /// - Returns: Scaled action in [-1, 1].
     public func scaleAction(_ action: MLXArray) -> MLXArray {
-        guard let box = actionSpace as? Box else {
-            preconditionFailure("scaleAction requires a Box action space")
+        guard let box = boxSpace(from: actionSpace) else {
+            preconditionFailure(
+                "scaleAction requires a Box action space, got \(type(of: actionSpace))")
         }
         let low = box.low
         let high = box.high
@@ -116,8 +117,9 @@ extension Policy {
     /// - Parameter scaledAction: Action in [-1, 1] to unscale.
     /// - Returns: Unscaled action in [low, high].
     public func unscaleAction(_ scaledAction: MLXArray) -> MLXArray {
-        guard let box = actionSpace as? Box else {
-            preconditionFailure("unscaleAction requires a Box action space")
+        guard let box = boxSpace(from: actionSpace) else {
+            preconditionFailure(
+                "unscaleAction requires a Box action space, got \(type(of: actionSpace))")
         }
         let low = box.low
         let high = box.high

@@ -19,8 +19,6 @@ import MLX
 let env = Gymnazo.make("Pendulum")
 
 let model = SAC(
-    observationSpace: env.observation_space,
-    actionSpace: env.action_space,
     env: env
 )
 

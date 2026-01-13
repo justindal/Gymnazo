@@ -42,6 +42,33 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
     public var actor: SACActor { policy }
 
+    /// Convenience init for concrete environments.
+    public convenience init(
+        env: any Env,
+        learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
+        networksConfig: SACNetworksConfig = SACNetworksConfig(),
+        config: OffPolicyConfig = OffPolicyConfig(),
+        optimizerConfig: SACOptimizerConfig = SACOptimizerConfig(),
+        entCoef: EntropyCoef = .auto(),
+        targetEntropy: Float? = nil,
+        seed: UInt64? = nil
+    ) where Environment == AnyEnv {
+        let wrapped = asAnyEnv(env)
+
+        self.init(
+            observationSpace: wrapped.observation_space,
+            actionSpace: wrapped.action_space,
+            env: wrapped,
+            learningRate: learningRate,
+            networksConfig: networksConfig,
+            config: config,
+            optimizerConfig: optimizerConfig,
+            entCoef: entCoef,
+            targetEntropy: targetEntropy,
+            seed: seed
+        )
+    }
+
     public init(
         networks: SACNetworks,
         env: Environment? = nil,

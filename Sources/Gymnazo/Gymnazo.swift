@@ -1,44 +1,32 @@
 //
 // Gymnazo.swift
+// https://docs.swift.org/compiler/documentation/diagnostics/sendable-metatypes/
 //
 
-import os
+import Synchronization
 
-private final class GymnazoStateRef: @unchecked Sendable {
+private struct GymnazoState {
     var registry: [String: EnvSpec] = [:]
     var factories: [String: AnyEnvFactory] = [:]
     var didInitialize = false
 }
 
-private final class RefBox<T>: @unchecked Sendable {
-    var value: T
-    init(_ value: T) { self.value = value }
-}
-
-private let gymnazoStateLock = OSAllocatedUnfairLock(
-    initialState: Unmanaged.passRetained(GymnazoStateRef())
-)
+private let gymnazoState = Mutex(GymnazoState())
 
 /// The registry of all available environments.
 @MainActor
 public var registry: [String: EnvSpec] {
-    let box = gymnazoStateLock.withLock { unmanaged in
-        let state = unmanaged.takeUnretainedValue()
-        return Unmanaged.passRetained(RefBox(state.registry))
-    }
-    return box.takeRetainedValue().value
+    // Return a value copy (Dictionary is copy-on-write).
+    gymnazoState.withLock { $0.registry }
 }
 
 func isRegistered(_ id: String) -> Bool {
-    gymnazoStateLock.withLock { unmanaged in
-        unmanaged.takeUnretainedValue().registry[id] != nil
-    }
+    gymnazoState.withLock { $0.registry[id] != nil }
 }
 
 /// Ensures the default environments are registered, called automatically on use.
 private func ensureInitialized() {
-    let shouldInitialize = gymnazoStateLock.withLock { unmanaged in
-        let state = unmanaged.takeUnretainedValue()
+    let shouldInitialize = gymnazoState.withLock { state in
         if state.didInitialize { return false }
         state.didInitialize = true
         return true
@@ -69,9 +57,9 @@ private class AnyEnvFactory {
 }
 
 private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
-    private let builder: ([String: Any]) -> EnvType
+    private let builder: @Sendable ([String: Any]) -> EnvType
 
-    init(builder: @escaping ([String: Any]) -> EnvType) {
+    init(builder: @escaping @Sendable ([String: Any]) -> EnvType) {
         self.builder = builder
     }
 
@@ -84,7 +72,6 @@ private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
     }
 }
 
-
 /// Registers a new environment with the given ID and entry point.
 ///
 /// - Parameters:
@@ -93,30 +80,27 @@ private final class EnvFactory<EnvType: Env>: AnyEnvFactory {
 ///   - maxEpisodeSteps: Optional maximum steps per episode.
 ///   - rewardThreshold: Optional reward threshold for solving the environment.
 ///   - nondeterministic: Whether the environment is nondeterministic.
-public func register<EnvType: Env>(
+public func register<EnvType: Env & SendableMetatype>(
     id: String,
-    entryPoint: @escaping ([String: Any]) -> EnvType,
+    entryPoint: @escaping @Sendable ([String: Any]) -> EnvType,
     maxEpisodeSteps: Int? = nil,
     rewardThreshold: Double? = nil,
     nondeterministic: Bool = false
 ) {
-    let erasedEntryPoint: EnvCreator = { kwargs in entryPoint(kwargs) }
+    gymnazoState.withLock { state in
 
-    let spec = EnvSpec(
-        id: id,
-        entry_point: .creator(erasedEntryPoint),
-        rewardThreshold: rewardThreshold,
-        nondeterministic: nondeterministic,
-        maxEpisodeSteps: maxEpisodeSteps
-    )
+        let erasedEntryPoint: EnvCreator = { kwargs in entryPoint(kwargs) }
+        let spec = EnvSpec(
+            id: id,
+            entry_point: .creator(erasedEntryPoint),
+            rewardThreshold: rewardThreshold,
+            nondeterministic: nondeterministic,
+            maxEpisodeSteps: maxEpisodeSteps
+        )
+        let factory: AnyEnvFactory = EnvFactory(builder: entryPoint)
 
-    let specBox = Unmanaged.passRetained(RefBox(spec))
-    let factoryBox = Unmanaged.passRetained(RefBox(EnvFactory(builder: entryPoint) as AnyEnvFactory))
-
-    gymnazoStateLock.withLock { unmanaged in
-        let state = unmanaged.takeUnretainedValue()
-        state.registry[id] = specBox.takeRetainedValue().value
-        state.factories[id] = factoryBox.takeRetainedValue().value
+        state.registry[id] = spec
+        state.factories[id] = factory
     }
 }
 
@@ -144,18 +128,12 @@ public func make(
 ) -> any Env {
     ensureInitialized()
 
-    let specBox = gymnazoStateLock.withLock { unmanaged -> Unmanaged<RefBox<EnvSpec>>? in
-        let state = unmanaged.takeUnretainedValue()
-        guard let spec = state.registry[id] else { return nil }
-        return Unmanaged.passRetained(RefBox(spec))
-    }
-
-    guard let specBox else {
+    guard let spec = gymnazoState.withLock({ $0.registry[id] }) else {
         fatalError("No environment registered with id \(id)")
     }
 
     return make(
-        specBox.takeRetainedValue().value,
+        spec,
         maxEpisodeSteps: maxEpisodeSteps,
         disableEnvChecker: disableEnvChecker,
         disableRenderOrderEnforcing: disableRenderOrderEnforcing,
@@ -191,17 +169,9 @@ public func make(
     ensureInitialized()
 
     let specId = spec.id
-    let factoryBox = gymnazoStateLock.withLock { unmanaged -> Unmanaged<RefBox<AnyEnvFactory>>? in
-        let state = unmanaged.takeUnretainedValue()
-        guard let factory = state.factories[specId] else { return nil }
-        return Unmanaged.passRetained(RefBox(factory))
-    }
-
-    guard let factoryBox else {
+    guard let factory = gymnazoState.withLock({ $0.factories[specId] }) else {
         fatalError("No factory registered for id \(spec.id)")
     }
-
-    let factory = factoryBox.takeRetainedValue().value
 
     guard let entryPoint = spec.entry_point else {
         fatalError("\(spec.id) registered but entry_point is not specified.")
@@ -332,11 +302,11 @@ public func make_vec(
         copyObservations: true,
         autoresetMode: autoresetMode
     )
-    
+
     if let spec = registry[id] {
         vectorEnv.spec = spec
     }
-    
+
     return vectorEnv
 }
 
@@ -423,7 +393,7 @@ public func make_vec(
 ) -> any VectorEnv {
     precondition(numEnvs > 0, "numEnvs must be positive")
     ensureInitialized()
-    
+
     guard isRegistered(id) else {
         fatalError("No environment registered with id \(id)")
     }
@@ -451,7 +421,8 @@ public func make_vec(
                 )
             }
         }
-        let syncEnv = SyncVectorEnv(envFns: envFns, copyObservations: true, autoresetMode: autoresetMode)
+        let syncEnv = SyncVectorEnv(
+            envFns: envFns, copyObservations: true, autoresetMode: autoresetMode)
         if let spec = registry[id] {
             syncEnv.spec = spec
         }
@@ -479,7 +450,7 @@ public func make_vec(
         }
         vectorEnv = asyncEnv
     }
-    
+
     return vectorEnv
 }
 
@@ -528,7 +499,7 @@ public func make_vec_async(
 ) -> AsyncVectorEnv {
     precondition(numEnvs > 0, "numEnvs must be positive")
     ensureInitialized()
-    
+
     guard isRegistered(id) else {
         fatalError("No environment registered with id \(id)")
     }
@@ -538,7 +509,7 @@ public func make_vec_async(
     for (k, v) in kwargs {
         anyKwargs[k] = v
     }
-    
+
     let envs = (0..<numEnvs).map { _ in
         make(
             id,
@@ -551,17 +522,17 @@ public func make_vec_async(
             kwargs: anyKwargs
         )
     }
-    
+
     let vectorEnv = AsyncVectorEnv(
         envs: envs,
         copyObservations: true,
         autoresetMode: autoresetMode
     )
-    
+
     if let spec = registry[id] {
         vectorEnv.spec = spec
     }
-    
+
     return vectorEnv
 }
 
