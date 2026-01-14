@@ -14,7 +14,7 @@ public protocol Env<Observation, Action> {
     var spec: EnvSpec? { get set }
     var render_mode: String? { get set }
 
-    var unwrapped: any Env { get }
+    var unwrapped: any Env<Observation, Action> { get }
 
     mutating func step(_ action: Action) -> Step<Observation>
 
@@ -145,7 +145,7 @@ extension Env {
         )
     }
 
-    public var unwrapped: any Env {
+    public var unwrapped: any Env<Observation, Action> {
         self
     }
 
