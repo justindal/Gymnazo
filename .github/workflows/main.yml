@@ -23,9 +23,9 @@ jobs:
         run: |
           xcodebuild -list
 
-      - name: run tests with xcodebuild (macos)
+      - name: run tests with xcodebuild (macOS)
         run: |
           xcodebuild \
-            -scheme Gymnazo \
+            -scheme Gymnazo-Package \
             -destination 'platform=macOS,arch=arm64' \
             test
