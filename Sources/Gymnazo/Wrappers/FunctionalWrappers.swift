@@ -2,24 +2,24 @@
 // FunctionalWrappers.swift
 //
 
-open class ObservationWrapper<InnerEnv: Env>: Wrapper {
-    public var env: InnerEnv
+open class ObservationWrapper<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
-    public required init(env: InnerEnv) {
+    public required init(env: BaseEnv) {
         self.env = env
     }
 
     /// Override to transform observations returned from the inner environment.
-    open func observation(_ observation: Observation) -> Observation {
+    open func observation(_ observation: BaseEnv.Observation) -> BaseEnv.Observation {
         fatalError("observation(_:) must be overridden in a subclass")
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         let result = env.reset(seed: seed, options: options)
         return Reset(obs: observation(result.obs), info: result.info)
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         return Step(
             obs: observation(result.obs),
@@ -31,10 +31,10 @@ open class ObservationWrapper<InnerEnv: Env>: Wrapper {
     }
 }
 
-open class RewardWrapper<InnerEnv: Env>: Wrapper {
-    public var env: InnerEnv
+open class RewardWrapper<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
-    public required init(env: InnerEnv) {
+    public required init(env: BaseEnv) {
         self.env = env
     }
 
@@ -43,7 +43,7 @@ open class RewardWrapper<InnerEnv: Env>: Wrapper {
         fatalError("reward(_:) must be overridden in a subclass")
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         return Step(
             obs: result.obs,
@@ -55,19 +55,19 @@ open class RewardWrapper<InnerEnv: Env>: Wrapper {
     }
 }
 
-open class ActionWrapper<InnerEnv: Env>: Wrapper {
-    public var env: InnerEnv
+open class ActionWrapper<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
-    public required init(env: InnerEnv) {
+    public required init(env: BaseEnv) {
         self.env = env
     }
 
     /// override to transform the incoming action before delegating to the inner environment.
-    open func action(_ action: Action) -> Action {
+    open func action(_ action: BaseEnv.Action) -> BaseEnv.Action {
         fatalError("action(_:) must be overridden in a subclass")
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         return env.step(self.action(action))
     }
 }

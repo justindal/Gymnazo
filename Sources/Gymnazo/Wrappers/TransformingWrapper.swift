@@ -1,8 +1,8 @@
 /// A wrapper protocol for environments that change their observation and/or action types.
-public protocol TransformingWrapper: Env {
-    associatedtype InnerEnv: Env
-    var env: InnerEnv { get set }
-    init(env: InnerEnv)
+public protocol TransformingWrapper<BaseEnv>: Env {
+    associatedtype BaseEnv: Env
+    var env: BaseEnv { get set }
+    init(env: BaseEnv)
 }
 
 public extension TransformingWrapper {

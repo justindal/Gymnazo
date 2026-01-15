@@ -2,14 +2,8 @@
 ///
 /// The wrapper sets `Step.final` with the terminal observation and autoreset
 /// transition information, for correct handling of episode information.
-public struct AutoReset<InnerEnv: Env>: Wrapper {
-    public typealias InnerEnv = InnerEnv
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public struct AutoReset<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
     public let mode: AutoresetMode
 
     private var needsReset: Bool = true
@@ -19,21 +13,21 @@ public struct AutoReset<InnerEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap.
     ///   - mode: Autoreset behavior (`nextStep`, `sameStep`, or `disabled`).
-    public init(env: InnerEnv, mode: AutoresetMode = .nextStep) {
+    public init(env: BaseEnv, mode: AutoresetMode = .nextStep) {
         self.env = env
         self.mode = mode
     }
 
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         self.init(env: env, mode: .nextStep)
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation> {
         needsReset = false
         return env.reset(seed: seed, options: options)
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         if needsReset && mode == .nextStep {
             _ = env.reset(seed: nil, options: nil)
             needsReset = false

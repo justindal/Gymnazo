@@ -41,19 +41,14 @@ import MLX
 ///
 /// ### Configuration
 /// - ``keepDim``
-public struct GrayscaleObservation<InnerEnv: Env>: Env
-    where InnerEnv.Observation == MLXArray
+public struct GrayscaleObservation<BaseEnv: Env>: Env
+    where BaseEnv.Observation == MLXArray
 {
-    public typealias Observation = MLXArray
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = Box
-    public typealias ActionSpace = InnerEnv.ActionSpace
-    
-    public var env: InnerEnv
+    public var env: BaseEnv
     public let keepDim: Bool
     public let observation_space: Box
     
-    public var action_space: ActionSpace { env.action_space }
+    public var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
@@ -68,7 +63,7 @@ public struct GrayscaleObservation<InnerEnv: Env>: Env
     /// - Parameters:
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, 3])
     ///   - keepDim: If true, output shape is [H, W, 1]. If false, output shape is [H, W].
-    public init(env: InnerEnv, keepDim: Bool = false) {
+    public init(env: BaseEnv, keepDim: Bool = false) {
         self.env = env
         self.keepDim = keepDim
         
@@ -88,7 +83,7 @@ public struct GrayscaleObservation<InnerEnv: Env>: Env
         )
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<MLXArray> {
         let result = env.step(action)
         return Step(
             obs: toGrayscale(result.obs),
@@ -99,7 +94,7 @@ public struct GrayscaleObservation<InnerEnv: Env>: Env
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<MLXArray> {
         let result = env.reset(seed: seed, options: options)
         return Reset(obs: toGrayscale(result.obs), info: result.info)
     }

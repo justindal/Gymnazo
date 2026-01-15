@@ -8,7 +8,7 @@ import MLX
 public typealias MaskMLXArray = MLXArray
 
 /// protocol used to define observation and action spaces.
-public protocol Space {
+public protocol Space<T> {
     associatedtype T
 
     var shape: [Int]? { get }

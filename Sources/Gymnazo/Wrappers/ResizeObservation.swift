@@ -36,20 +36,15 @@ import MLX
 /// ### Configuration
 /// - ``targetHeight``
 /// - ``targetWidth``
-public struct ResizeObservation<InnerEnv: Env>: Env
-    where InnerEnv.Observation == MLXArray
+public struct ResizeObservation<BaseEnv: Env>: Env
+    where BaseEnv.Observation == MLXArray
 {
-    public typealias Observation = MLXArray
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = Box
-    public typealias ActionSpace = InnerEnv.ActionSpace
-    
-    public var env: InnerEnv
+    public var env: BaseEnv
     public let targetHeight: Int
     public let targetWidth: Int
     public let observation_space: Box
     
-    public var action_space: ActionSpace { env.action_space }
+    public var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
@@ -64,7 +59,7 @@ public struct ResizeObservation<InnerEnv: Env>: Env
     /// - Parameters:
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, ...])
     ///   - shape: Target (height, width) for the resized observations
-    public init(env: InnerEnv, shape: (Int, Int)) {
+    public init(env: BaseEnv, shape: (Int, Int)) {
         self.env = env
         self.targetHeight = shape.0
         self.targetWidth = shape.1
@@ -89,7 +84,7 @@ public struct ResizeObservation<InnerEnv: Env>: Env
         )
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<MLXArray> {
         let result = env.step(action)
         return Step(
             obs: resize(result.obs),
@@ -100,7 +95,7 @@ public struct ResizeObservation<InnerEnv: Env>: Env
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<MLXArray> {
         let result = env.reset(seed: seed, options: options)
         return Reset(obs: resize(result.obs), info: result.info)
     }

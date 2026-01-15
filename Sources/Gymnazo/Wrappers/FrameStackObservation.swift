@@ -84,7 +84,7 @@ public struct FrameStackObservation<InnerEnv: Env>: Env
     ///   - env: The environment to wrap
     ///   - stackSize: Number of frames to stack (typically 4)
     ///   - paddingType: How to pad initial frames: `.reset` or `.zero`
-    public init(env: InnerEnv, stackSize: Int, paddingType: FrameStackPadding = .reset) {
+    public init(env: BaseEnv, stackSize: Int, paddingType: FrameStackPadding = .reset) {
         precondition(stackSize >= 1, "stackSize must be at least 1")
         
         self.env = env
@@ -109,7 +109,7 @@ public struct FrameStackObservation<InnerEnv: Env>: Env
         self.frameBuffer = []
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<MLXArray> {
         let result = env.step(action)
         
         addFrame(result.obs)

@@ -5,21 +5,21 @@
 import MLX
 
 /// protocol for environment wrappers.
-/// is generic over the `InnerEnv` it wraps for better type safety.
-public protocol Wrapper: Env where
-    Observation == InnerEnv.Observation,
-    Action == InnerEnv.Action,
-    ObservationSpace == InnerEnv.ObservationSpace,
-    ActionSpace == InnerEnv.ActionSpace
+/// is generic over the `BaseEnv` it wraps for better type safety.
+public protocol Wrapper<BaseEnv>: Env where
+    Observation == BaseEnv.Observation,
+    Action == BaseEnv.Action,
+    ObservationSpace == BaseEnv.ObservationSpace,
+    ActionSpace == BaseEnv.ActionSpace
 {
-    associatedtype InnerEnv: Env
+    associatedtype BaseEnv: Env
     
     /// "inner" environment instance.
-    var env: InnerEnv { get set }
+    var env: BaseEnv { get set }
     
     /// requires that all wrappers can be initialized with the
     /// environment they are wrapping.
-    init(env: InnerEnv)
+    init(env: BaseEnv)
 }
 
 /// This extension provides the "pass-through" logic. By default,

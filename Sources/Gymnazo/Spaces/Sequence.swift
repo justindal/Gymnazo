@@ -1,7 +1,7 @@
 import MLX
 
 /// A type-erased view of a ``SequenceSpace``.
-public protocol AnySequenceSpace: Space where T == SequenceSample {
+public protocol AnySequenceSpace: Space<SequenceSample> {
     var minLength: Int { get }
     var maxLength: Int { get }
     var elementSpace: any MLXSpace { get }
@@ -68,7 +68,8 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
         let lenKey = keys[0]
         let valKey = keys[1]
 
-        let length = Int(MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
+        let length = Int(
+            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
         let values = space.sampleBatch(key: valKey, count: maxLength)
 
         var maskI32 = [Int32](repeating: 0, count: maxLength)
@@ -109,7 +110,8 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
             for i in 0..<prefixCount {
                 let start = i * elementCount
                 let end = start + elementCount
-                let row = MLXArray(Array(allVals[start..<end])).reshaped(elementShape).asType(.float32)
+                let row = MLXArray(Array(allVals[start..<end])).reshaped(elementShape).asType(
+                    .float32)
                 if !space.contains(row) { return false }
             }
             return true
@@ -129,4 +131,3 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
 extension SequenceSpace: AnySequenceSpace {
     public var elementSpace: any MLXSpace { space }
 }
-

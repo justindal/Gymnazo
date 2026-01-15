@@ -6,8 +6,8 @@ public protocol Env<Observation, Action> {
     associatedtype Observation
     associatedtype Action
 
-    associatedtype ObservationSpace: Space where ObservationSpace.T == Observation
-    associatedtype ActionSpace: Space where ActionSpace.T == Action
+    associatedtype ObservationSpace: Space<Observation>
+    associatedtype ActionSpace: Space<Action>
 
     var action_space: ActionSpace { get }
     var observation_space: ObservationSpace { get }

@@ -4,13 +4,8 @@
 
 /// wrapper that enforces a maximum number of steps per episode by emitting the
 /// truncation signal once the configured limit is reached.
-public final class TimeLimit<InnerEnv: Env>: Wrapper {
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public final class TimeLimit<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
     private let maxEpisodeSteps: Int
     private var elapsedSteps: Int = 0
@@ -18,21 +13,21 @@ public final class TimeLimit<InnerEnv: Env>: Wrapper {
 
     /// initializer that pulls the episode limit from the wrapped
     /// environment's spec (if present).
-    public required convenience init(env: InnerEnv) {
+    public required convenience init(env: BaseEnv) {
         guard let maxSteps = env.spec?.maxEpisodeSteps else {
             fatalError("TimeLimit requires either an explicit maxEpisodeSteps or one defined on the wrapped environment's spec.")
         }
         self.init(env: env, maxEpisodeSteps: maxSteps)
     }
 
-    public init(env: InnerEnv, maxEpisodeSteps: Int) {
+    public init(env: BaseEnv, maxEpisodeSteps: Int) {
         precondition(maxEpisodeSteps > 0, "maxEpisodeSteps must be positive, got \(maxEpisodeSteps)")
         self.env = env
         self.maxEpisodeSteps = maxEpisodeSteps
     }
 
     /// resets the wrapped environment and clears the elapsed step counter.
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         elapsedSteps = 0
         cachedSpec = nil
         return env.reset(seed: seed, options: options)
@@ -40,7 +35,7 @@ public final class TimeLimit<InnerEnv: Env>: Wrapper {
 
     /// steps the wrapped environment and converts the step into a truncation when the
     /// elapsed step counter hits the configured limit.
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         elapsedSteps += 1
 

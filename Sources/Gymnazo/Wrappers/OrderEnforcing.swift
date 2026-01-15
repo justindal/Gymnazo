@@ -3,34 +3,29 @@
 //
 
 /// Ensures `reset()` is called before `step()` or `render()`.
-public final class OrderEnforcing<InnerEnv: Env>: Wrapper {
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public final class OrderEnforcing<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
     private var hasReset = false
     private var cachedSpec: EnvSpec?
     private let disableRenderOrderEnforcing: Bool
 
-    public required convenience init(env: InnerEnv) {
+    public required convenience init(env: BaseEnv) {
         self.init(env: env, disableRenderOrderEnforcing: false)
     }
 
-    public init(env: InnerEnv, disableRenderOrderEnforcing: Bool) {
+    public init(env: BaseEnv, disableRenderOrderEnforcing: Bool) {
         self.env = env
         self.disableRenderOrderEnforcing = disableRenderOrderEnforcing
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         hasReset = true
         cachedSpec = nil
         return env.reset(seed: seed, options: options)
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         guard hasReset else {
             fatalError("OrderEnforcing: Cannot call env.step() before env.reset().")
         }

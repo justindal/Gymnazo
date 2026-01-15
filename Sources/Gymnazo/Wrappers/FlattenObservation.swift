@@ -17,7 +17,7 @@ public struct FlattenObservation<InnerEnv: Env>: TransformingWrapper {
     private let baseSpace: any Space
 
     /// Creates the wrapper and computes the flattened observation space.
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         self.env = env
         let s: any Space = env.observation_space
         self.baseSpace = s
@@ -27,7 +27,7 @@ public struct FlattenObservation<InnerEnv: Env>: TransformingWrapper {
         self.observation_space = box
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<MLXArray> {
         let result = env.reset(seed: seed, options: options)
         let flattened = flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
@@ -36,7 +36,7 @@ public struct FlattenObservation<InnerEnv: Env>: TransformingWrapper {
         return Reset(obs: flatObs, info: result.info)
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<MLXArray> {
         let result = env.step(action)
         let flattened = flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
