@@ -20,17 +20,17 @@ public struct AnyEnv: Env {
 
     private var env: any Env<MLXArray, MLXArray>
 
-    public let observation_space: AnySpace
-    public let action_space: AnySpace
+    public let observationSpace: AnySpace
+    public let actionSpace: AnySpace
 
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
     }
 
-    public var render_mode: String? {
-        get { env.render_mode }
-        set { env.render_mode = newValue }
+    public var renderMode: String? {
+        get { env.renderMode }
+        set { env.renderMode = newValue }
     }
 
     public var unwrapped: any Env { env.unwrapped }
@@ -38,19 +38,19 @@ public struct AnyEnv: Env {
     public init(_ env: any Env<MLXArray, MLXArray>) {
         self.env = env
 
-        guard let obsSpace = env.observation_space as? any MLXSpace else {
+        guard let obsSpace = env.observationSpace as? any MLXSpace else {
             preconditionFailure(
-                "AnyEnv requires an MLX observation space; got \(type(of: env.observation_space))"
+                "AnyEnv requires an MLX observation space; got \(type(of: env.observationSpace))"
             )
         }
-        guard let actSpace = env.action_space as? any MLXSpace else {
+        guard let actSpace = env.actionSpace as? any MLXSpace else {
             preconditionFailure(
-                "AnyEnv requires an MLX action space; got \(type(of: env.action_space))"
+                "AnyEnv requires an MLX action space; got \(type(of: env.actionSpace))"
             )
         }
 
-        self.observation_space = AnySpace(obsSpace)
-        self.action_space = AnySpace(actSpace)
+        self.observationSpace = AnySpace(obsSpace)
+        self.actionSpace = AnySpace(actSpace)
     }
 
     public mutating func step(_ action: MLXArray) -> Step<MLXArray> {

@@ -107,10 +107,10 @@ public final class CliffWalking: Env {
     public typealias ObservationSpace = Discrete
     public typealias ActionSpace = Discrete
     
-    public let action_space: Discrete
-    public let observation_space: Discrete
+    public let actionSpace: Discrete
+    public let observationSpace: Discrete
     public var spec: EnvSpec?
-    public var render_mode: String?
+    public var renderMode: String?
     
     private let isSlippery: Bool
     private var cliff: [[Bool]]
@@ -128,14 +128,14 @@ public final class CliffWalking: Env {
 #endif
     
     public init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         isSlippery: Bool = false
     ) {
-        self.render_mode = render_mode
+        self.renderMode = renderMode
         self.isSlippery = isSlippery
         
-        self.action_space = Discrete(n: Self.numActions)
-        self.observation_space = Discrete(n: Self.numStates)
+        self.actionSpace = Discrete(n: Self.numActions)
+        self.observationSpace = Discrete(n: Self.numStates)
         
         self.cliff = Array(repeating: Array(repeating: false, count: Self.numCols), count: Self.numRows)
         for col in 1..<(Self.numCols - 1) {
@@ -253,9 +253,9 @@ public final class CliffWalking: Env {
     
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else {
+        guard let mode = renderMode else {
             if let specId = spec?.id {
-                print("[Gymnazo] render() called without render_mode. Set render_mode when creating \(specId).")
+                print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
             }
             return nil
         }
@@ -277,7 +277,7 @@ public final class CliffWalking: Env {
             return nil
 #endif
         default:
-            print("[Gymnazo] Unsupported render_mode \(mode).")
+            print("[Gymnazo] Unsupported renderMode \(mode).")
             return nil
         }
     }

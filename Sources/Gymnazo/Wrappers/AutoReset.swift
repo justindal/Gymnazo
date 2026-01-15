@@ -22,7 +22,8 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
         self.init(env: env, mode: .nextStep)
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation>
+    {
         needsReset = false
         return env.reset(seed: seed, options: options)
     }

@@ -6,19 +6,19 @@
 enum PassiveEnvChecks {
     static func ensureSpacesExist<E: Env>(for env: E) {
         // ensure action/observation spaces can be touched without crashing.
-        _ = env.action_space
-        _ = env.observation_space
+        _ = env.actionSpace
+        _ = env.observationSpace
     }
 
     static func validateAction<E: Env>(_ env: E, action: E.Action) {
-        if !env.action_space.contains(action) {
-            fatalError("Action \(action) is outside the declared action_space for env \(env.spec?.id ?? "<unknown>")")
+        if !env.actionSpace.contains(action) {
+            fatalError("Action \(action) is outside the declared actionSpace for env \(env.spec?.id ?? "<unknown>")")
         }
     }
 
     static func validateObservation<E: Env>(_ env: E, observation: E.Observation) {
-        if !env.observation_space.contains(observation) {
-            fatalError("Observation is outside the declared observation_space for env \(env.spec?.id ?? "<unknown>")")
+        if !env.observationSpace.contains(observation) {
+            fatalError("Observation is outside the declared observationSpace for env \(env.spec?.id ?? "<unknown>")")
         }
     }
 

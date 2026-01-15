@@ -86,11 +86,11 @@ public struct Pendulum: Env {
     
     public private(set) var state: (theta: Float, thetaDot: Float)? = nil
     
-    public let action_space: Box
-    public let observation_space: Box
+    public let actionSpace: Box
+    public let observationSpace: Box
     
     public var spec: EnvSpec? = nil
-    public var render_mode: String? = nil
+    public var renderMode: String? = nil
     
     private var _key: MLXArray?
     private var lastTorque: Float? = nil
@@ -102,18 +102,18 @@ public struct Pendulum: Env {
         ]
     }
     
-    public init(render_mode: String? = nil, g: Float = 10.0) {
-        self.render_mode = render_mode
+    public init(renderMode: String? = nil, g: Float = 10.0) {
+        self.renderMode = renderMode
         self.g = g
         
-        self.action_space = Box(
+        self.actionSpace = Box(
             low: MLXArray([-maxTorque] as [Float32]),
             high: MLXArray([maxTorque] as [Float32]),
             dtype: .float32
         )
         
         let high = MLXArray([1.0, 1.0, maxSpeed] as [Float32])
-        self.observation_space = Box(
+        self.observationSpace = Box(
             low: -high,
             high: high,
             dtype: .float32
@@ -179,7 +179,7 @@ public struct Pendulum: Env {
     
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else { return nil }
+        guard let mode = renderMode else { return nil }
         
         switch mode {
         case "human":

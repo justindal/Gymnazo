@@ -113,10 +113,10 @@ public final class Taxi: Env {
     public typealias ObservationSpace = Discrete
     public typealias ActionSpace = Discrete
     
-    public let action_space: Discrete
-    public let observation_space: Discrete
+    public let actionSpace: Discrete
+    public let observationSpace: Discrete
     public var spec: EnvSpec?
-    public var render_mode: String?
+    public var renderMode: String?
     
     private let desc: [[UInt8]]
     private let maxRow: Int = 4
@@ -143,18 +143,18 @@ public final class Taxi: Env {
 #endif
     
     public init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         isRainy: Bool = false,
         ficklePassenger: Bool = false
     ) {
-        self.render_mode = render_mode
+        self.renderMode = renderMode
         self.isRainy = isRainy
         self.ficklePassenger = ficklePassenger
         
         self.desc = Self.map.map { Array($0.utf8) }
         
-        self.action_space = Discrete(n: numActions)
-        self.observation_space = Discrete(n: numStates)
+        self.actionSpace = Discrete(n: numActions)
+        self.observationSpace = Discrete(n: numStates)
         
         self.P = Array(repeating: [:], count: numStates)
         self.initialStateDistrib = Array(repeating: 0.0, count: numStates)
@@ -486,9 +486,9 @@ public final class Taxi: Env {
     
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else {
+        guard let mode = renderMode else {
             if let specId = spec?.id {
-                print("[Gymnazo] render() called without render_mode. Set render_mode when creating \(specId).")
+                print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
             }
             return nil
         }
@@ -510,7 +510,7 @@ public final class Taxi: Env {
             return nil
 #endif
         default:
-            print("[Gymnazo] Unsupported render_mode \(mode).")
+            print("[Gymnazo] Unsupported renderMode \(mode).")
             return nil
         }
     }

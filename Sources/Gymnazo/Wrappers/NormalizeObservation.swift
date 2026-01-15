@@ -16,7 +16,7 @@ public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observat
     
     public init(env: BaseEnv) {
         self.env = env
-        guard let shape = env.observation_space.shape else {
+        guard let shape = env.observationSpace.shape else {
             fatalError("NormalizeObservation requires an observation space with a defined shape")
         }
         self.rms = RunningMeanStdMLX(shape: shape)

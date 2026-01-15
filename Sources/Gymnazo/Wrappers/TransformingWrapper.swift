@@ -11,9 +11,9 @@ public extension TransformingWrapper {
         set { env.spec = newValue }
     }
 
-    var render_mode: String? {
-        get { env.render_mode }
-        set { env.render_mode = newValue }
+    var renderMode: String? {
+        get { env.renderMode }
+        set { env.renderMode = newValue }
     }
 
     var unwrapped: any Env {
@@ -30,9 +30,7 @@ public extension TransformingWrapper {
     }
 }
 
-public extension TransformingWrapper where ActionSpace == InnerEnv.ActionSpace {
-    var action_space: InnerEnv.ActionSpace {
-        env.action_space
-    }
+public extension TransformingWrapper where ActionSpace == BaseEnv.ActionSpace {
+    var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
 }
 

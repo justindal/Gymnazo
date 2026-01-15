@@ -19,8 +19,8 @@ public enum RenderOutput {
 
 public extension Env {
     var renderMode: RenderMode? {
-        get { render_mode.flatMap(RenderMode.init(rawValue:)) }
-        set { render_mode = newValue?.rawValue }
+        get { renderMode.flatMap(RenderMode.init(rawValue:)) }
+        set { renderMode = newValue?.rawValue }
     }
 
     @discardableResult

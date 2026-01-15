@@ -42,16 +42,16 @@ public struct ResizeObservation<BaseEnv: Env>: Env
     public var env: BaseEnv
     public let targetHeight: Int
     public let targetWidth: Int
-    public let observation_space: Box
+    public let observationSpace: Box
     
     public var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
     }
-    public var render_mode: String? {
-        get { env.render_mode }
-        set { env.render_mode = newValue }
+    public var renderMode: String? {
+        get { env.renderMode }
+        set { env.renderMode = newValue }
     }
     
     /// Creates a resize observation wrapper.
@@ -65,7 +65,7 @@ public struct ResizeObservation<BaseEnv: Env>: Env
         self.targetWidth = shape.1
         
         // Compute new observation space
-        guard let innerBox = env.observation_space as? Box,
+        guard let innerBox = env.observationSpace as? Box,
               let innerShape = innerBox.shape,
               innerShape.count >= 2 else {
             fatalError("ResizeObservation requires Box observation space with at least 2 dimensions")
@@ -76,7 +76,7 @@ public struct ResizeObservation<BaseEnv: Env>: Env
             newShape.append(contentsOf: innerShape[2...])
         }
         
-        self.observation_space = Box(
+        self.observationSpace = Box(
             low: 0,
             high: 255,
             shape: newShape,
@@ -148,6 +148,6 @@ public struct ResizeObservation<BaseEnv: Env>: Env
             resized = resized.squeezed(axis: -1)
         }
         
-        return resized.asType(observation_space.dtype ?? .uint8)
+        return resized.asType(observationSpace.dtype ?? .uint8)
     }
 }

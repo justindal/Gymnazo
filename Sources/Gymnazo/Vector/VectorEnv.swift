@@ -91,28 +91,28 @@ public struct VectorResetResult {
 @MainActor
 public protocol VectorEnv: AnyObject {
     /// The number of sub-environments in the vector environment.
-    var num_envs: Int { get }
+    var numEnvs: Int { get }
     
     /// The observation space of a single sub-environment.
-    var single_observation_space: any Space { get }
+    var singleObservationSpace: any Space { get }
     
     /// The action space of a single sub-environment.
-    var single_action_space: any Space { get }
+    var singleActionSpace: any Space { get }
     
     /// The batched observation space for all sub-environments.
-    var observation_space: any Space { get }
+    var observationSpace: any Space { get }
     
     /// The batched action space for all sub-environments.
-    var action_space: any Space { get }
+    var actionSpace: any Space { get }
     
     /// The environment specification, if available.
     var spec: EnvSpec? { get set }
     
     /// The render mode for all sub-environments.
-    var render_mode: String? { get }
+    var renderMode: String? { get }
     
     /// The autoreset mode used by this vector environment.
-    var autoreset_mode: AutoresetMode { get }
+    var autoresetMode: AutoresetMode { get }
     
     /// Whether the vector environment has been closed.
     var closed: Bool { get }

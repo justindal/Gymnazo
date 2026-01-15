@@ -149,10 +149,10 @@ public final class Blackjack: Env {
     public typealias ObservationSpace = BlackjackObservationSpace
     public typealias ActionSpace = Discrete
     
-    public let action_space: Discrete
-    public let observation_space: BlackjackObservationSpace
+    public let actionSpace: Discrete
+    public let observationSpace: BlackjackObservationSpace
     public var spec: EnvSpec?
-    public var render_mode: String?
+    public var renderMode: String?
     
     private let natural: Bool
     private let sab: Bool
@@ -174,16 +174,16 @@ public final class Blackjack: Env {
 #endif
     
     public init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         natural: Bool = false,
         sab: Bool = false
     ) {
-        self.render_mode = render_mode
+        self.renderMode = renderMode
         self.natural = natural
         self.sab = sab
         
-        self.action_space = Discrete(n: 2)
-        self.observation_space = BlackjackObservationSpace()
+        self.actionSpace = Discrete(n: 2)
+        self.observationSpace = BlackjackObservationSpace()
     }
     
     private static func drawCard(key: MLXArray) -> Int {
@@ -375,9 +375,9 @@ public final class Blackjack: Env {
     
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else {
+        guard let mode = renderMode else {
             if let specId = spec?.id {
-                print("[Gymnazo] render() called without render_mode. Set render_mode when creating \(specId).")
+                print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
             }
             return nil
         }
@@ -397,7 +397,7 @@ public final class Blackjack: Env {
             return nil
 #endif
         default:
-            print("[Gymnazo] Unsupported render_mode \(mode).")
+            print("[Gymnazo] Unsupported renderMode \(mode).")
             return nil
         }
     }

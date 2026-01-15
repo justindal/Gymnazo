@@ -9,10 +9,10 @@ public protocol Env<Observation, Action> {
     associatedtype ObservationSpace: Space<Observation>
     associatedtype ActionSpace: Space<Action>
 
-    var action_space: ActionSpace { get }
-    var observation_space: ObservationSpace { get }
+    var actionSpace: ActionSpace { get }
+    var observationSpace: ObservationSpace { get }
     var spec: EnvSpec? { get set }
-    var render_mode: String? { get set }
+    var renderMode: String? { get set }
 
     var unwrapped: any Env<Observation, Action> { get }
 

@@ -99,22 +99,22 @@ public struct CartPole: Env {
     public var state: MLXArray? = nil
     public var steps_beyond_terminated: Int? = nil
     
-    public let action_space: Discrete
-    public let observation_space: Box
+    public let actionSpace: Discrete
+    public let observationSpace: Box
     
     public var spec: EnvSpec? = nil
-    public var render_mode: String? = nil
+    public var renderMode: String? = nil
     
     private var _key: MLXArray?
     
-    public init(render_mode: String? = nil) {
-        self.render_mode = render_mode
+    public init(renderMode: String? = nil) {
+        self.renderMode = renderMode
         
         self.total_mass = masscart + masspole
         self.polemass_length = masspole * length
         
         // Action Space: 0 = push left, 1 = push right
-        self.action_space = Discrete(n: 2)
+        self.actionSpace = Discrete(n: 2)
         
         // Observation Space: [x, x_dot, theta, theta_dot]
         let high: [Float] = [
@@ -124,7 +124,7 @@ public struct CartPole: Env {
             Float.greatestFiniteMagnitude
         ]
         
-        self.observation_space = Box(
+        self.observationSpace = Box(
             low: -MLXArray(high),
             high: MLXArray(high),
             dtype: .float32
@@ -247,7 +247,7 @@ public struct CartPole: Env {
     ///   - `"rgb_array"`: Not yet implemented, returns `nil`
     ///   - `nil`: Returns `nil`
     public func render() -> Any? {
-        guard let mode = render_mode else { return nil }
+        guard let mode = renderMode else { return nil }
         
         switch mode {
         case "human":

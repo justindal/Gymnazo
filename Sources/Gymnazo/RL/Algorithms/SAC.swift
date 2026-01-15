@@ -56,8 +56,8 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         let wrapped = asAnyEnv(env)
 
         self.init(
-            observationSpace: wrapped.observation_space,
-            actionSpace: wrapped.action_space,
+            observationSpace: wrapped.observationSpace,
+            actionSpace: wrapped.actionSpace,
             env: wrapped,
             learningRate: learningRate,
             networksConfig: networksConfig,

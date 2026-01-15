@@ -17,7 +17,7 @@ public struct TransformObservation<BaseEnv: Env>: Wrapper {
     ) {
         self.env = env
         self.transform = transform
-        self.observation_space = observation_space ?? env.observation_space
+        self.observationSpace = observationSpace ?? env.observationSpace
     }
     
     public init(env: BaseEnv) {
