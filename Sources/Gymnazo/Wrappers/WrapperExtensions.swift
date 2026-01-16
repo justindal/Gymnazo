@@ -117,7 +117,7 @@ public extension Env where Observation == MLXArray {
         observationSpace: ObservationSpace? = nil,
         _ transform: @escaping (MLXArray) -> MLXArray
     ) -> TransformObservation<Self> {
-        TransformObservation(env: self, transform: transform, observation_space: observationSpace)
+        TransformObservation(env: self, transform: transform, observationSpace: observationSpace)
     }
     
     /// Converts RGB observations to grayscale.

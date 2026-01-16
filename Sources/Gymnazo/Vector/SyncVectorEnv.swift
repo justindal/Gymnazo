@@ -41,7 +41,7 @@ import MLX
 public final class SyncVectorEnv: VectorEnv {
     
     /// The number of sub-environments.
-    public let num_envs: Int
+    public let numEnvs: Int
     
     /// The sub-environments managed by this vector environment.
     private var envs: [any Env]
@@ -53,27 +53,27 @@ public final class SyncVectorEnv: VectorEnv {
     private var lastObservations: [MLXArray]
     
     /// The observation space of a single sub-environment.
-    public let single_observation_space: any Space
+    public let singleObservationSpace: any Space
     
     /// The action space of a single sub-environment.
-    public let single_action_space: any Space
+    public let singleActionSpace: any Space
     
     /// The batched observation space for all sub-environments.
     /// For Box spaces, this has shape `[num_envs, ...single_obs_shape]`.
-    public private(set) var observation_space: any Space
+    public private(set) var observationSpace: any Space
     
     /// The batched action space for all sub-environments.
     /// For Discrete spaces, this becomes MultiDiscrete with `num_envs` dimensions.
-    public private(set) var action_space: any Space
+    public private(set) var actionSpace: any Space
     
     /// The environment specification.
     public var spec: EnvSpec?
     
     /// The render mode for all sub-environments.
-    public let render_mode: String?
+    public let renderMode: String?
     
     /// The autoreset mode used by this vector environment.
-    public let autoreset_mode: AutoresetMode
+    public let autoresetMode: AutoresetMode
     
     /// Whether the vector environment has been closed.
     public private(set) var closed: Bool = false
@@ -103,11 +103,11 @@ public final class SyncVectorEnv: VectorEnv {
     ) {
         precondition(!envFns.isEmpty, "SyncVectorEnv requires at least one environment")
         
-        self.num_envs = envFns.count
+        self.numEnvs = envFns.count
         self.envs = envFns.map { $0() }
         self.needsReset = Array(repeating: true, count: envFns.count)
         self.copyObservations = copyObservations
-        self.autoreset_mode = autoresetMode
+        self.autoresetMode = autoresetMode
         
         // Pre-allocate buffers
         self.rewardsBuffer = Array(repeating: 0.0, count: envFns.count)
@@ -115,30 +115,30 @@ public final class SyncVectorEnv: VectorEnv {
         self.truncationsBuffer = Array(repeating: false, count: envFns.count)
         
         let firstEnv = self.envs[0]
-        self.single_observation_space = firstEnv.observation_space
-        self.single_action_space = firstEnv.action_space
-        self.render_mode = firstEnv.render_mode
+        self.singleObservationSpace = firstEnv.observationSpace
+        self.singleActionSpace = firstEnv.actionSpace
+        self.renderMode = firstEnv.renderMode
         self.spec = firstEnv.spec
         
         // Initialize lastObservations with placeholder
         self.lastObservations = Array(repeating: MLXArray([0.0] as [Float]), count: envFns.count)
         
         // Create batched observation space
-        self.observation_space = SyncVectorEnv.createBatchedObservationSpace(
-            singleSpace: self.single_observation_space,
+        self.observationSpace = SyncVectorEnv.createBatchedObservationSpace(
+            singleSpace: self.singleObservationSpace,
             numEnvs: envFns.count
         )
         
         // Create batched action space
-        self.action_space = SyncVectorEnv.createBatchedActionSpace(
-            singleSpace: self.single_action_space,
+        self.actionSpace = SyncVectorEnv.createBatchedActionSpace(
+            singleSpace: self.singleActionSpace,
             numEnvs: envFns.count
         )
         
         // Validate all environments have compatible spaces
         for (i, env) in self.envs.enumerated() {
-            if let singleShape = single_observation_space.shape,
-               let envShape = env.observation_space.shape {
+            if let singleShape = singleObservationSpace.shape,
+               let envShape = env.observationSpace.shape {
                 precondition(
                     singleShape == envShape,
                     "Environment \(i) has incompatible observation space shape: \(envShape) vs \(singleShape)"
@@ -179,20 +179,20 @@ public final class SyncVectorEnv: VectorEnv {
     public func step(_ actions: [Any]) -> VectorStepResult {
         precondition(!closed, "Cannot step a closed vector environment")
         precondition(
-            actions.count == num_envs,
-            "Expected \(num_envs) actions, got \(actions.count)"
+            actions.count == numEnvs,
+            "Expected \(numEnvs) actions, got \(actions.count)"
         )
         
         var observations: [MLXArray] = []
-        observations.reserveCapacity(num_envs)
+        observations.reserveCapacity(numEnvs)
         
         var finalObservations: [Int: MLXArray] = [:]
         var finalInfos: [Int: Info] = [:]
         let infos = Info()
         
-        for i in 0..<num_envs {
+        for i in 0..<numEnvs {
             if needsReset[i] {
-                if autoreset_mode == .nextStep {
+                if autoresetMode == .nextStep {
                     let resetResult = resetEnvironment(index: i, seed: nil, options: nil)
                     lastObservations[i] = resetResult.obs
                 needsReset[i] = false
@@ -217,7 +217,7 @@ public final class SyncVectorEnv: VectorEnv {
                 finalObservations[i] = finalObs
                 finalInfos[i] = stepResult.info
 
-                if autoreset_mode == .sameStep {
+                if autoresetMode == .sameStep {
                     let resetResult = resetEnvironment(index: i, seed: nil, options: nil)
                     needsReset[i] = false
                     let returnedObs = copyObservations ? (resetResult.obs + MLXArray(Float(0))) : resetResult.obs
@@ -273,10 +273,10 @@ public final class SyncVectorEnv: VectorEnv {
         precondition(!closed, "Cannot reset a closed vector environment")
         
         var observations: [MLXArray] = []
-        observations.reserveCapacity(num_envs)
+        observations.reserveCapacity(numEnvs)
         let combinedInfo = Info()
         
-        for i in 0..<num_envs {
+        for i in 0..<numEnvs {
             let envSeed: UInt64? = seed.map { $0 + UInt64(i) }
             
             let resetResult = resetEnvironment(index: i, seed: envSeed, options: options)

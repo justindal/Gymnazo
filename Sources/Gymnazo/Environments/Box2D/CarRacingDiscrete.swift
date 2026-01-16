@@ -11,11 +11,11 @@ public struct CarRacingDiscrete: Env {
     public typealias Observation = MLXArray
     public typealias Action = Int
     
-    public let action_space: Discrete
-    public let observation_space: Box
+    public let actionSpace: Discrete
+    public let observationSpace: Box
     
     public var spec: EnvSpec? = nil
-    public var render_mode: String? = nil
+    public var renderMode: String? = nil
     
     public let lapCompletePercent: Float
     public let domainRandomize: Bool
@@ -55,17 +55,17 @@ public struct CarRacingDiscrete: Env {
     }
     
     public init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         lapCompletePercent: Float = 0.95,
         domainRandomize: Bool = false
     ) {
-        self.render_mode = render_mode
+        self.renderMode = renderMode
         self.lapCompletePercent = lapCompletePercent
         self.domainRandomize = domainRandomize
         
-        self.action_space = Discrete(n: 5)
+        self.actionSpace = Discrete(n: 5)
         
-        self.observation_space = Box(
+        self.observationSpace = Box(
             low: 0,
             high: 255,
             shape: [96, 96, 3],
@@ -135,7 +135,7 @@ public struct CarRacingDiscrete: Env {
             fatalError("Call reset() before step()")
         }
         
-        precondition(action_space.contains(action), "Invalid action: \(action)")
+        precondition(actionSpace.contains(action), "Invalid action: \(action)")
         
         switch action {
         case 0:
@@ -199,7 +199,7 @@ public struct CarRacingDiscrete: Env {
             info["lap_finished"] = .bool(false)
         }
         
-        if render_mode == "human" {
+        if renderMode == "human" {
             _ = render()
         }
         
@@ -322,7 +322,7 @@ public struct CarRacingDiscrete: Env {
         
         let state = renderStatePixels()
         
-        if render_mode == "human" {
+        if renderMode == "human" {
             _ = render()
         }
         
@@ -356,7 +356,7 @@ public struct CarRacingDiscrete: Env {
     
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else { return nil }
+        guard let mode = renderMode else { return nil }
         
         switch mode {
         case "human":

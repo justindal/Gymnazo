@@ -5,66 +5,67 @@
 import MLX
 
 /// protocol for environment wrappers.
-/// is generic over the `InnerEnv` it wraps for better type safety.
-public protocol Wrapper: Env where
-    Observation == InnerEnv.Observation,
-    Action == InnerEnv.Action,
-    ObservationSpace == InnerEnv.ObservationSpace,
-    ActionSpace == InnerEnv.ActionSpace
+/// is generic over the `BaseEnv` it wraps for better type safety.
+public protocol Wrapper<BaseEnv>: Env
+where
+    Observation == BaseEnv.Observation,
+    Action == BaseEnv.Action,
+    ObservationSpace == BaseEnv.ObservationSpace,
+    ActionSpace == BaseEnv.ActionSpace
 {
-    associatedtype InnerEnv: Env
-    
+    associatedtype BaseEnv: Env
+
     /// "inner" environment instance.
-    var env: InnerEnv { get set }
-    
+    var env: BaseEnv { get set }
+
     /// requires that all wrappers can be initialized with the
     /// environment they are wrapping.
-    init(env: InnerEnv)
+    init(env: BaseEnv)
 }
 
 /// This extension provides the "pass-through" logic. By default,
 /// a Wrapper just forwards all calls and properties to its
 /// inner `env`.
-public extension Wrapper {
-    var action_space: InnerEnv.ActionSpace {
-        return env.action_space
+extension Wrapper {
+    public var actionSpace: BaseEnv.ActionSpace {
+        return env.actionSpace
     }
 
-    var observation_space: InnerEnv.ObservationSpace {
-        return env.observation_space
+    public var observationSpace: BaseEnv.ObservationSpace {
+        return env.observationSpace
     }
 
-    var spec: EnvSpec? {
+    public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
     }
-    
-    var render_mode: String? {
-        get { env.render_mode }
-        set { env.render_mode = newValue }
+
+    public var renderMode: String? {
+        get { env.renderMode }
+        set { env.renderMode = newValue }
     }
 
-    var unwrapped: any Env {
+    public var unwrapped: any Env {
         return env.unwrapped
     }
-    
-    mutating func step(_ action: Action) -> Step<Observation> {
+
+    public mutating func step(_ action: Action) -> Step<Observation> {
         return env.step(action)
     }
 
-    mutating func reset(
+    public mutating func reset(
         seed: UInt64?,
         options: [String: Any]?
     ) -> Reset<Observation> {
         return env.reset(seed: seed, options: options)
     }
 
-    func close() {
+    public func close() {
         return env.close()
     }
 
     @discardableResult
-    func render() -> Any? {
+    public func render() -> Any? {
         return env.render()
     }
 }

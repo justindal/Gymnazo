@@ -6,13 +6,8 @@ import Foundation
 
 /// Tracks cumulative rewards, episode lengths, and elapsed time, attaching an "episode"
 /// entry to the `info` dictionary when an episode terminates or truncates.
-public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
     public private(set) var episodeCount: Int = 0
     public private(set) var timeQueue: [Double] = []
@@ -26,18 +21,18 @@ public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
     private var episodeReturns: Double = 0.0
     private var episodeLengths: Int = 0
 
-    public required convenience init(env: InnerEnv) {
+    public required convenience init(env: BaseEnv) {
         self.init(env: env, bufferLength: 100, statsKey: "episode")
     }
 
-    public init(env: InnerEnv, bufferLength: Int = 100, statsKey: String = "episode") {
+    public init(env: BaseEnv, bufferLength: Int = 100, statsKey: String = "episode") {
         precondition(bufferLength > 0, "bufferLength must be positive, got \(bufferLength)")
         self.env = env
         self.bufferLength = bufferLength
         self.statsKey = statsKey
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         let result = env.reset(seed: seed, options: options)
         episodeStartTime = RecordEpisodeStatistics.now()
         episodeReturns = 0.0
@@ -45,7 +40,7 @@ public final class RecordEpisodeStatistics<InnerEnv: Env>: Wrapper {
         return result
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
 
         episodeReturns += result.reward

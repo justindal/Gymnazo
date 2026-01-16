@@ -36,27 +36,22 @@ import MLX
 /// ### Configuration
 /// - ``targetHeight``
 /// - ``targetWidth``
-public struct ResizeObservation<InnerEnv: Env>: Env
-    where InnerEnv.Observation == MLXArray
+public struct ResizeObservation<BaseEnv: Env>: Env
+    where BaseEnv.Observation == MLXArray
 {
-    public typealias Observation = MLXArray
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = Box
-    public typealias ActionSpace = InnerEnv.ActionSpace
-    
-    public var env: InnerEnv
+    public var env: BaseEnv
     public let targetHeight: Int
     public let targetWidth: Int
-    public let observation_space: Box
+    public let observationSpace: Box
     
-    public var action_space: ActionSpace { env.action_space }
+    public var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
     }
-    public var render_mode: String? {
-        get { env.render_mode }
-        set { env.render_mode = newValue }
+    public var renderMode: String? {
+        get { env.renderMode }
+        set { env.renderMode = newValue }
     }
     
     /// Creates a resize observation wrapper.
@@ -64,13 +59,13 @@ public struct ResizeObservation<InnerEnv: Env>: Env
     /// - Parameters:
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, ...])
     ///   - shape: Target (height, width) for the resized observations
-    public init(env: InnerEnv, shape: (Int, Int)) {
+    public init(env: BaseEnv, shape: (Int, Int)) {
         self.env = env
         self.targetHeight = shape.0
         self.targetWidth = shape.1
         
         // Compute new observation space
-        guard let innerBox = env.observation_space as? Box,
+        guard let innerBox = env.observationSpace as? Box,
               let innerShape = innerBox.shape,
               innerShape.count >= 2 else {
             fatalError("ResizeObservation requires Box observation space with at least 2 dimensions")
@@ -81,7 +76,7 @@ public struct ResizeObservation<InnerEnv: Env>: Env
             newShape.append(contentsOf: innerShape[2...])
         }
         
-        self.observation_space = Box(
+        self.observationSpace = Box(
             low: 0,
             high: 255,
             shape: newShape,
@@ -89,7 +84,7 @@ public struct ResizeObservation<InnerEnv: Env>: Env
         )
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<MLXArray> {
         let result = env.step(action)
         return Step(
             obs: resize(result.obs),
@@ -100,7 +95,7 @@ public struct ResizeObservation<InnerEnv: Env>: Env
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<MLXArray> {
         let result = env.reset(seed: seed, options: options)
         return Reset(obs: resize(result.obs), info: result.info)
     }
@@ -153,6 +148,6 @@ public struct ResizeObservation<InnerEnv: Env>: Env
             resized = resized.squeezed(axis: -1)
         }
         
-        return resized.asType(observation_space.dtype ?? .uint8)
+        return resized.asType(observationSpace.dtype ?? .uint8)
     }
 }

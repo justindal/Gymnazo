@@ -1,12 +1,6 @@
 /// A reward wrapper that applies a function to every reward.
-public struct TransformReward<InnerEnv: Env>: Wrapper {
-    public typealias InnerEnv = InnerEnv
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public struct TransformReward<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
     public let transform: (Double) -> Double
 
     /// Creates the wrapper.
@@ -14,16 +8,16 @@ public struct TransformReward<InnerEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap.
     ///   - transform: A function applied to every reward.
-    public init(env: InnerEnv, transform: @escaping (Double) -> Double) {
+    public init(env: BaseEnv, transform: @escaping (Double) -> Double) {
         self.env = env
         self.transform = transform
     }
 
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         fatalError("Must provide transform function")
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         return Step(
             obs: result.obs,
@@ -34,8 +28,8 @@ public struct TransformReward<InnerEnv: Env>: Wrapper {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation>
+    {
         env.reset(seed: seed, options: options)
     }
 }
-

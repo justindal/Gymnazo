@@ -144,11 +144,11 @@ public struct LunarLanderContinuous: Env {
     private var lastMainPower: Float = 0
     private var lastSidePower: Float = 0
     
-    public let action_space: Box
-    public let observation_space: Box
+    public let actionSpace: Box
+    public let observationSpace: Box
     
     public var spec: EnvSpec? = nil
-    public var render_mode: String? = nil
+    public var renderMode: String? = nil
     
     private var _key: MLXArray?
     
@@ -160,7 +160,7 @@ public struct LunarLanderContinuous: Env {
     }
     
     public init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         gravity: Float = -10.0,
         enableWind: Bool = false,
         windPower: Float = 15.0,
@@ -169,13 +169,13 @@ public struct LunarLanderContinuous: Env {
         precondition(gravity > -12.0 && gravity < 0.0,
                      "gravity must be between -12.0 and 0.0, got \(gravity)")
         
-        self.render_mode = render_mode
+        self.renderMode = renderMode
         self.gravity = gravity
         self.enableWind = enableWind
         self.windPower = windPower
         self.turbulencePower = turbulencePower
         
-        self.action_space = Box(low: -1, high: 1, shape: [2], dtype: .float32)
+        self.actionSpace = Box(low: -1, high: 1, shape: [2], dtype: .float32)
         
         let low = MLXArray([
             -2.5,   // x position
@@ -197,7 +197,7 @@ public struct LunarLanderContinuous: Env {
             1.0,
             1.0
         ] as [Float32])
-        self.observation_space = Box(low: low, high: high, dtype: .float32)
+        self.observationSpace = Box(low: low, high: high, dtype: .float32)
     }
     
     public mutating func step(_ action: Action) -> Step<Observation> {
@@ -305,7 +305,7 @@ public struct LunarLanderContinuous: Env {
             reward: Double(reward),
             terminated: terminated,
             truncated: false,
-            info: render_mode == nil ? Info() : [
+            info: renderMode == nil ? Info() : [
                 "lander_awake": .bool(isAwake),
                 "left_leg_contact": .bool(leftLegContact),
                 "right_leg_contact": .bool(rightLegContact),
@@ -405,7 +405,7 @@ public struct LunarLanderContinuous: Env {
     
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else { return nil }
+        guard let mode = renderMode else { return nil }
         
         switch mode {
         case "human":

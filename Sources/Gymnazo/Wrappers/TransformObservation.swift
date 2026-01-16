@@ -5,28 +5,26 @@
 import Foundation
 import MLX
 
-public struct TransformObservation<InnerEnv: Env>: Wrapper {
-    public typealias InnerEnv = InnerEnv
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
+public struct TransformObservation<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
+    public let transform: (BaseEnv.Observation) -> BaseEnv.Observation
+    public let observationSpace: BaseEnv.ObservationSpace
     
-    public var env: InnerEnv
-    public let transform: (InnerEnv.Observation) -> InnerEnv.Observation
-    public let observation_space: InnerEnv.ObservationSpace
-    
-    public init(env: InnerEnv, transform: @escaping (InnerEnv.Observation) -> InnerEnv.Observation, observation_space: InnerEnv.ObservationSpace? = nil) {
+    public init(
+        env: BaseEnv,
+        transform: @escaping (BaseEnv.Observation) -> BaseEnv.Observation,
+        observationSpace: BaseEnv.ObservationSpace? = nil
+    ) {
         self.env = env
         self.transform = transform
-        self.observation_space = observation_space ?? env.observation_space
+        self.observationSpace = observationSpace ?? env.observationSpace
     }
     
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         fatalError("Must provide transform function")
     }
     
-    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         return Step(
             obs: transform(result.obs),
@@ -37,7 +35,7 @@ public struct TransformObservation<InnerEnv: Env>: Wrapper {
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         let result = env.reset(seed: seed, options: options)
         return Reset(obs: transform(result.obs), info: result.info)
     }

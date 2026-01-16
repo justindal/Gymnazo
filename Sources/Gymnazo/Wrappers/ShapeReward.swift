@@ -19,14 +19,8 @@ import MLX
 ///         return shaped
 ///     }
 /// ```
-public struct ShapeReward<InnerEnv: Env>: Wrapper where InnerEnv.Observation == MLXArray {
-    public typealias InnerEnv = InnerEnv
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public struct ShapeReward<BaseEnv: Env>: Wrapper where BaseEnv.Observation == MLXArray {
+    public var env: BaseEnv
     
     /// A closure that receives the original reward, observation, and termination status,
     /// and returns the shaped reward.
@@ -37,16 +31,16 @@ public struct ShapeReward<InnerEnv: Env>: Wrapper where InnerEnv.Observation == 
     /// - Parameters:
     ///   - env: The environment to wrap.
     ///   - shaper: A function that transforms rewards based on (reward, observation, terminated).
-    public init(env: InnerEnv, shaper: @escaping (Double, MLXArray, Bool) -> Double) {
+    public init(env: BaseEnv, shaper: @escaping (Double, MLXArray, Bool) -> Double) {
         self.env = env
         self.shaper = shaper
     }
 
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         fatalError("Must provide shaper function")
     }
 
-    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         eval(result.obs)
         let shapedReward = shaper(result.reward, result.obs, result.terminated)
@@ -59,7 +53,7 @@ public struct ShapeReward<InnerEnv: Env>: Wrapper where InnerEnv.Observation == 
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation> {
         env.reset(seed: seed, options: options)
     }
 }

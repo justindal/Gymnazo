@@ -23,7 +23,7 @@ public struct ConstantLearningRate: LearningRateSchedule {
 }
 
 /// Base algorithm protocol
-public protocol Algorithm {
+public protocol Algorithm<PolicyType, EnvType> {
     associatedtype PolicyType: Policy
     associatedtype EnvType: Env
 

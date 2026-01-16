@@ -89,11 +89,11 @@ public struct MountainCarContinuous: Env {
     
     public var state: MLXArray? = nil
     
-    public let action_space: Box
-    public let observation_space: Box
+    public let actionSpace: Box
+    public let observationSpace: Box
     
     public var spec: EnvSpec? = nil
-    public var render_mode: String? = nil
+    public var renderMode: String? = nil
     
     private var _key: MLXArray?
     
@@ -104,12 +104,12 @@ public struct MountainCarContinuous: Env {
         ]
     }
     
-    public init(render_mode: String? = nil, goal_velocity: Float = 0.0) {
-        self.render_mode = render_mode
+    public init(renderMode: String? = nil, goal_velocity: Float = 0.0) {
+        self.renderMode = renderMode
         self.goalVelocity = goal_velocity
         
         // Continuous action space: force in [-1.0, 1.0]
-        self.action_space = Box(
+        self.actionSpace = Box(
             low: MLXArray([-1.0] as [Float32]),
             high: MLXArray([1.0] as [Float32]),
             dtype: .float32
@@ -119,7 +119,7 @@ public struct MountainCarContinuous: Env {
         let low = MLXArray([minPosition, -maxSpeed] as [Float32])
         let high = MLXArray([maxPosition, maxSpeed] as [Float32])
         
-        self.observation_space = Box(
+        self.observationSpace = Box(
             low: low,
             high: high,
             dtype: .float32
@@ -200,7 +200,7 @@ public struct MountainCarContinuous: Env {
     ///
     /// - Returns: A `MountainCarView` for human mode, `nil` otherwise.
     public func render() -> Any? {
-        guard let mode = render_mode else { return nil }
+        guard let mode = renderMode else { return nil }
         
         switch mode {
         case "human":

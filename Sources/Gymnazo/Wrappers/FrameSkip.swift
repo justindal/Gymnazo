@@ -25,14 +25,8 @@ import MLX
 /// var env = FrameSkip(env: CarRacing(), skip: 2)
 /// // Each step now executes the action twice, summing rewards
 /// ```
-public struct FrameSkip<InnerEnv: Env>: Wrapper {
-    public typealias InnerEnv = InnerEnv
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-    
-    public var env: InnerEnv
+public struct FrameSkip<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
     
     /// Number of frames to skip (repeat the action for).
     public let skip: Int
@@ -42,19 +36,19 @@ public struct FrameSkip<InnerEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap
     ///   - skip: Number of times to repeat each action (must be >= 1)
-    public init(env: InnerEnv, skip: Int = 2) {
+    public init(env: BaseEnv, skip: Int = 2) {
         precondition(skip >= 1, "skip must be at least 1")
         self.env = env
         self.skip = skip
     }
     
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         self.init(env: env, skip: 2)
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         var totalReward: Double = 0
-        var lastResult: Step<Observation>!
+        var lastResult: Step<BaseEnv.Observation>!
         
         for _ in 0..<skip {
             lastResult = env.step(action)

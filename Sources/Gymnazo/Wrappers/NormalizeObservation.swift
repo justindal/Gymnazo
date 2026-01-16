@@ -8,27 +8,21 @@ import MLX
 /// Normalizes observations to approximately mean 0 and variance 1.
 ///
 /// Uses Welford's online algorithm to maintain running statistics.
-public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observation == MLXArray {
-    public typealias InnerEnv = InnerEnv
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-    
-    public var env: InnerEnv
+public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observation == MLXArray {
+    public var env: BaseEnv
     public let epsilon: Float = 1e-8
     
     private let rms: RunningMeanStdMLX
     
-    public init(env: InnerEnv) {
+    public init(env: BaseEnv) {
         self.env = env
-        guard let shape = env.observation_space.shape else {
+        guard let shape = env.observationSpace.shape else {
             fatalError("NormalizeObservation requires an observation space with a defined shape")
         }
         self.rms = RunningMeanStdMLX(shape: shape)
     }
     
-    public mutating func step(_ action: InnerEnv.Action) -> Step<Observation> {
+    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         let result = env.step(action)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
@@ -42,7 +36,7 @@ public struct NormalizeObservation<InnerEnv: Env>: Wrapper where InnerEnv.Observ
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         let result = env.reset(seed: seed, options: options)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)

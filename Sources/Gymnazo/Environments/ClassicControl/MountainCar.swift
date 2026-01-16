@@ -5,8 +5,9 @@
 
 import Foundation
 import MLX
+
 #if canImport(SwiftUI)
-import SwiftUI
+    import SwiftUI
 #endif
 
 /// The MountainCar environment from Gymnasium's classic control suite.
@@ -79,52 +80,52 @@ import SwiftUI
 public struct MountainCar: Env {
     public typealias Observation = MLXArray
     public typealias Action = Int
-    
+
     public let minPosition: Float = -1.2
     public let maxPosition: Float = 0.6
     public let maxSpeed: Float = 0.07
     public let goalPosition: Float = 0.5
     public let goalVelocity: Float
-    
+
     public let force: Float = 0.001
     public let gravity: Float = 0.0025
-    
+
     // State: [position, velocity]
     public var state: MLXArray? = nil
-    
-    public let action_space: Discrete
-    public let observation_space: Box
-    
+
+    public let actionSpace: Discrete
+    public let observationSpace: Box
+
     public var spec: EnvSpec? = nil
-    public var render_mode: String? = nil
-    
+    public var renderMode: String? = nil
+
     private var _key: MLXArray?
-    
+
     public static var metadata: [String: Any] {
         [
             "render_modes": ["human", "rgb_array"],
             "render_fps": 30,
         ]
     }
-    
-    public init(render_mode: String? = nil, goal_velocity: Float = 0.0) {
-        self.render_mode = render_mode
+
+    public init(renderMode: String? = nil, goal_velocity: Float = 0.0) {
+        self.renderMode = renderMode
         self.goalVelocity = goal_velocity
-        
+
         // Action Space: 0 = push left, 1 = no push, 2 = push right
-        self.action_space = Discrete(n: 3)
-        
+        self.actionSpace = Discrete(n: 3)
+
         // Observation Space: [position, velocity]
         let low = MLXArray([minPosition, -maxSpeed] as [Float32])
         let high = MLXArray([maxPosition, maxSpeed] as [Float32])
-        
-        self.observation_space = Box(
+
+        self.observationSpace = Box(
             low: low,
             high: high,
             dtype: .float32
         )
     }
-    
+
     /// Execute one time step within the environment.
     ///
     /// - Parameter action: An action to take (0: left, 1: no push, 2: right).
@@ -133,31 +134,31 @@ public struct MountainCar: Env {
         guard let currentState = state else {
             fatalError("Call reset() before step()")
         }
-        
+
         precondition(action >= 0 && action < 3, "Invalid action: \(action). Must be 0, 1, or 2.")
-        
+
         var position = currentState[0].item(Float.self)
         var velocity = currentState[1].item(Float.self)
-        
+
         // velocity += (action - 1) * force + cos(3 * position) * (-gravity)
         velocity += Float(action - 1) * force + cos(3 * position) * (-gravity)
         velocity = min(max(velocity, -maxSpeed), maxSpeed)
-        
+
         position += velocity
         position = min(max(position, minPosition), maxPosition)
-        
+
         // If at left boundary and moving left, stop
         if position == minPosition && velocity < 0 {
             velocity = 0
         }
-        
+
         self.state = MLXArray([position, velocity] as [Float32])
-        
+
         let terminated = position >= goalPosition && velocity >= goalVelocity
-        
+
         // Reward is -1 for each step
         let reward: Double = -1.0
-        
+
         return Step(
             obs: self.state!,
             reward: reward,
@@ -166,44 +167,47 @@ public struct MountainCar: Env {
             info: [:]
         )
     }
-    
+
     /// Reset the environment to an initial state.
     ///
     /// - Parameters:
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<
+        Observation
+    > {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {
             self._key = MLX.key(UInt64.random(in: 0...UInt64.max))
         }
-        
+
         let (stepKey, nextKey) = MLX.split(key: self._key!)
         self._key = nextKey
-        
+
         // Random starting position in [-0.6, -0.4], velocity = 0
-        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(Float.self)
+        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(
+            Float.self)
         let velocity: Float = 0.0
-        
+
         self.state = MLXArray([position, velocity] as [Float32])
-        
+
         return Reset(obs: self.state!, info: [:])
     }
-    
+
     /// Render the environment.
     ///
     /// - Returns: A `MountainCarView` for human mode, `nil` otherwise.
     public func render() -> Any? {
-        guard let mode = render_mode else { return nil }
-        
+        guard let mode = renderMode else { return nil }
+
         switch mode {
         case "human":
             #if canImport(SwiftUI)
-            return MountainCarView(snapshot: self.currentSnapshot)
+                return MountainCarView(snapshot: self.currentSnapshot)
             #else
-            return nil
+                return nil
             #endif
         case "rgb_array":
             return nil
@@ -211,7 +215,7 @@ public struct MountainCar: Env {
             return nil
         }
     }
-    
+
     public var currentSnapshot: MountainCarSnapshot {
         guard let s = state else { return MountainCarSnapshot.zero }
         let position = s[0].item(Float.self)
@@ -224,7 +228,7 @@ public struct MountainCar: Env {
             goalPosition: goalPosition
         )
     }
-    
+
     public static func height(at position: Float) -> Float {
         return sin(3 * position) * 0.45 + 0.55
     }
@@ -236,7 +240,7 @@ public struct MountainCarSnapshot: Sendable, Equatable {
     public let minPosition: Float
     public let maxPosition: Float
     public let goalPosition: Float
-    
+
     public static let zero = MountainCarSnapshot(
         position: -0.5,
         velocity: 0,
@@ -244,11 +248,11 @@ public struct MountainCarSnapshot: Sendable, Equatable {
         maxPosition: 0.6,
         goalPosition: 0.5
     )
-    
+
     public var height: Float {
         MountainCar.height(at: position)
     }
-    
+
     public var goalHeight: Float {
         MountainCar.height(at: goalPosition)
     }

@@ -236,10 +236,10 @@ public final class FrozenLake: Env {
     public typealias ObservationSpace = Discrete
     public typealias ActionSpace = Discrete
 
-    public let action_space: Discrete
-    public let observation_space: Discrete
+    public let actionSpace: Discrete
+    public let observationSpace: Discrete
     public var spec: EnvSpec?
-    public var render_mode: String?
+    public var renderMode: String?
     
     private let descMatrix: [[Character]]
     private let nrow: Int
@@ -278,13 +278,13 @@ public final class FrozenLake: Env {
     }
 
     public init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         desc: [String]? = nil,
         map_name: String = "4x4",
         isSlippery: Bool = true,
         successRate: Float = (1.0 / 3.0)
     ) {
-        self.render_mode = render_mode
+        self.renderMode = renderMode
         let reward_schedule: (Double, Double, Double) = (1.0, 0.0, 0.0)
 
         var mapDesc: [String]
@@ -303,8 +303,8 @@ public final class FrozenLake: Env {
 
         let nA: Int = 4
         let nS: Int = nrow * ncol
-        self.observation_space = Discrete(n: nS)
-        self.action_space = Discrete(n: nA)
+        self.observationSpace = Discrete(n: nS)
+        self.actionSpace = Discrete(n: nA)
 
         var startStateLogits: [Float] = [Float](repeating: -Float.infinity, count: nS)
         var s_count: Int = 0
@@ -397,13 +397,13 @@ public final class FrozenLake: Env {
     }
 
     public convenience init(
-        render_mode: String? = nil,
+        renderMode: String? = nil,
         desc: [String]? = nil,
         map_name: String = "4x4",
         isSlippery: Bool = true
     ) {
         self.init(
-            render_mode: render_mode,
+            renderMode: renderMode,
             desc: desc,
             map_name: map_name,
             isSlippery: isSlippery,
@@ -459,9 +459,9 @@ public final class FrozenLake: Env {
 
     @discardableResult
     public func render() -> Any? {
-        guard let mode = render_mode else {
+        guard let mode = renderMode else {
             if let specId = spec?.id {
-                print("[Gymnazo] render() called without render_mode. Set render_mode when creating \(specId).")
+                print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
             }
             return nil
         }
@@ -483,7 +483,7 @@ public final class FrozenLake: Env {
             return nil
             #endif
         default:
-            print("[Gymnazo] Unsupported render_mode \(mode).")
+            print("[Gymnazo] Unsupported renderMode \(mode).")
             return nil
         }
     }

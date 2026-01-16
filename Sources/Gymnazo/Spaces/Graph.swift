@@ -1,7 +1,7 @@
 import MLX
 
 /// A type-erased view of a ``Graph`` space.
-public protocol AnyGraphSpace: Space where T == GraphSample {
+public protocol AnyGraphSpace: Space<GraphSample> {
     var maxNodes: Int { get }
     var maxEdges: Int { get }
     var allowSelfLoops: Bool { get }

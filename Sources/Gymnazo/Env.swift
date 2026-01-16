@@ -6,15 +6,15 @@ public protocol Env<Observation, Action> {
     associatedtype Observation
     associatedtype Action
 
-    associatedtype ObservationSpace: Space where ObservationSpace.T == Observation
-    associatedtype ActionSpace: Space where ActionSpace.T == Action
+    associatedtype ObservationSpace: Space<Observation>
+    associatedtype ActionSpace: Space<Action>
 
-    var action_space: ActionSpace { get }
-    var observation_space: ObservationSpace { get }
+    var actionSpace: ActionSpace { get }
+    var observationSpace: ObservationSpace { get }
     var spec: EnvSpec? { get set }
-    var render_mode: String? { get set }
+    var renderMode: String? { get set }
 
-    var unwrapped: any Env { get }
+    var unwrapped: any Env<Observation, Action> { get }
 
     mutating func step(_ action: Action) -> Step<Observation>
 
@@ -145,7 +145,7 @@ extension Env {
         )
     }
 
-    public var unwrapped: any Env {
+    public var unwrapped: any Env<Observation, Action> {
         self
     }
 

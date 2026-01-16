@@ -4,13 +4,8 @@
 
 /// Wrapper that runs passive validation on the first reset/step/render call to ensure
 /// the environment conforms to Gymnazo's API expectations.
-public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
-    public typealias Observation = InnerEnv.Observation
-    public typealias Action = InnerEnv.Action
-    public typealias ObservationSpace = InnerEnv.ObservationSpace
-    public typealias ActionSpace = InnerEnv.ActionSpace
-
-    public var env: InnerEnv
+public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
+    public var env: BaseEnv
 
     private var cachedSpec: EnvSpec?
     private var checkedReset = false
@@ -18,12 +13,12 @@ public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
     private var checkedRender = false
     private var closeCalled = false
 
-    public required init(env: InnerEnv) {
+    public required init(env: BaseEnv) {
         self.env = env
         PassiveEnvChecks.ensureSpacesExist(for: env)
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
         if !checkedStep {
             checkedStep = true
             return PassiveEnvChecks.step(env: &env, action: action)
@@ -31,7 +26,7 @@ public final class PassiveEnvChecker<InnerEnv: Env>: Wrapper {
         return env.step(action)
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
+    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
         if !checkedReset {
             checkedReset = true
             cachedSpec = nil
