@@ -5,5 +5,4 @@ xcuserdata/
 DerivedData/
 package.xcworkspace/
 .netrc
-Box2D.xcscheme
-Gymnazo.xcscheme
+.swiftpm/
