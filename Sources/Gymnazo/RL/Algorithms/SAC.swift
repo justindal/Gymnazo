@@ -52,8 +52,14 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         entCoef: EntropyCoef = .auto(),
         targetEntropy: Float? = nil,
         seed: UInt64? = nil
-    ) where Environment == AnyEnv {
-        let wrapped = asAnyEnv(env)
+    ) throws where Environment == AnyEnv<MLXArray, MLXArray> {
+        guard let typed = env as? any Env<MLXArray, MLXArray> else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "Env<MLXArray, MLXArray>",
+                actual: String(describing: type(of: env))
+            )
+        }
+        let wrapped = AnyEnv(typed)
 
         self.init(
             observationSpace: wrapped.observationSpace,
@@ -128,8 +134,8 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     }
 
     public init(
-        observationSpace: any Space,
-        actionSpace: any Space,
+        observationSpace: any Space<MLXArray>,
+        actionSpace: any Space<MLXArray>,
         env: Environment? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
         networksConfig: SACNetworksConfig = SACNetworksConfig(),
@@ -184,18 +190,19 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     }
 
     @discardableResult
-    public func learn(totalTimesteps: Int) -> Self {
+    public func learn(totalTimesteps: Int) throws -> Self {
         self.totalTimesteps = totalTimesteps
         self.numTimesteps = 0
 
         setupReplayBuffer()
 
         guard var environment = env else {
-            preconditionFailure(
-                "SAC.learn requires an environment. Set env before calling learn().")
+            throw GymnazoError.invalidState(
+                "SAC.learn requires an environment. Set env before calling learn()."
+            )
         }
 
-        var lastObs = environment.reset().obs
+        var lastObs = try environment.reset().obs
         var numCollectedSteps = 0
         var numCollectedEpisodes = 0
         var stepsSinceLastTrain = 0
@@ -220,7 +227,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
                     mask: nil,
                     probability: nil
                 )
-                envAction = actionToMLXArray(sampledAction)
+                envAction = try actionToMLXArray(sampledAction)
                 bufferAction = actor.scaleAction(envAction)
             } else {
                 if config.sdeSupported && actor.useSDE && config.sdeSampleFreq > 0 {
@@ -237,12 +244,12 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
                 envAction = actor.unscaleAction(bufferAction)
             }
 
-            let stepResult = environment.step(envAction)
+            let stepResult = try environment.step(envAction)
             let reward = Float(stepResult.reward)
             let terminated = stepResult.terminated
             let truncated = stepResult.truncated
 
-            let bufferNextObs = stepResult.final?.terminalObservation ?? stepResult.obs
+            let bufferNextObs = stepResult.info["final_observation"]?.cast(MLXArray.self) ?? stepResult.obs
 
             storeTransition(
                 obs: lastObs,
@@ -254,7 +261,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
             )
 
             if terminated || truncated {
-                lastObs = nextObsAfterEpisodeEnd(
+                lastObs = try nextObsAfterEpisodeEnd(
                     stepResult: stepResult, environment: &environment)
                 numCollectedEpisodes += 1
                 if config.sdeSupported && actor.useSDE {
@@ -327,22 +334,11 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     private func nextObsAfterEpisodeEnd(
         stepResult: Step<MLXArray>,
         environment: inout Environment
-    ) -> MLXArray {
-        guard let final = stepResult.final else {
-            return environment.reset().obs
-        }
-
-        switch final.autoReset {
-        case .none:
-            return environment.reset().obs
-        case .willResetOnNextStep:
-            return environment.reset().obs
-        case .didReset(let observation, _):
-            return observation
-        }
+    ) throws -> MLXArray {
+        return try environment.reset().obs
     }
 
-    private func actionToMLXArray(_ action: Any) -> MLXArray {
+    private func actionToMLXArray(_ action: Any) throws -> MLXArray {
         if let arr = action as? MLXArray {
             return arr
         } else if let floats = action as? [Float] {
@@ -354,7 +350,10 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         } else if let num = action as? Double {
             return MLXArray([Float(num)])
         }
-        preconditionFailure("Unsupported action type: \(type(of: action))")
+        throw GymnazoError.invalidActionType(
+            expected: String(describing: MLXArray.self),
+            actual: String(describing: type(of: action))
+        )
     }
 
     public func train(gradientSteps: Int, batchSize: Int) {

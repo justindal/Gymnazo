@@ -52,8 +52,8 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
     public let config: Configuration
 
     public var bufferSize: Int { config.bufferSize }
-    public let observationSpace: any Space
-    public let actionSpace: any Space
+    public let observationSpace: any Space<MLXArray>
+    public let actionSpace: any Space<MLXArray>
     public let numEnvs: Int
 
     private var observations: [Obs?]
@@ -69,8 +69,8 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
     public var count: Int { isBufferFull ? bufferSize : position }
 
     public init(
-        observationSpace: any Space,
-        actionSpace: any Space,
+        observationSpace: any Space<MLXArray>,
+        actionSpace: any Space<MLXArray>,
         config: Configuration,
         numEnvs: Int = 1
     ) {
