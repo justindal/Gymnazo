@@ -36,12 +36,8 @@ public struct ShapeReward<BaseEnv: Env>: Wrapper where BaseEnv.Observation == ML
         self.shaper = shaper
     }
 
-    public init(env: BaseEnv) {
-        fatalError("Must provide shaper function")
-    }
-
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
         eval(result.obs)
         let shapedReward = shaper(result.reward, result.obs, result.terminated)
         return Step(
@@ -53,7 +49,7 @@ public struct ShapeReward<BaseEnv: Env>: Wrapper where BaseEnv.Observation == ML
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation> {
-        env.reset(seed: seed, options: options)
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+        try env.reset(seed: seed, options: options)
     }
 }

@@ -25,13 +25,13 @@ public struct NormalizeReward<BaseEnv: Env>: Wrapper {
         self.init(env: env, gamma: 0.99, epsilon: 1e-8)
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
         returns = 0
-        return env.reset(seed: seed, options: options)
+        return try env.reset(seed: seed, options: options)
     }
 
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
 
         returns = gamma * returns + result.reward
         rms.update(returns)

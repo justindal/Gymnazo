@@ -19,25 +19,25 @@ public final class OrderEnforcing<BaseEnv: Env>: Wrapper {
         self.disableRenderOrderEnforcing = disableRenderOrderEnforcing
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
         hasReset = true
         cachedSpec = nil
-        return env.reset(seed: seed, options: options)
+        return try env.reset(seed: seed, options: options)
     }
 
-    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
+    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
         guard hasReset else {
-            fatalError("OrderEnforcing: Cannot call env.step() before env.reset().")
+            throw GymnazoError.stepBeforeReset
         }
-        return env.step(action)
+        return try env.step(action)
     }
 
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard disableRenderOrderEnforcing || hasReset else {
-            fatalError("OrderEnforcing: Cannot call env.render() before env.reset().")
+            throw GymnazoError.renderBeforeReset
         }
-        return env.render()
+        return try env.render()
     }
 
     public var spec: EnvSpec? {
@@ -50,7 +50,7 @@ public final class OrderEnforcing<BaseEnv: Env>: Wrapper {
                 return nil
             }
 
-            envSpec.order_enforce = true
+            envSpec.orderEnforce = true
             cachedSpec = envSpec
             return envSpec
         }

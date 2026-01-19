@@ -2,7 +2,6 @@
 public protocol TransformingWrapper<BaseEnv>: Env {
     associatedtype BaseEnv: Env
     var env: BaseEnv { get set }
-    init(env: BaseEnv)
 }
 
 public extension TransformingWrapper {
@@ -11,7 +10,7 @@ public extension TransformingWrapper {
         set { env.spec = newValue }
     }
 
-    var renderMode: String? {
+    var renderMode: RenderMode? {
         get { env.renderMode }
         set { env.renderMode = newValue }
     }
@@ -20,17 +19,12 @@ public extension TransformingWrapper {
         env.unwrapped
     }
 
-    func close() {
+    mutating func close() {
         env.close()
     }
 
     @discardableResult
-    func render() -> Any? {
-        env.render()
+    func render() throws -> RenderOutput? {
+        try env.render()
     }
 }
-
-public extension TransformingWrapper where ActionSpace == BaseEnv.ActionSpace {
-    var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
-}
-

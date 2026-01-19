@@ -18,30 +18,30 @@ public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
         PassiveEnvChecks.ensureSpacesExist(for: env)
     }
 
-    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
+    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
         if !checkedStep {
             checkedStep = true
-            return PassiveEnvChecks.step(env: &env, action: action)
+            return try PassiveEnvChecks.step(env: &env, action: action)
         }
-        return env.step(action)
+        return try env.step(action)
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
         if !checkedReset {
             checkedReset = true
             cachedSpec = nil
-            return PassiveEnvChecks.reset(env: &env, seed: seed, options: options)
+            return try PassiveEnvChecks.reset(env: &env, seed: seed, options: options)
         }
-        return env.reset(seed: seed, options: options)
+        return try env.reset(seed: seed, options: options)
     }
 
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         if !checkedRender {
             checkedRender = true
-            PassiveEnvChecks.render(env: &env)
+            try PassiveEnvChecks.render(env: &env)
         }
-        return env.render()
+        return try env.render()
     }
 
     public func close() {
@@ -63,7 +63,7 @@ public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
                 return nil
             }
 
-            envSpec.disable_env_checker = false
+            envSpec.disableEnvChecker = false
             cachedSpec = envSpec
             return envSpec
         }

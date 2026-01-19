@@ -13,12 +13,8 @@ public struct TransformReward<BaseEnv: Env>: Wrapper {
         self.transform = transform
     }
 
-    public init(env: BaseEnv) {
-        fatalError("Must provide transform function")
-    }
-
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
         return Step(
             obs: result.obs,
             reward: transform(result.reward),
@@ -28,8 +24,7 @@ public struct TransformReward<BaseEnv: Env>: Wrapper {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation>
-    {
-        env.reset(seed: seed, options: options)
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+        try env.reset(seed: seed, options: options)
     }
 }

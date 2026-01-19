@@ -9,30 +9,24 @@ import MLX
 public protocol Wrapper<BaseEnv>: Env
 where
     Observation == BaseEnv.Observation,
-    Action == BaseEnv.Action,
-    ObservationSpace == BaseEnv.ObservationSpace,
-    ActionSpace == BaseEnv.ActionSpace
+    Action == BaseEnv.Action
 {
     associatedtype BaseEnv: Env
 
     /// "inner" environment instance.
     var env: BaseEnv { get set }
-
-    /// requires that all wrappers can be initialized with the
-    /// environment they are wrapping.
-    init(env: BaseEnv)
 }
 
 /// This extension provides the "pass-through" logic. By default,
 /// a Wrapper just forwards all calls and properties to its
 /// inner `env`.
 extension Wrapper {
-    public var actionSpace: BaseEnv.ActionSpace {
-        return env.actionSpace
+    public var actionSpace: any Space<Action> {
+        env.actionSpace
     }
 
-    public var observationSpace: BaseEnv.ObservationSpace {
-        return env.observationSpace
+    public var observationSpace: any Space<Observation> {
+        env.observationSpace
     }
 
     public var spec: EnvSpec? {
@@ -40,32 +34,32 @@ extension Wrapper {
         set { env.spec = newValue }
     }
 
-    public var renderMode: String? {
+    public var renderMode: RenderMode? {
         get { env.renderMode }
         set { env.renderMode = newValue }
     }
 
     public var unwrapped: any Env {
-        return env.unwrapped
+        env.unwrapped
     }
 
-    public mutating func step(_ action: Action) -> Step<Observation> {
-        return env.step(action)
+    public mutating func step(_ action: Action) throws -> Step<Observation> {
+        try env.step(action)
     }
 
     public mutating func reset(
         seed: UInt64?,
-        options: [String: Any]?
-    ) -> Reset<Observation> {
-        return env.reset(seed: seed, options: options)
+        options: EnvOptions?
+    ) throws -> Reset<Observation> {
+        try env.reset(seed: seed, options: options)
     }
 
-    public func close() {
-        return env.close()
+    public mutating func close() {
+        env.close()
     }
 
     @discardableResult
-    public func render() -> Any? {
-        return env.render()
+    public func render() throws -> RenderOutput? {
+        try env.render()
     }
 }

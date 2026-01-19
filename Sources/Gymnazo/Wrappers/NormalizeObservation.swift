@@ -14,16 +14,16 @@ public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observat
     
     private let rms: RunningMeanStdMLX
     
-    public init(env: BaseEnv) {
+    public init(env: BaseEnv) throws {
         self.env = env
         guard let shape = env.observationSpace.shape else {
-            fatalError("NormalizeObservation requires an observation space with a defined shape")
+            throw GymnazoError.invalidObservationSpace
         }
         self.rms = RunningMeanStdMLX(shape: shape)
     }
     
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
         
@@ -36,8 +36,8 @@ public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observat
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
-        let result = env.reset(seed: seed, options: options)
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+        let result = try env.reset(seed: seed, options: options)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
         
