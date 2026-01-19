@@ -20,10 +20,10 @@ Note: `RecordEpisodeStatistics` is **not** applied by default. Enable it explici
 import Gymnazo
 
 // Create environment with default wrappers
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 
 // Customize wrapper behavior
-var env = Gymnazo.make(
+var env = try await Gymnazo.make(
     "CartPole",
     maxEpisodeSteps: 500,           // Override default time limit
     disableEnvChecker: true,        // Disable PassiveEnvChecker
@@ -31,7 +31,7 @@ var env = Gymnazo.make(
 )
 
 // Use maxEpisodeSteps: -1 to disable TimeLimit entirely
-var env = Gymnazo.make("CartPole", maxEpisodeSteps: -1)
+var env = try await Gymnazo.make("CartPole", maxEpisodeSteps: -1)
 ```
 
 ## Chainable Wrapper Extensions
@@ -42,12 +42,13 @@ Gymnazo provides chainable extension methods for applying wrappers beyond what `
 import Gymnazo
 
 // Start with make() for default wrappers, then add extras
-var env = Gymnazo.make("MountainCarContinuous")
+var env = try await Gymnazo.make("MountainCarContinuous")
+env = try env
     .actionsRescaled(from: (-1.0, 1.0))  // Rescale agent outputs
     .observationsNormalized()             // Normalize observations
 
 // Or for custom setups without make()
-let env = CartPole()
+let env = try CartPole()
     .validated(maxSteps: 500)       // Standard wrapper stack
     .observationsTransformed { $0 / 10.0 }  // Custom normalization
 ```
@@ -58,7 +59,8 @@ Wrappers are applied inside-out—the **last wrapper in the chain processes call
 
 ```swift
 // Example: Adding observation normalization to an environment
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
+env = try env
     .observationsNormalized()  // Applied after make()'s wrappers
 ```
 
@@ -67,7 +69,7 @@ Call flow: `Your code → NormalizeObservation → [make() wrappers] → CartPol
 > **Tip:** Use `.validated(maxSteps:)` when not using `make()` to apply the standard stack (PassiveEnvChecker + OrderEnforcing + TimeLimit):
 >
 > ```swift
-> let env = CartPole()
+> let env = try CartPole()
 >     .validated(maxSteps: 500)
 >     .observationsNormalized()
 > ```
@@ -99,7 +101,7 @@ You can also use constructor syntax directly:
 import Gymnazo
 
 var env = CartPole()
-let wrapped = TimeLimit(env: env, maxEpisodeSteps: 500)
+let wrapped = try TimeLimit(env: env, maxEpisodeSteps: 500)
 ```
 
 ## Available Wrappers
@@ -109,11 +111,11 @@ let wrapped = TimeLimit(env: env, maxEpisodeSteps: 500)
 Truncates episodes after a maximum number of steps:
 
 ```swift
-var env = TimeLimit(env: CartPole(), maxEpisodeSteps: 200)
+var env = try TimeLimit(env: CartPole(), maxEpisodeSteps: 200)
 
 // After 200 steps, truncated will be true
-let _ = env.reset()
-let step = env.step(0)
+let _ = try env.reset()
+let step = try env.step(0)
 let truncated = step.truncated
 ```
 
@@ -123,10 +125,10 @@ Tracks episode returns, lengths, and timing. **Not applied by default** - enable
 
 ```swift
 // Enable via make()
-var env = Gymnazo.make("CartPole", recordEpisodeStatistics: true)
+var env = try await Gymnazo.make("CartPole", recordEpisodeStatistics: true)
 
 // Or apply manually
-var env = RecordEpisodeStatistics(env: CartPole(), bufferLength: 100)
+var env = try RecordEpisodeStatistics(env: CartPole(), bufferLength: 100)
 
 // Run some episodes...
 
@@ -141,7 +143,7 @@ When an episode ends, the statistics are also added to the step's info dictionar
 
 ```swift
 let action = 0
-let result = env.step(action)
+let result = try env.step(action)
 if result.terminated || result.truncated {
     if let stats = result.info["episode"] as? [String: Any] {
         let episodeReturn = stats["r"] as! Double
@@ -162,8 +164,8 @@ let action = 0
 // This will trigger an assertion failure:
 // env.step(0)  // Error: reset() not called
 
-let _ = env.reset()
-let _ = env.step(action)  // OK
+let _ = try env.reset()
+let _ = try env.step(action)  // OK
 ```
 
 ### PassiveEnvChecker
@@ -174,8 +176,8 @@ Validates environment API compliance during runtime. Applied by default via `Gym
 var env = PassiveEnvChecker(env: CartPole())
 
 // Automatically checks:
-// - Observation matches observation_space
-// - Action is valid for action_space
+// - Observation matches observationSpace
+// - Action is valid for actionSpace
 // - Return types are correct
 ```
 
@@ -200,7 +202,7 @@ var env = TransformObservation(
 Normalizes observations using running mean and standard deviation:
 
 ```swift
-var env = NormalizeObservation(env: CartPole())
+var env = try NormalizeObservation(env: CartPole())
 
 // Observations are automatically normalized to approximately N(0, 1)
 ```
@@ -213,7 +215,7 @@ Clips continuous actions to the action space bounds:
 var env = ClipAction(env: MountainCarContinuous())
 
 // Actions outside [-1, 1] are automatically clipped
-let clippedStep = env.step(MLXArray([2.0]))  // Clipped to 1.0
+let clippedStep = try env.step(MLXArray([2.0]))  // Clipped to 1.0
 ```
 
 ### RescaleAction
@@ -239,8 +241,8 @@ import Gymnazo
 
 var env = CartPole()
 let checked = PassiveEnvChecker(env: env)
-let limited = TimeLimit(env: checked, maxEpisodeSteps: 500)
-let recorded = RecordEpisodeStatistics(env: limited)
+let limited = try TimeLimit(env: checked, maxEpisodeSteps: 500)
+let recorded = try RecordEpisodeStatistics(env: limited)
 // Use `recorded` - it's the outermost wrapper
 ```
 
@@ -284,8 +286,8 @@ public final class RewardScaler<InnerEnv: Env>: Wrapper {
         self.scale = scale
     }
 
-    public func step(_ action: Action) -> StepResult {
-        let result = env.step(action)
+    public func step(_ action: Action) throws -> StepResult {
+        let result = try env.step(action)
         return (
             obs: result.obs,
             reward: result.reward * scale,
@@ -304,13 +306,13 @@ var env = RewardScaler(env: CartPole(), scale: 0.01)
 
 ### FlattenObservation
 
-Flattens observations into a 1D `MLXArray` and updates the observation space to a flat `Box`. This wrapper only works when `flatten_space(env.observation_space)` returns a `Box`. For `SequenceSpace` and `Graph`, `flatten_space` preserves the structured space instead of forcing a single `Box`.
+Flattens observations into a 1D `MLXArray` and updates the observation space to a flat `Box`. This wrapper only works when `flatten_space(env.observationSpace)` returns a `Box`. For `SequenceSpace` and `Graph`, `flatten_space` preserves the structured space instead of forcing a single `Box`.
 
 ```swift
 import Gymnazo
 
-var env = FrozenLake().observationsFlattened()
-let reset = env.reset(seed: 0)
+var env = try FrozenLake().observationsFlattened()
+let reset = try env.reset(seed: 0)
 let obs = reset.obs
 ```
 
@@ -321,7 +323,7 @@ Applies a custom function to each reward.
 ```swift
 import Gymnazo
 
-var env = CartPole().rewardsTransformed { $0 * 2 }
+var env = try CartPole().rewardsTransformed { $0 * 2 }
 ```
 
 ### NormalizeReward
@@ -331,7 +333,7 @@ Normalizes rewards using a running return variance estimate.
 ```swift
 import Gymnazo
 
-var env = CartPole().rewardsNormalized()
+var env = try CartPole().rewardsNormalized()
 ```
 
 ### AutoReset

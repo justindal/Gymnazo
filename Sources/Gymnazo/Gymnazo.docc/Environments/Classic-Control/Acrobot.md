@@ -46,7 +46,7 @@ Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("Acrobot", kwargs: [
+let env = try await Gymnazo.make("Acrobot", options: [
     "render_mode": "human",
     "torque_noise_max": 0.0
 ])

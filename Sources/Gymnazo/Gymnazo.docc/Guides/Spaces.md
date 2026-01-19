@@ -4,8 +4,8 @@ Spaces describe the set of valid actions and observations for an environment.
 
 Every ``Env`` has:
 
-- `env.action_space` (actions your agent can take)
-- `env.observation_space` (observations the environment can emit)
+- `env.actionSpace` (actions your agent can take)
+- `env.observationSpace` (observations the environment can emit)
 
 ## Sampling and validation
 

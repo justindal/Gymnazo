@@ -16,13 +16,13 @@ Example (``Pendulum``):
 import Gymnazo
 import MLX
 
-let env = Gymnazo.make("Pendulum")
+let env = try await Gymnazo.make("Pendulum")
 
-let model = SAC(
+let model = try SAC(
     env: env
 )
 
-model.learn(totalTimesteps: 100_000)
+try model.learn(totalTimesteps: 100_000)
 ```
 
 ## Topics

@@ -6,7 +6,7 @@ The key building blocks in Gymnazo are **environments**, **spaces**, and **wrapp
 
 An environment conforms to ``Env`` and defines:
 
-- An `action_space` and `observation_space`
+- An `actionSpace` and `observationSpace`
 - `reset(seed:options:)` → ``Reset`` (initial observation + info)
 - `step(_:)` → ``Step`` (next observation + reward + termination flags + info)
 
@@ -14,14 +14,14 @@ An environment conforms to ``Env`` and defines:
 import Gymnazo
 import MLX
 
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 
-let reset = env.reset(seed: 42, options: nil)
+let reset = try env.reset(seed: 42, options: nil)
 var done = false
 
 while !done {
-    let action = env.action_space.sample(key: MLX.key(0))
-    let step = env.step(action)
+    let action = env.actionSpace.sample(key: MLX.key(0))
+    let step = try env.step(action)
     done = step.terminated || step.truncated
 }
 ```

@@ -8,13 +8,13 @@ Gymnazo follows the Gymnasium API, making it familiar to anyone who has used the
 
 ## Creating an Environment
 
-Use the `Gymnazo` registry to create environments by their ID:
+Use `Gymnazo` to create environments by their ID:
 
 ```swift
 import Gymnazo
 
 // Create an environment
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 ```
 
 See <doc:Environments> to learn more about the included environments.
@@ -28,8 +28,8 @@ import Gymnazo
 import MLX
 
 // Reset the environment
-var env = Gymnazo.make("CartPole")
-let reset = env.reset()
+var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+let reset = try env.reset()
 var observation = reset.obs
 var key = MLX.key(42)
 
@@ -38,10 +38,10 @@ var done = false
 
 while !done {
     // Sample a random action
-    let action = env.action_space.sample(key: key)
+    let action = env.actionSpace.sample(key: key)
 
     // Take a step
-    let step = env.step(action)
+    let step = try env.step(action)
 
     totalReward += step.reward
     observation = step.obs
@@ -55,31 +55,31 @@ print("Episode finished with reward: \(totalReward)")
 
 For parallel training, use vector environments to run multiple instances simultaneously.
 
-The easiest way is with `Gymnazo.make_vec(...)`:
+The easiest way is with `Gymnazo.makeVec(...)`:
 
 ```swift
 import Gymnazo
 
-// Create 4 CartPole environments using make_vec
-let vecEnv = Gymnazo.make_vec("CartPole", numEnvs: 4)
+// Create 4 CartPole environments using makeVec
+let vecEnv: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
 
 // Reset all environments at once
-let reset = vecEnv.reset(seed: 42)
+let reset = try vecEnv.reset(seed: 42)
 // reset.observations.shape == [4, 4] for 4 envs with 4-dimensional observations
 
 // Step all environments with batched actions
-let result = vecEnv.step([1, 0, 1, 0])
+let result = try vecEnv.step([1, 0, 1, 0])
 ```
 
-For async execution, use `Gymnazo.make_vec_async(...)`:
+For async execution, use `Gymnazo.makeVecAsync(...)`:
 
 ```swift
 import Gymnazo
 
-let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
+let asyncEnv: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
 
 // Use stepAsync for parallel execution
-let result = await asyncEnv.stepAsync([1, 0, 1, 0])
+let result = try await asyncEnv.stepAsync([1, 0, 1, 0])
 ```
 
 See <doc:Vector-Environments> for more details.
@@ -98,10 +98,10 @@ Note: `RecordEpisodeStatistics` is **not** applied by default. Enable it explici
 import Gymnazo
 
 // Default wrappers applied
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 
 // Customize wrapper behavior
-var env = Gymnazo.make(
+var env = try await Gymnazo.make(
     "CartPole",
     maxEpisodeSteps: 500,           // Override default time limit
     disableEnvChecker: true,        // Disable API validation
@@ -109,13 +109,13 @@ var env = Gymnazo.make(
 )
 
 // Use maxEpisodeSteps: -1 to disable TimeLimit entirely
-var env = Gymnazo.make("CartPole", maxEpisodeSteps: -1)
+var env = try await Gymnazo.make("CartPole", maxEpisodeSteps: -1)
 ```
 
 You can also apply wrappers manually using chainable extensions:
 
 ```swift
-let env = CartPole()
+let env = try CartPole()
     .validated()
     .recordingStatistics()
     .timeLimited(500)

@@ -7,23 +7,23 @@ Gymnazo uses a registry (similar to Gymnasium) so you can create environments by
 ```swift
 import Gymnazo
 
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 ```
 
-## Keyword arguments (`kwargs`)
+## Options
 
 Some environments accept additional keyword arguments (for example, render mode or physics parameters):
 
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("LunarLander", kwargs: [
+let env = try await Gymnazo.make("LunarLander", options: [
     "render_mode": "rgb_array",
     "enable_wind": false
 ])
 ```
 
-`kwargs` is a `[String: Any]` dictionary, and each environment validates and interprets supported keys.
+`options` is an `EnvOptions` dictionary, and each environment validates and interprets supported keys.
 
 ## Default wrappers applied by `make`
 
@@ -40,39 +40,36 @@ import MLX
 struct MyEnv: Env {
     typealias Observation = MLXArray
     typealias Action = Int
-    typealias ObservationSpace = Box
-    typealias ActionSpace = Discrete
-
-    var action_space: Discrete { Discrete(2) }
-    var observation_space: Box { Box(low: -1, high: 1, shape: [4]) }
+    var actionSpace: Discrete { Discrete(2) }
+    var observationSpace: Box { Box(low: -1, high: 1, shape: [4]) }
     var spec: EnvSpec?
-    var render_mode: String?
+    var renderMode: RenderMode?
 
-    mutating func step(_ action: Int) -> Step<MLXArray> {
+    mutating func step(_ action: Int) throws -> Step<MLXArray> {
         Step(obs: MLXArray.zeros([4]), reward: 0, terminated: false, truncated: false)
     }
 
-    mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<MLXArray> {
+    mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
         Reset(obs: MLXArray.zeros([4]))
     }
 }
 
-register(id: "MyEnv") { _ in
+await Gymnazo.register(id: "MyEnv", entryPoint: { _ in
     MyEnv()
-}
+})
 
-let env = Gymnazo.make("MyEnv")
+let env = try await Gymnazo.make("MyEnv")
 ```
 
 ## Topics
 
 ### Creating and Registering
 
-- ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(String,_,_,_,_,_,_,_)``
-- ``make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:kwargs:)-(EnvSpec,_,_,_,_,_,_,_)``
-- ``register(id:entryPoint:maxEpisodeSteps:rewardThreshold:nondeterministic:)``
+- ``Gymnazo/make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:options:)-(String,_,_,_,_,_,_,_)``
+- ``Gymnazo/make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:options:)-(EnvSpec,_,_,_,_,_,_,_)``
+- ``Gymnazo/register(id:entryPoint:maxEpisodeSteps:rewardThreshold:nondeterministic:)``
 
 ### Vector Creation
 
-- ``make_vec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``
-- ``make_vec_async(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:kwargs:)``
+- ``Gymnazo/makeVec(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:options:)``
+- ``Gymnazo/makeVecAsync(_:numEnvs:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:autoresetMode:options:)``

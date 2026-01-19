@@ -69,5 +69,6 @@ Gymnazo provides a collection of environments and utilities for developing and t
 
 ### Registration
 
+- ``Gymnazo``
 - ``EnvSpec``
-- ``GymnazoRegistrations``
+- ``EnvOptions``

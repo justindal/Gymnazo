@@ -36,7 +36,7 @@ The reward is the negative of a quadratic cost on angle, angular velocity, and t
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("Pendulum", kwargs: [
+let env = try await Gymnazo.make("Pendulum", options: [
     "render_mode": "human",
     "g": 10.0
 ])

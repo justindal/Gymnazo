@@ -40,7 +40,7 @@ Terminates when the player busts or when the player sticks and the dealer finish
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("Blackjack", kwargs: [
+let env = try await Gymnazo.make("Blackjack", options: [
     "render_mode": "human",
     "natural": false,
     "sab": false

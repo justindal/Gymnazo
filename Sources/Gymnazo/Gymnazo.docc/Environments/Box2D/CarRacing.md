@@ -59,7 +59,7 @@ The episode finishes when all the tiles are visited. The car can also go outside
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("CarRacing", kwargs: [
+let env = await Gymnazo.make("CarRacing", options: [
     "render_mode": "rgb_array",
     "lap_complete_percent": 0.95,
     "domain_randomize": false
@@ -74,7 +74,7 @@ For discrete actions, use `CarRacingDiscrete` instead:
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("CarRacingDiscrete", kwargs: [
+let env = await Gymnazo.make("CarRacingDiscrete", options: [
     "render_mode": "rgb_array"
 ])
 ```
