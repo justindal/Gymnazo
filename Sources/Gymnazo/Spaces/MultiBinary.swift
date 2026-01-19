@@ -46,7 +46,7 @@ public struct MultiBinary: Space {
     }
 }
 
-extension MultiBinary: MLXSpace {
+extension MultiBinary: TensorSpace {
     /// Samples `count` binary arrays and returns a batched tensor of shape `[count] + shape`.
     public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
         precondition(count >= 0, "count must be non-negative")

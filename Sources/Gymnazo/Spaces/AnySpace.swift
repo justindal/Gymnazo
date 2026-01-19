@@ -1,61 +1,31 @@
 import MLX
 
-/// A type-erased wrapper around any ``MLXSpace``.
-public struct AnySpace: MLXSpace {
-    public typealias T = MLXArray
+/// A type-erased wrapper around any Space.
+public struct AnySpace<Element>: Space {
+    public typealias T = Element
 
-    public let shape: [Int]?
-    public let dtype: DType?
+    public let base: any Space<Element>
 
-    /// The underlying (non-erased) space.
-    ///
-    /// This is useful when downstream code needs to recover concrete types
-    /// like `Box` to access bounds (`low`/`high`), etc.
-    public let base: any MLXSpace
+    public var shape: [Int]? { base.shape }
+    public var dtype: DType? { base.dtype }
 
-    private let sampleFn: (MLXArray, MLXArray?, MLXArray?) -> MLXArray
-    private let containsFn: (MLXArray) -> Bool
-    private let sampleBatchFn: (MLXArray, Int) -> MLXArray
-
-    public init<S: MLXSpace>(_ space: S) {
+    public init(_ space: any Space<Element>) {
         self.base = space
-        self.shape = space.shape
-        self.dtype = space.dtype
-        self.sampleFn = { key, mask, probability in
-            space.sample(key: key, mask: mask, probability: probability)
-        }
-        self.containsFn = { x in
-            space.contains(x)
-        }
-        self.sampleBatchFn = { key, count in
-            space.sampleBatch(key: key, count: count)
-        }
     }
 
-    public init(_ space: any MLXSpace) {
+    public init<S: Space>(_ space: S) where S.T == Element {
         self.base = space
-        self.shape = space.shape
-        self.dtype = space.dtype
-        self.sampleFn = { key, mask, probability in
-            space.sample(key: key, mask: mask, probability: probability)
-        }
-        self.containsFn = { x in
-            space.contains(x)
-        }
-        self.sampleBatchFn = { key, count in
-            space.sampleBatch(key: key, count: count)
-        }
     }
 
-    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
-        sampleFn(key, mask, probability)
+    public func sample(
+        key: MLXArray,
+        mask: MLXArray?,
+        probability: MLXArray?
+    ) -> Element {
+        base.sample(key: key, mask: mask, probability: probability)
     }
 
-    public func contains(_ x: MLXArray) -> Bool {
-        containsFn(x)
-    }
-
-    public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
-        sampleBatchFn(key, count)
+    public func contains(_ x: Element) -> Bool {
+        base.contains(x)
     }
 }

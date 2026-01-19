@@ -4,7 +4,7 @@ import MLX
 public protocol AnySequenceSpace: Space<SequenceSample> {
     var minLength: Int { get }
     var maxLength: Int { get }
-    var elementSpace: any MLXSpace { get }
+    var elementSpace: any TensorSpace { get }
 }
 
 /// A padded, fixed-shape representation of a variable-length sequence.
@@ -27,7 +27,7 @@ public struct SequenceSample {
 }
 
 /// A space representing variable-length sequences of elements from an inner space.
-public struct SequenceSpace<Inner: MLXSpace>: Space {
+public struct SequenceSpace<Inner: TensorSpace>: Space {
     public typealias T = SequenceSample
 
     public let space: Inner
@@ -129,5 +129,5 @@ public struct SequenceSpace<Inner: MLXSpace>: Space {
 }
 
 extension SequenceSpace: AnySequenceSpace {
-    public var elementSpace: any MLXSpace { space }
+    public var elementSpace: any TensorSpace { space }
 }

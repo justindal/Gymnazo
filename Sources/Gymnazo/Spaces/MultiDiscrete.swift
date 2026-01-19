@@ -36,7 +36,7 @@ public struct MultiDiscrete: Space {
     }
 }
 
-extension MultiDiscrete: MLXSpace {
+extension MultiDiscrete: TensorSpace {
     public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
         precondition(count >= 0, "count must be non-negative")
         guard let elementShape = self.shape else {
