@@ -2,7 +2,7 @@ import Testing
 @testable import Gymnazo
 
 /// wrapper specialized to FrozenLake that injects a flag into info to verify that
-/// additional_wrappers are applied by Gymnazo.make(spec:).
+/// additionalWrappers are applied by Gymnazo.make(spec:).
 final class FrozenLakeInfoTagWrapper: Wrapper {
     typealias InnerEnv = FrozenLake
     
@@ -22,8 +22,8 @@ final class FrozenLakeInfoTagWrapper: Wrapper {
         self.tagValue = tagValue
     }
     
-    func step(_ action: Int) -> Step<Observation> {
-        let r = env.step(action)
+    func step(_ action: Int) throws -> Step<Observation> {
+        let r = try env.step(action)
         var info = r.info
         info[tagKey] = tagValue
         return Step(obs: r.obs, reward: r.reward, terminated: r.terminated, truncated: r.truncated, info: info)
@@ -35,9 +35,13 @@ struct AdditionalWrappersTests {
     @Test
     @MainActor
     func testAdditionalWrapperApplied() async throws {
-        _ = Gymnazo.make("FrozenLake", kwargs: ["is_slippery": false])
-        
-        guard var baseSpec = Gymnazo.registry["FrozenLake"] else {
+        let _: AnyEnv<Int, Int> = try await Gymnazo.make(
+            "FrozenLake",
+            options: ["is_slippery": false]
+        )
+
+        let specs = await Gymnazo.registry()
+        guard var baseSpec = specs["FrozenLake"] else {
             #expect(Bool(false), "FrozenLake spec missing")
             return
         }
@@ -64,19 +68,18 @@ struct AdditionalWrappersTests {
                 }
                 return FrozenLakeInfoTagWrapper(env: fl, tagKey: key, tagValue: value)
             },
-            kwargs: ["key": "extra", "value": "ok"]
+            options: ["key": "extra", "value": "ok"]
         )
         
-        baseSpec.additional_wrappers = [wrapperSpec]
+        baseSpec.additionalWrappers = [wrapperSpec]
         
-        let env = Gymnazo.make(
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
             baseSpec,
             recordEpisodeStatistics: false,
-            kwargs: ["is_slippery": false]
+            options: ["is_slippery": false]
         )
         
-        // validate that the requested wrapper is present on the applied spec
-        let hasWrapper = env.spec?.additional_wrappers.contains(where: { $0.id == "info-tag" }) ?? false
+        let hasWrapper = env.spec?.additionalWrappers.contains(where: { $0.id == "info-tag" }) ?? false
         #expect(hasWrapper)
     }
 }

@@ -2,39 +2,63 @@
 // Registration.swift
 //
 
-public typealias EnvCreator = @Sendable ([String: Any]) -> any Env
+public struct EnvOptions: Sendable, ExpressibleByDictionaryLiteral {
+    public var storage: [String: any Sendable]
 
-public struct WrapperSpec {
-    public let id: String
-    /// entry point that, given an inner environment and kwargs, returns a wrapped environment.
-    public let entryPoint: (any Env, [String: Any]) -> any Env
-    public var kwargs: [String: Any] = [:]
-}
-
-public struct EnvSpec {
-    public let id: String
-
-    public enum EntryPoint {
-        case creator(EnvCreator)
-        case string(String)
+    public init(_ storage: [String: any Sendable] = [:]) {
+        self.storage = storage
     }
 
-    public var entry_point: EntryPoint?
+    public init(dictionaryLiteral elements: (String, any Sendable)...) {
+        var values: [String: any Sendable] = [:]
+        values.reserveCapacity(elements.count)
+        for (key, value) in elements {
+            values[key] = value
+        }
+        self.storage = values
+    }
 
-    // environment attributes
+    public subscript(_ key: String) -> (any Sendable)? {
+        get { storage[key] }
+        set { storage[key] = newValue }
+    }
+
+    public var isEmpty: Bool { storage.isEmpty }
+    public var count: Int { storage.count }
+}
+
+public struct WrapperSpec: Sendable {
+    public let id: String
+    public let entryPoint: @Sendable (any Env, EnvOptions) throws -> any Env
+    public var options: EnvOptions = [:]
+
+    public init(
+        id: String,
+        entryPoint: @escaping @Sendable (any Env, EnvOptions) throws -> any Env,
+        options: EnvOptions = [:]
+    ) {
+        self.id = id
+        self.entryPoint = entryPoint
+        self.options = options
+    }
+}
+
+public struct EnvSpec: Sendable {
+    public typealias EntryPoint = @Sendable (EnvOptions) throws -> any Env
+
+    public let id: String
+    public var entryPoint: EntryPoint
+
     public var rewardThreshold: Double? = nil
     public var nondeterministic: Bool = false
 
-    // wrappers
     public var maxEpisodeSteps: Int? = nil
-    public var order_enforce: Bool = true
-    public var disable_env_checker: Bool = false
+    public var orderEnforce: Bool = true
+    public var disableEnvChecker: Bool = false
 
-    // additional kwargs
-    public var kwargs: [String: Any] = [:]
+    public var options: EnvOptions = [:]
 
-    // applied wrappers
-    public var additional_wrappers: [WrapperSpec] = []
+    public var additionalWrappers: [WrapperSpec] = []
 
     public var namespace: String? {
         if let slashRange = id.range(of: "/") {
@@ -66,40 +90,50 @@ public struct EnvSpec {
 
     public init(
         id: String,
-        entry_point: EntryPoint? = nil,
+        entryPoint: @escaping EntryPoint,
         rewardThreshold: Double? = nil,
         nondeterministic: Bool = false,
         maxEpisodeSteps: Int? = nil,
-        order_enforce: Bool = true,
-        disable_env_checker: Bool = false,
-        kwargs: [String: Any] = [:],
-        additional_wrappers: [WrapperSpec] = []
+        orderEnforce: Bool = true,
+        disableEnvChecker: Bool = false,
+        options: EnvOptions = [:],
+        additionalWrappers: [WrapperSpec] = []
     ) {
         self.id = id
-        self.entry_point = entry_point
+        self.entryPoint = entryPoint
         self.rewardThreshold = rewardThreshold
         self.nondeterministic = nondeterministic
         self.maxEpisodeSteps = maxEpisodeSteps
-        self.order_enforce = order_enforce
-        self.disable_env_checker = disable_env_checker
-        self.kwargs = kwargs
-        self.additional_wrappers = additional_wrappers
+        self.orderEnforce = orderEnforce
+        self.disableEnvChecker = disableEnvChecker
+        self.options = options
+        self.additionalWrappers = additionalWrappers
     }
 }
 
-/// register all built-in Gymnazo environments in one place.
-public final class GymnazoRegistrations {
-    public init(registerDefaults: Bool = true) {
-        if registerDefaults {
-            registerDefaultEnvironments()
-        }
-    }
-
+extension GymnazoRegistry {
     /// registers every environment bundled with Gymnazo.
     public func registerDefaultEnvironments() {
         registerToyText()
         registerClassicControl()
         registerBox2D()
+    }
+
+    private func registerIfNeeded(
+        id: String,
+        entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
+        maxEpisodeSteps: Int? = nil,
+        rewardThreshold: Double? = nil,
+        nondeterministic: Bool = false
+    ) {
+        guard !isRegistered(id) else { return }
+        register(
+            id: id,
+            entryPoint: entryPoint,
+            maxEpisodeSteps: maxEpisodeSteps,
+            rewardThreshold: rewardThreshold,
+            nondeterministic: nondeterministic
+        )
     }
 
     private func registerToyText() {
@@ -110,208 +144,195 @@ public final class GymnazoRegistrations {
     }
 
     private func registerFrozenLake() {
-        if !isRegistered("FrozenLake") {
-            register(
-                id: "FrozenLake",
-                entryPoint: { kwargs in
-                    GymnazoRegistrations.createFrozenLake(kwargs: kwargs, defaultMap: "4x4")
-                }, maxEpisodeSteps: 100)
-        }
+        registerIfNeeded(
+            id: "FrozenLake",
+            entryPoint: { options in
+                RegistrationSupport.createFrozenLake(options: options, defaultMap: "4x4")
+            },
+            maxEpisodeSteps: 100
+        )
 
-        if !isRegistered("FrozenLake8x8") {
-            register(
-                id: "FrozenLake8x8",
-                entryPoint: { kwargs in
-                    GymnazoRegistrations.createFrozenLake(kwargs: kwargs, defaultMap: "8x8")
-                }, maxEpisodeSteps: 200)
-        }
+        registerIfNeeded(
+            id: "FrozenLake8x8",
+            entryPoint: { options in
+                RegistrationSupport.createFrozenLake(options: options, defaultMap: "8x8")
+            },
+            maxEpisodeSteps: 200
+        )
     }
 
     private func registerBlackjack() {
-        if !isRegistered("Blackjack") {
-            register(
-                id: "Blackjack",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let natural = kwargs["natural"] as? Bool ?? false
-                    let sab = kwargs["sab"] as? Bool ?? false
-                    return Blackjack(renderMode: renderMode, natural: natural, sab: sab)
-                })
-        }
+        registerIfNeeded(
+            id: "Blackjack",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let natural = options["natural"] as? Bool ?? false
+                let sab = options["sab"] as? Bool ?? false
+                return Blackjack(renderMode: renderMode, natural: natural, sab: sab)
+            }
+        )
     }
 
     private func registerTaxi() {
-        if !isRegistered("Taxi") {
-            register(
-                id: "Taxi",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    return Taxi(renderMode: renderMode)
-                }, maxEpisodeSteps: 200)
-        }
+        registerIfNeeded(
+            id: "Taxi",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let isRainy = options["is_rainy"] as? Bool ?? false
+                let ficklePassenger = options["fickle_passenger"] as? Bool ?? false
+                return Taxi(
+                    renderMode: renderMode,
+                    isRainy: isRainy,
+                    ficklePassenger: ficklePassenger
+                )
+            },
+            maxEpisodeSteps: 200
+        )
     }
 
     private func registerCliffWalking() {
-        if !isRegistered("CliffWalking") {
-            register(
-                id: "CliffWalking",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    return CliffWalking(renderMode: renderMode)
-                }, maxEpisodeSteps: 200)
-        }
+        registerIfNeeded(
+            id: "CliffWalking",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let isSlippery = options["is_slippery"] as? Bool ?? false
+                return CliffWalking(renderMode: renderMode, isSlippery: isSlippery)
+            },
+            maxEpisodeSteps: 200
+        )
     }
 
     private func registerClassicControl() {
-        if !isRegistered("CartPole") {
-            register(
-                id: "CartPole",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    return CartPole(renderMode: renderMode)
-                }, maxEpisodeSteps: 500)
-        }
+        registerIfNeeded(
+            id: "CartPole",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                return CartPole(renderMode: renderMode)
+            },
+            maxEpisodeSteps: 500
+        )
 
-        if !isRegistered("MountainCar") {
-            register(
-                id: "MountainCar",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let goalVelocity = GymnazoRegistrations.floatValue(
-                        from: kwargs["goal_velocity"],
-                        default: 0.0
-                    )
-                    return MountainCar(renderMode: renderMode, goal_velocity: goalVelocity)
-                }, maxEpisodeSteps: 200)
-        }
+        registerIfNeeded(
+            id: "MountainCar",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let goalVelocity = RegistrationSupport.floatValue(
+                    from: options["goal_velocity"],
+                    default: 0.0
+                )
+                return MountainCar(renderMode: renderMode, goal_velocity: goalVelocity)
+            },
+            maxEpisodeSteps: 200
+        )
 
-        if !isRegistered("MountainCarContinuous") {
-            register(
-                id: "MountainCarContinuous",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let goalVelocity = GymnazoRegistrations.floatValue(
-                        from: kwargs["goal_velocity"],
-                        default: 0.0
-                    )
-                    return MountainCarContinuous(
-                        renderMode: renderMode, goal_velocity: goalVelocity)
-                }, maxEpisodeSteps: 999)
-        }
+        registerIfNeeded(
+            id: "MountainCarContinuous",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let goalVelocity = RegistrationSupport.floatValue(
+                    from: options["goal_velocity"],
+                    default: 0.0
+                )
+                return MountainCarContinuous(
+                    renderMode: renderMode,
+                    goal_velocity: goalVelocity
+                )
+            },
+            maxEpisodeSteps: 999
+        )
 
-        if !isRegistered("Acrobot") {
-            register(
-                id: "Acrobot",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let torqueNoiseMax = GymnazoRegistrations.floatValue(
-                        from: kwargs["torque_noise_max"], default: 0.0)
-                    return Acrobot(renderMode: renderMode, torque_noise_max: torqueNoiseMax)
-                }, maxEpisodeSteps: 500, rewardThreshold: -100)
-        }
+        registerIfNeeded(
+            id: "Acrobot",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let torqueNoiseMax = RegistrationSupport.floatValue(
+                    from: options["torque_noise_max"],
+                    default: 0.0
+                )
+                return Acrobot(renderMode: renderMode, torque_noise_max: torqueNoiseMax)
+            },
+            maxEpisodeSteps: 500,
+            rewardThreshold: -100
+        )
 
-        if !isRegistered("Pendulum") {
-            register(
-                id: "Pendulum",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let g = GymnazoRegistrations.floatValue(from: kwargs["g"], default: 10.0)
-                    return Pendulum(renderMode: renderMode, g: g)
-                }, maxEpisodeSteps: 200)
-        }
+        registerIfNeeded(
+            id: "Pendulum",
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                let g = RegistrationSupport.floatValue(from: options["g"], default: 10.0)
+                return Pendulum(renderMode: renderMode, g: g)
+            },
+            maxEpisodeSteps: 200
+        )
     }
 
     private func registerBox2D() {
-        if !isRegistered("LunarLander") {
-            register(
-                id: "LunarLander",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let gravity = GymnazoRegistrations.floatValue(
-                        from: kwargs["gravity"], default: -10.0)
-                    let enableWind = kwargs["enable_wind"] as? Bool ?? false
-                    let windPower = GymnazoRegistrations.floatValue(
-                        from: kwargs["wind_power"], default: 15.0)
-                    let turbulencePower = GymnazoRegistrations.floatValue(
-                        from: kwargs["turbulence_power"], default: 1.5)
+        registerIfNeeded(
+            id: "LunarLander",
+            entryPoint: { options in
+                let settings = RegistrationSupport.lunarLanderSettings(from: options)
+                return try LunarLander(
+                    renderMode: settings.renderMode,
+                    gravity: settings.gravity,
+                    enableWind: settings.enableWind,
+                    windPower: settings.windPower,
+                    turbulencePower: settings.turbulencePower
+                )
+            },
+            maxEpisodeSteps: 1000
+        )
 
-                    return LunarLander(
-                        renderMode: renderMode,
-                        gravity: gravity,
-                        enableWind: enableWind,
-                        windPower: windPower,
-                        turbulencePower: turbulencePower
-                    )
-                }, maxEpisodeSteps: 1000)
-        }
+        registerIfNeeded(
+            id: "LunarLanderContinuous",
+            entryPoint: { options in
+                let settings = RegistrationSupport.lunarLanderSettings(from: options)
+                return try LunarLanderContinuous(
+                    renderMode: settings.renderMode,
+                    gravity: settings.gravity,
+                    enableWind: settings.enableWind,
+                    windPower: settings.windPower,
+                    turbulencePower: settings.turbulencePower
+                )
+            },
+            maxEpisodeSteps: 1000
+        )
 
-        if !isRegistered("LunarLanderContinuous") {
-            register(
-                id: "LunarLanderContinuous",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let gravity = GymnazoRegistrations.floatValue(
-                        from: kwargs["gravity"], default: -10.0)
-                    let enableWind = kwargs["enable_wind"] as? Bool ?? false
-                    let windPower = GymnazoRegistrations.floatValue(
-                        from: kwargs["wind_power"], default: 15.0)
-                    let turbulencePower = GymnazoRegistrations.floatValue(
-                        from: kwargs["turbulence_power"], default: 1.5)
+        registerIfNeeded(
+            id: "CarRacing",
+            entryPoint: { options in
+                let settings = RegistrationSupport.carRacingSettings(from: options)
+                return CarRacing(
+                    renderMode: settings.renderMode,
+                    lapCompletePercent: settings.lapCompletePercent,
+                    domainRandomize: settings.domainRandomize
+                )
+            },
+            maxEpisodeSteps: 1000,
+            rewardThreshold: 900
+        )
 
-                    return LunarLanderContinuous(
-                        renderMode: renderMode,
-                        gravity: gravity,
-                        enableWind: enableWind,
-                        windPower: windPower,
-                        turbulencePower: turbulencePower
-                    )
-                }, maxEpisodeSteps: 1000)
-        }
-
-        if !isRegistered("CarRacing") {
-            register(
-                id: "CarRacing",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let lapCompletePercent = GymnazoRegistrations.floatValue(
-                        from: kwargs["lap_complete_percent"],
-                        default: 0.95
-                    )
-                    let domainRandomize = kwargs["domain_randomize"] as? Bool ?? false
-
-                    return CarRacing(
-                        renderMode: renderMode,
-                        lapCompletePercent: lapCompletePercent,
-                        domainRandomize: domainRandomize
-                    )
-                }, maxEpisodeSteps: 1000, rewardThreshold: 900)
-        }
-
-        if !isRegistered("CarRacingDiscrete") {
-            register(
-                id: "CarRacingDiscrete",
-                entryPoint: { kwargs in
-                    let renderMode = kwargs["render_mode"] as? String
-                    let lapCompletePercent = GymnazoRegistrations.floatValue(
-                        from: kwargs["lap_complete_percent"],
-                        default: 0.95
-                    )
-                    let domainRandomize = kwargs["domain_randomize"] as? Bool ?? false
-
-                    return CarRacingDiscrete(
-                        renderMode: renderMode,
-                        lapCompletePercent: lapCompletePercent,
-                        domainRandomize: domainRandomize
-                    )
-                }, maxEpisodeSteps: 1000, rewardThreshold: 900)
-        }
+        registerIfNeeded(
+            id: "CarRacingDiscrete",
+            entryPoint: { options in
+                let settings = RegistrationSupport.carRacingSettings(from: options)
+                return CarRacingDiscrete(
+                    renderMode: settings.renderMode,
+                    lapCompletePercent: settings.lapCompletePercent,
+                    domainRandomize: settings.domainRandomize
+                )
+            },
+            maxEpisodeSteps: 1000,
+            rewardThreshold: 900
+        )
     }
+}
 
-    private static func createFrozenLake(kwargs: [String: Any], defaultMap: String) -> FrozenLake {
-        let renderMode = kwargs["render_mode"] as? String
-        let mapName = kwargs["map_name"] as? String ?? defaultMap
-        let isSlippery = kwargs["is_slippery"] as? Bool ?? true
-        let desc = kwargs["desc"] as? [String]
+private struct RegistrationSupport {
+    static func createFrozenLake(options: EnvOptions, defaultMap: String) -> FrozenLake {
+        let renderMode = renderMode(from: options)
+        let mapName = options["map_name"] as? String ?? defaultMap
+        let isSlippery = options["is_slippery"] as? Bool ?? true
+        let desc = options["desc"] as? [String]
 
         return FrozenLake(
             renderMode: renderMode,
@@ -321,7 +342,46 @@ public final class GymnazoRegistrations {
         )
     }
 
-    private static func floatValue(from value: Any?, default defaultValue: Float) -> Float {
+    static func renderMode(from options: EnvOptions) -> RenderMode? {
+        if let mode = options["render_mode"] as? RenderMode {
+            return mode
+        }
+        if let raw = options["render_mode"] as? String {
+            return RenderMode(rawValue: raw)
+        }
+        return nil
+    }
+
+    static func lunarLanderSettings(from options: EnvOptions) -> (
+        renderMode: RenderMode?,
+        gravity: Float,
+        enableWind: Bool,
+        windPower: Float,
+        turbulencePower: Float
+    ) {
+        let renderMode = renderMode(from: options)
+        let gravity = floatValue(from: options["gravity"], default: -10.0)
+        let enableWind = options["enable_wind"] as? Bool ?? false
+        let windPower = floatValue(from: options["wind_power"], default: 15.0)
+        let turbulencePower = floatValue(from: options["turbulence_power"], default: 1.5)
+        return (renderMode, gravity, enableWind, windPower, turbulencePower)
+    }
+
+    static func carRacingSettings(from options: EnvOptions) -> (
+        renderMode: RenderMode?,
+        lapCompletePercent: Float,
+        domainRandomize: Bool
+    ) {
+        let renderMode = renderMode(from: options)
+        let lapCompletePercent = floatValue(
+            from: options["lap_complete_percent"],
+            default: 0.95
+        )
+        let domainRandomize = options["domain_randomize"] as? Bool ?? false
+        return (renderMode, lapCompletePercent, domainRandomize)
+    }
+
+    static func floatValue(from value: (any Sendable)?, default defaultValue: Float) -> Float {
         switch value {
         case let float as Float:
             return float

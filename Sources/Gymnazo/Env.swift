@@ -6,32 +6,26 @@ public protocol Env<Observation, Action> {
     associatedtype Observation
     associatedtype Action
 
-    associatedtype ObservationSpace: Space<Observation>
-    associatedtype ActionSpace: Space<Action>
-
-    var actionSpace: ActionSpace { get }
-    var observationSpace: ObservationSpace { get }
+    var actionSpace: any Space<Action> { get }
+    var observationSpace: any Space<Observation> { get }
     var spec: EnvSpec? { get set }
-    var renderMode: String? { get set }
+    var renderMode: RenderMode? { get set }
 
-    var unwrapped: any Env<Observation, Action> { get }
+    var unwrapped: any Env { get }
 
-    mutating func step(_ action: Action) -> Step<Observation>
+    mutating func step(_ action: Action) throws -> Step<Observation>
 
     /// resets the environment to an initial state, returning an initial observation and info.
     /// this generates a new starting state, often with some randomness controlled by the optional seed parameter.
     mutating func reset(
         seed: UInt64?,
-        options: [String: Any]?
-    ) -> Reset<Observation>
+        options: EnvOptions?
+    ) throws -> Reset<Observation>
 
-    /// renders the environment.
-    /// the return value depends on the `render_mode`.
-    /// - "ansi": returns a `String`
-    /// - "rgb_array": returns a `CGImage` (or platform equivalent)
-    /// - "human": returns `nil`
     @discardableResult
-    func render() -> Any?
+    func render() throws -> RenderOutput?
+
+    mutating func close()
 }
 
 public struct Step<Observation> {
@@ -40,46 +34,19 @@ public struct Step<Observation> {
     public var terminated: Bool
     public var truncated: Bool
     public var info: Info
-    public var final: EpisodeFinal<Observation>?
 
     public init(
         obs: Observation,
         reward: Double,
         terminated: Bool,
         truncated: Bool,
-        info: Info = Info(),
-        final: EpisodeFinal<Observation>? = nil
+        info: Info = Info()
     ) {
         self.obs = obs
         self.reward = reward
         self.terminated = terminated
         self.truncated = truncated
         self.info = info
-        self.final = final
-    }
-}
-
-/// Auto-reset transition information.
-public enum AutoResetTransition<Observation> {
-    case none
-    case willResetOnNextStep
-    case didReset(observation: Observation, info: Info)
-}
-
-/// Episode end information.
-public struct EpisodeFinal<Observation> {
-    public var terminalObservation: Observation
-    public var terminalInfo: Info
-    public var autoReset: AutoResetTransition<Observation>
-
-    public init(
-        terminalObservation: Observation,
-        terminalInfo: Info,
-        autoReset: AutoResetTransition<Observation> = .none
-    ) {
-        self.terminalObservation = terminalObservation
-        self.terminalInfo = terminalInfo
-        self.autoReset = autoReset
     }
 }
 
@@ -94,67 +61,26 @@ public struct Reset<Observation> {
 }
 
 extension Env {
-    /// override for `reset`
-    public mutating func reset(seed: UInt64) -> Reset<Observation> {
-        return self.reset(seed: seed, options: nil)
+    public mutating func reset(seed: UInt64) throws -> Reset<Observation> {
+        try self.reset(seed: seed, options: nil)
     }
 
-    /// override for `reset` with no seed
-    public mutating func reset() -> Reset<Observation> {
-        return self.reset(seed: nil, options: nil)
+    public mutating func reset() throws -> Reset<Observation> {
+        try self.reset(seed: nil, options: nil)
     }
 
-    public mutating func resetAny(seed: UInt64?, options: [String: Any]? = nil) -> Reset<Any> {
-        let result = reset(seed: seed, options: options)
-        return Reset(obs: result.obs as Any, info: result.info)
+    public mutating func reset(options: EnvOptions?) throws -> Reset<Observation> {
+        try self.reset(seed: nil, options: options)
     }
 
-    public mutating func stepAny(_ action: Any) -> Step<Any> {
-        guard let typedAction = action as? Action else {
-            fatalError(
-                "Invalid action type \(type(of: action)) for environment action type \(Action.self)"
-            )
-        }
-
-        let result = step(typedAction)
-
-        let anyFinal: EpisodeFinal<Any>? = result.final.map { f in
-            let anyAutoReset: AutoResetTransition<Any>
-            switch f.autoReset {
-            case .none:
-                anyAutoReset = .none
-            case .willResetOnNextStep:
-                anyAutoReset = .willResetOnNextStep
-            case .didReset(let obs, let info):
-                anyAutoReset = .didReset(observation: obs as Any, info: info)
-            }
-            return EpisodeFinal(
-                terminalObservation: f.terminalObservation as Any,
-                terminalInfo: f.terminalInfo,
-                autoReset: anyAutoReset
-            )
-        }
-
-        return Step(
-            obs: result.obs as Any,
-            reward: result.reward,
-            terminated: result.terminated,
-            truncated: result.truncated,
-            info: result.info,
-            final: anyFinal
-        )
-    }
-
-    public var unwrapped: any Env<Observation, Action> {
+    public var unwrapped: any Env {
         self
     }
 
     @discardableResult
-    public func render() -> Any? {
-        return nil
+    public func render() throws -> RenderOutput? {
+        nil
     }
 
-    public func close() {
-        // do nothing
-    }
+    public mutating func close() {}
 }

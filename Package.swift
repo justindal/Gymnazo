@@ -53,11 +53,7 @@ let package = Package(
             ],
             resources: [
                 .process("Resources")
-            ],
-            swiftSettings: [
-                .enableUpcomingFeature("StrictConcurrency")
             ]
-
         ),
         .testTarget(
             name: "GymnazoTests",

@@ -1,7 +1,3 @@
-//
-// FrozenLake.swift
-//
-
 import Foundation
 import MLX
 import CoreGraphics
@@ -233,13 +229,11 @@ public final class FrozenLake: Env {
 
     public typealias Observation = Int
     public typealias Action = Int
-    public typealias ObservationSpace = Discrete
-    public typealias ActionSpace = Discrete
 
-    public let actionSpace: Discrete
-    public let observationSpace: Discrete
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     public var spec: EnvSpec?
-    public var renderMode: String?
+    public var renderMode: RenderMode?
     
     private let descMatrix: [[Character]]
     private let nrow: Int
@@ -260,7 +254,7 @@ public final class FrozenLake: Env {
 
     private let initial_state_logits: MLXArray
 
-    private func prepareKey(with seed: UInt64?) -> MLXArray {
+    private func prepareKey(with seed: UInt64?) throws -> MLXArray {
         if let seed {
             self._seed = seed
             self._key = MLX.key(seed)
@@ -271,14 +265,14 @@ public final class FrozenLake: Env {
         }
 
         guard let key = self._key else {
-            fatalError("Failed to initialize RNG key")
+            throw GymnazoError.invalidState("Failed to initialize RNG key")
         }
 
         return key
     }
 
     public init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         desc: [String]? = nil,
         map_name: String = "4x4",
         isSlippery: Bool = true,
@@ -343,7 +337,7 @@ public final class FrozenLake: Env {
             let newLetter = mapChars[newRow][newCol]
             let terminated = "GH".contains(newLetter)
             
-            var reward = reward_schedule.2 // Frozen
+            var reward = reward_schedule.2
             if newLetter == "G" { reward = reward_schedule.0 }
             else if newLetter == "H" { reward = reward_schedule.1 }
             
@@ -360,26 +354,24 @@ public final class FrozenLake: Env {
                 let s = to_s(r, c)
                 for a_int in 0..<nA {
                     guard let a = FrozenLake.Direction(rawValue: a_int) else {
-                        fatalError("Invalid action index \(a_int)")
+                        continue
                     }
                     var li: [Transition] = []
                     let letter = mapChars[r][c]
                     
                     if "GH".contains(letter) {
-                        // Terminal state: 100% prob to stay, 0 reward, terminated
                         li.append((prob: 1.0, nextState: s, reward: 0.0, terminated: true))
                     } else {
                         if isSlippery {
                             for b_int in [(a_int - 1 + 4) % 4, a_int, (a_int + 1) % 4] {
                                 guard let b = FrozenLake.Direction(rawValue: b_int) else {
-                                    fatalError("Invalid action index \(b_int)")
+                                    continue
                                 }
                                 let p = (b == a) ? successProb : failProb
                                 let (s_new, r_new, t_new) = update_prob_matrix(r, c, b)
                                 li.append((prob: p, nextState: s_new, reward: r_new, terminated: t_new))
                             }
                         } else {
-                            // Not slippery
                             let (s_new, r_new, t_new) = update_prob_matrix(r, c, a)
                             li.append((prob: 1.0, nextState: s_new, reward: r_new, terminated: t_new))
                         }
@@ -397,7 +389,7 @@ public final class FrozenLake: Env {
     }
 
     public convenience init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         desc: [String]? = nil,
         map_name: String = "4x4",
         isSlippery: Bool = true
@@ -413,10 +405,10 @@ public final class FrozenLake: Env {
 
     public func reset(
         seed: UInt64? = nil,
-        options: [String : Any]? = nil
-    ) -> Reset<Observation> {
+        options: EnvOptions? = nil
+    ) throws -> Reset<Observation> {
         
-        let key = self.prepareKey(with: seed)
+        let key = try self.prepareKey(with: seed)
         
         let (resetKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
@@ -428,12 +420,15 @@ public final class FrozenLake: Env {
         return Reset(obs: self.s, info: ["prob": 1.0])
     }
 
-    public func step(_ action: Action) -> Step<Observation> {
-        
+    public func step(_ action: Action) throws -> Step<Observation> {
+
+        guard actionSpace.contains(action) else {
+            throw GymnazoError.invalidAction("Invalid action: \(action)")
+        }
         let transitions = self.P[self.s][action]
         
         guard let key = self._key else {
-            fatalError("Env must be seeded with reset(seed:)")
+            throw GymnazoError.invalidState("Env must be seeded with reset(seed:)")
         }
         let (stepKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
@@ -458,7 +453,7 @@ public final class FrozenLake: Env {
     }
 
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else {
             if let specId = spec?.id {
                 print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
@@ -467,23 +462,26 @@ public final class FrozenLake: Env {
         }
 
         switch mode {
-        case "ansi":
-            return _renderText()
-        case "human", "rgb_array":
+        case .ansi:
+            return .ansi(_renderText())
+        case .human, .rgbArray:
             #if canImport(SwiftUI)
             let snapshot = self.currentSnapshot
             let result = DispatchQueue.main.sync {
                 FrozenLake._renderGUI(snapshot: snapshot, mode: mode)
             }
-            if mode == "rgb_array" {
-                self.lastRGBFrame = result as! CGImage?
+            if mode == .rgbArray {
+                self.lastRGBFrame = result
             }
-            return result
+            if let image = result {
+                return .rgbArray(image)
+            }
+            return nil
             #else
             return nil
             #endif
-        default:
-            print("[Gymnazo] Unsupported renderMode \(mode).")
+        case .statePixels:
+            print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
         }
     }
@@ -506,19 +504,19 @@ public final class FrozenLake: Env {
     }
 
     @MainActor
-    private static func _renderGUI(snapshot: FrozenLakeRenderSnapshot, mode: String) -> Any? {
+    private static func _renderGUI(snapshot: FrozenLakeRenderSnapshot, mode: RenderMode) -> CGImage? {
 #if canImport(SwiftUI)
         let view = FrozenLakeCanvasView(snapshot: snapshot)
 
         switch mode {
-        case "human":
+        case .human:
 #if canImport(PlaygroundSupport)
             PlaygroundPage.current.setLiveView(view)
 #else
             print("[Gymnazo] SwiftUI Canvas available via FrozenLakeCanvasView; integrate it into your app UI.")
 #endif
             return nil
-        case "rgb_array":
+        case .rgbArray:
             if #available(macOS 13.0, iOS 16.0, *) {
                 let renderer = ImageRenderer(content: view)
 #if os(macOS)
@@ -531,7 +529,9 @@ public final class FrozenLake: Env {
                 print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
                 return nil
             }
-        default:
+        case .ansi:
+            return nil
+        case .statePixels:
             return nil
         }
 #else

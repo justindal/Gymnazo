@@ -6,8 +6,8 @@ public protocol AnyGraphSpace: Space<GraphSample> {
     var maxEdges: Int { get }
     var allowSelfLoops: Bool { get }
     var directed: Bool { get }
-    var nodeSpaceAny: any MLXSpace { get }
-    var edgeSpaceAny: any MLXSpace { get }
+    var nodeSpaceAny: any TensorSpace { get }
+    var edgeSpaceAny: any TensorSpace { get }
 }
 
 /// A padded, fixed-shape representation of a sampled graph.
@@ -36,7 +36,7 @@ public struct GraphSample {
 }
 
 /// A space representing graph-structured samples with node and edge features.
-public struct Graph<NodeSpace: MLXSpace, EdgeSpace: MLXSpace>: Space {
+public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space {
     public typealias T = GraphSample
 
     public let nodeSpace: NodeSpace
@@ -250,7 +250,7 @@ public struct Graph<NodeSpace: MLXSpace, EdgeSpace: MLXSpace>: Space {
 }
 
 extension Graph: AnyGraphSpace {
-    public var nodeSpaceAny: any MLXSpace { nodeSpace }
-    public var edgeSpaceAny: any MLXSpace { edgeSpace }
+    public var nodeSpaceAny: any TensorSpace { nodeSpace }
+    public var edgeSpaceAny: any TensorSpace { edgeSpace }
 }
 

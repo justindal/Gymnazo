@@ -4,19 +4,22 @@
 
 import MLX
 
-/// clips actions to the Box action space bounds before passing to the inner environment
-public final class ClipAction<BaseEnv: Env>: ActionWrapper<BaseEnv> where BaseEnv.ActionSpace == Box {
+/// Clips actions to the Box action space bounds before passing to the inner environment.
+public final class ClipAction<BaseEnv: Env>: ActionWrapper<BaseEnv>
+where BaseEnv.Action == MLXArray {
     public override func action(_ action: Action) -> Action {
-        let space = env.actionSpace
+        guard let space = env.actionSpace as? Box else {
+            fatalError("ClipAction requires a Box action space")
+        }
         let clippedLow = MLX.maximum(action, space.low)
         let clipped = MLX.minimum(clippedLow, space.high)
         return clipped
     }
 }
 
-/// rescales actions from a source range (default [-1, 1]) into the Box action space bounds.
-//  after rescaling, actions are clipped to the Box bounds
-public final class RescaleAction<BaseEnv: Env>: ActionWrapper<BaseEnv> where BaseEnv.ActionSpace == Box {
+/// Rescales actions from a source range (default [-1, 1]) into the Box action space bounds.
+public final class RescaleAction<BaseEnv: Env>: ActionWrapper<BaseEnv>
+where BaseEnv.Action == MLXArray {
     private let srcLow: Float
     private let srcHigh: Float
 
@@ -33,7 +36,9 @@ public final class RescaleAction<BaseEnv: Env>: ActionWrapper<BaseEnv> where Bas
     }
 
     public override func action(_ action: Action) -> Action {
-        let space = env.actionSpace
+        guard let space = env.actionSpace as? Box else {
+            fatalError("RescaleAction requires a Box action space")
+        }
         let srcLowArr = MLXArray(srcLow).asType(space.dtype ?? .float32)
         let srcHighArr = MLXArray(srcHigh).asType(space.dtype ?? .float32)
         let spanSrc = srcHighArr - srcLowArr

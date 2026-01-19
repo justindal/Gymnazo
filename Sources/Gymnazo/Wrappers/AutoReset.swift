@@ -1,7 +1,6 @@
 /// Automatically resets an environment when an episode ends.
 ///
-/// The wrapper sets `Step.final` with the terminal observation and autoreset
-/// transition information, for correct handling of episode information.
+/// The wrapper writes terminal observation and info into the info dictionary.
 public struct AutoReset<BaseEnv: Env>: Wrapper {
     public var env: BaseEnv
     public let mode: AutoresetMode
@@ -22,19 +21,18 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
         self.init(env: env, mode: .nextStep)
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<BaseEnv.Observation>
-    {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
         needsReset = false
-        return env.reset(seed: seed, options: options)
+        return try env.reset(seed: seed, options: options)
     }
 
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
         if needsReset && mode == .nextStep {
-            _ = env.reset(seed: nil, options: nil)
+            _ = try env.reset(seed: nil, options: nil)
             needsReset = false
         }
 
-        let result = env.step(action)
+        let result = try env.step(action)
         let done = result.terminated || result.truncated
 
         if !done {
@@ -47,36 +45,58 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
 
         if mode == .nextStep {
             needsReset = true
+            var info = result.info
+            if let value = sendableValue(result.obs) {
+                info["final_observation"] = value
+            }
+            info["final_info"] = .object(result.info.storage)
             return Step(
                 obs: result.obs,
                 reward: result.reward,
                 terminated: result.terminated,
                 truncated: result.truncated,
-                info: result.info,
-                final: EpisodeFinal(
-                    terminalObservation: result.obs,
-                    terminalInfo: result.info,
-                    autoReset: .willResetOnNextStep
-                )
+                info: info
             )
         }
 
         let terminalObs = result.obs
         let terminalInfo = result.info
-        let resetResult = env.reset(seed: nil, options: nil)
+        let resetResult = try env.reset(seed: nil, options: nil)
         needsReset = false
+
+        var info = resetResult.info
+        if let value = sendableValue(terminalObs) {
+            info["final_observation"] = value
+        }
+        info["final_info"] = .object(terminalInfo.storage)
 
         return Step(
             obs: resetResult.obs,
             reward: result.reward,
             terminated: result.terminated,
             truncated: result.truncated,
-            info: resetResult.info,
-            final: EpisodeFinal(
-                terminalObservation: terminalObs,
-                terminalInfo: terminalInfo,
-                autoReset: .didReset(observation: resetResult.obs, info: resetResult.info)
-            )
+            info: info
         )
+    }
+}
+
+private func sendableValue<Observation>(_ value: Observation) -> InfoValue? {
+    switch value {
+    case let v as Bool:
+        return .bool(v)
+    case let v as Int:
+        return .int(v)
+    case let v as Float:
+        return .double(Double(v))
+    case let v as Double:
+        return .double(v)
+    case let v as String:
+        return .string(v)
+    case let v as [InfoValue]:
+        return .array(v)
+    case let v as [String: InfoValue]:
+        return .object(v)
+    default:
+        return nil
     }
 }

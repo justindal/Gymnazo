@@ -1,8 +1,3 @@
-//
-//  MountainCarRenderer.swift
-//  Gymnazo
-//
-
 #if canImport(SwiftUI) && canImport(SpriteKit)
 import SwiftUI
 import SpriteKit
@@ -57,7 +52,7 @@ public class MountainCarScene: SKScene {
     }
     
     required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        return nil
     }
     
     public func resize(to newSize: CGSize) {

@@ -8,24 +8,21 @@ import MLX
 public struct TransformObservation<BaseEnv: Env>: Wrapper {
     public var env: BaseEnv
     public let transform: (BaseEnv.Observation) -> BaseEnv.Observation
-    public let observationSpace: BaseEnv.ObservationSpace
+    public let observationSpace: any Space<BaseEnv.Observation>
     
     public init(
         env: BaseEnv,
         transform: @escaping (BaseEnv.Observation) -> BaseEnv.Observation,
-        observationSpace: BaseEnv.ObservationSpace? = nil
+        observationSpace: (any Space<BaseEnv.Observation>)? = nil
     ) {
         self.env = env
         self.transform = transform
         self.observationSpace = observationSpace ?? env.observationSpace
     }
     
-    public init(env: BaseEnv) {
-        fatalError("Must provide transform function")
-    }
     
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
         return Step(
             obs: transform(result.obs),
             reward: result.reward,
@@ -34,9 +31,9 @@ public struct TransformObservation<BaseEnv: Env>: Wrapper {
             info: result.info
         )
     }
-    
-    public mutating func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
-        let result = env.reset(seed: seed, options: options)
+
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+        let result = try env.reset(seed: seed, options: options)
         return Reset(obs: transform(result.obs), info: result.info)
     }
 }

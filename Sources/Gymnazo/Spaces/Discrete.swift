@@ -28,7 +28,8 @@ public struct Discrete: Space {
         }
 
         if let mask: MLXArray = mask {
-            // ensure float32 to avoid GPU float64 issues
+            // ensure float32 to avoid GPU float64 issues 
+            // could also run on CPU, will add option later with MLX device option
             let zero32: MLXArray = MLXArray(0.0 as Float)
             let negInf32: MLXArray = MLXArray(-Float.infinity)
             let logits: MLXArray = MLX.which(mask.asType(.bool), zero32, negInf32)

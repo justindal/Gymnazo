@@ -1,31 +1,42 @@
 import Testing
+
 @testable import Gymnazo
 
 @Suite("Gymnazo wrappers and env basics")
 struct GymnazoTests {
+    func makeFrozenLake(isSlippery: Bool, renderMode: RenderMode? = nil) async throws -> FrozenLake {
+        var options: EnvOptions = ["is_slippery": isSlippery]
+        if let renderMode {
+            options["render_mode"] = renderMode.rawValue
+        }
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make("FrozenLake", options: options)
+        guard let frozenLake = env.unwrapped as? FrozenLake else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "FrozenLake",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return frozenLake
+    }
+
     @Test
     func testTimeLimitAndEpisodeStats() async throws {
-        // deterministic for stability
-        let env = FrozenLake(isSlippery: false)
-        let timeLimited = TimeLimit(env: env, maxEpisodeSteps: 1)
-        var recorder = RecordEpisodeStatistics(env: timeLimited, bufferLength: 10, statsKey: "episode")
-        _ = recorder.reset(seed: 42)
-        let result = recorder.step(1) // any action
+        let env = try await makeFrozenLake(isSlippery: false)
+        let timeLimited = try TimeLimit(env: env, maxEpisodeSteps: 1)
+        var recorder = try RecordEpisodeStatistics(
+            env: timeLimited, bufferLength: 10, statsKey: "episode")
+        _ = try recorder.reset(seed: 42)
+        let result = try recorder.step(1)
         #expect(result.truncated == true)
         #expect(result.terminated == false)
-        // stats should be appended on truncation
         #expect(result.info["episode"] != nil)
     }
 
     @Test
     @MainActor
     func testRenderPassThroughAnsi() async throws {
-        var env = Gymnazo.make(
-            "FrozenLake",
-            kwargs: ["render_mode": "ansi", "is_slippery": false]
-        )
-        _ = env.resetAny(seed: 123)
-        // should not crash; we don't assert output here.
-        env.render()
+        var env = try await makeFrozenLake(isSlippery: false, renderMode: .ansi)
+        _ = try env.reset(seed: 123)
+        try env.render()
     }
 }

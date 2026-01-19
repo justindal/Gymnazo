@@ -540,7 +540,7 @@ private func unflattenGraph(space: any AnyGraphSpace, flattened: GraphSample) ->
     )
 }
 
-private func flattenGraphValues(space: any MLXSpace, values: MLXArray, count: Int) -> MLXArray {
+private func flattenGraphValues(space: any TensorSpace, values: MLXArray, count: Int) -> MLXArray {
     if let box = space as? Box {
         let elementShape = box.shape ?? []
         let elementCount = elementShape.reduce(1, *)
@@ -582,7 +582,7 @@ private func flattenGraphValues(space: any MLXSpace, values: MLXArray, count: In
     return values.asType(.float32).reshaped([count, elementCount])
 }
 
-private func unflattenGraphValues(space: any MLXSpace, values: MLXArray, count: Int) -> MLXArray {
+private func unflattenGraphValues(space: any TensorSpace, values: MLXArray, count: Int) -> MLXArray {
     if let box = space as? Box {
         let elementShape = box.shape ?? []
         return values.asType(box.dtype ?? .float32).reshaped([count] + elementShape)

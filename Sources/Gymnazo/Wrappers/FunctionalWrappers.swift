@@ -11,16 +11,16 @@ open class ObservationWrapper<BaseEnv: Env>: Wrapper {
 
     /// Override to transform observations returned from the inner environment.
     open func observation(_ observation: BaseEnv.Observation) -> BaseEnv.Observation {
-        fatalError("observation(_:) must be overridden in a subclass")
+        observation
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
-        let result = env.reset(seed: seed, options: options)
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+        let result = try env.reset(seed: seed, options: options)
         return Reset(obs: observation(result.obs), info: result.info)
     }
 
-    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
         return Step(
             obs: observation(result.obs),
             reward: result.reward,
@@ -40,11 +40,11 @@ open class RewardWrapper<BaseEnv: Env>: Wrapper {
 
     /// override to transform the reward emitted by the inner environment.
     open func reward(_ reward: Double) -> Double {
-        fatalError("reward(_:) must be overridden in a subclass")
+        reward
     }
 
-    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
         return Step(
             obs: result.obs,
             reward: reward(result.reward),
@@ -64,10 +64,10 @@ open class ActionWrapper<BaseEnv: Env>: Wrapper {
 
     /// override to transform the incoming action before delegating to the inner environment.
     open func action(_ action: BaseEnv.Action) -> BaseEnv.Action {
-        fatalError("action(_:) must be overridden in a subclass")
+        action
     }
 
-    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        return env.step(self.action(action))
+    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        try env.step(self.action(action))
     }
 }

@@ -1,8 +1,3 @@
-//
-//  MountainCar.swift
-//  Gymnazo
-//
-
 import Foundation
 import MLX
 
@@ -90,14 +85,13 @@ public struct MountainCar: Env {
     public let force: Float = 0.001
     public let gravity: Float = 0.0025
 
-    // State: [position, velocity]
     public var state: MLXArray? = nil
 
-    public let actionSpace: Discrete
-    public let observationSpace: Box
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
 
     public var spec: EnvSpec? = nil
-    public var renderMode: String? = nil
+    public var renderMode: RenderMode? = nil
 
     private var _key: MLXArray?
 
@@ -108,14 +102,12 @@ public struct MountainCar: Env {
         ]
     }
 
-    public init(renderMode: String? = nil, goal_velocity: Float = 0.0) {
+    public init(renderMode: RenderMode? = nil, goal_velocity: Float = 0.0) {
         self.renderMode = renderMode
         self.goalVelocity = goal_velocity
 
-        // Action Space: 0 = push left, 1 = no push, 2 = push right
         self.actionSpace = Discrete(n: 3)
 
-        // Observation Space: [position, velocity]
         let low = MLXArray([minPosition, -maxSpeed] as [Float32])
         let high = MLXArray([maxPosition, maxSpeed] as [Float32])
 
@@ -130,24 +122,24 @@ public struct MountainCar: Env {
     ///
     /// - Parameter action: An action to take (0: left, 1: no push, 2: right).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
-    public mutating func step(_ action: Int) -> Step<Observation> {
+    public mutating func step(_ action: Int) throws -> Step<Observation> {
         guard let currentState = state else {
-            fatalError("Call reset() before step()")
+            throw GymnazoError.stepBeforeReset
         }
 
-        precondition(action >= 0 && action < 3, "Invalid action: \(action). Must be 0, 1, or 2.")
+        guard action >= 0 && action < 3 else {
+            throw GymnazoError.invalidAction("Invalid action: \(action). Must be 0, 1, or 2.")
+        }
 
         var position = currentState[0].item(Float.self)
         var velocity = currentState[1].item(Float.self)
 
-        // velocity += (action - 1) * force + cos(3 * position) * (-gravity)
         velocity += Float(action - 1) * force + cos(3 * position) * (-gravity)
         velocity = min(max(velocity, -maxSpeed), maxSpeed)
 
         position += velocity
         position = min(max(position, minPosition), maxPosition)
 
-        // If at left boundary and moving left, stop
         if position == minPosition && velocity < 0 {
             velocity = 0
         }
@@ -156,7 +148,6 @@ public struct MountainCar: Env {
 
         let terminated = position >= goalPosition && velocity >= goalVelocity
 
-        // Reward is -1 for each step
         let reward: Double = -1.0
 
         return Step(
@@ -174,7 +165,7 @@ public struct MountainCar: Env {
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<
         Observation
     > {
         if let seed {
@@ -186,7 +177,6 @@ public struct MountainCar: Env {
         let (stepKey, nextKey) = MLX.split(key: self._key!)
         self._key = nextKey
 
-        // Random starting position in [-0.6, -0.4], velocity = 0
         let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(
             Float.self)
         let velocity: Float = 0.0
@@ -198,20 +188,20 @@ public struct MountainCar: Env {
 
     /// Render the environment.
     ///
-    /// - Returns: A `MountainCarView` for human mode, `nil` otherwise.
-    public func render() -> Any? {
+    /// - Returns: A `MountainCarSnapshot` for human mode, `nil` otherwise.
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
 
         switch mode {
-        case "human":
+        case .human:
             #if canImport(SwiftUI)
-                return MountainCarView(snapshot: self.currentSnapshot)
+                return .other(self.currentSnapshot)
             #else
                 return nil
             #endif
-        case "rgb_array":
+        case .rgbArray:
             return nil
-        default:
+        case .ansi, .statePixels:
             return nil
         }
     }

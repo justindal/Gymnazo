@@ -37,7 +37,7 @@ public protocol Algorithm<PolicyType, EnvType> {
     var totalTimesteps: Int { get set }
 
     @discardableResult
-    mutating func learn(totalTimesteps: Int) -> Self
+    mutating func learn(totalTimesteps: Int) throws -> Self
 }
 
 extension Algorithm {

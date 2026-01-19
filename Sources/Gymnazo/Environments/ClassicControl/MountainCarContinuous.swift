@@ -1,8 +1,3 @@
-//
-//  MountainCarContinuous.swift
-//  Gymnazo
-//
-
 import Foundation
 import MLX
 #if canImport(SwiftUI)
@@ -89,11 +84,11 @@ public struct MountainCarContinuous: Env {
     
     public var state: MLXArray? = nil
     
-    public let actionSpace: Box
-    public let observationSpace: Box
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     
     public var spec: EnvSpec? = nil
-    public var renderMode: String? = nil
+    public var renderMode: RenderMode? = nil
     
     private var _key: MLXArray?
     
@@ -104,18 +99,16 @@ public struct MountainCarContinuous: Env {
         ]
     }
     
-    public init(renderMode: String? = nil, goal_velocity: Float = 0.0) {
+    public init(renderMode: RenderMode? = nil, goal_velocity: Float = 0.0) {
         self.renderMode = renderMode
         self.goalVelocity = goal_velocity
         
-        // Continuous action space: force in [-1.0, 1.0]
         self.actionSpace = Box(
             low: MLXArray([-1.0] as [Float32]),
             high: MLXArray([1.0] as [Float32]),
             dtype: .float32
         )
         
-        // Observation Space: [position, velocity]
         let low = MLXArray([minPosition, -maxSpeed] as [Float32])
         let high = MLXArray([maxPosition, maxSpeed] as [Float32])
         
@@ -130,9 +123,9 @@ public struct MountainCarContinuous: Env {
     ///
     /// - Parameter action: An `MLXArray` with shape `(1,)` representing the force to apply (clipped to `[-1, 1]`).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
-    public mutating func step(_ action: MLXArray) -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step<Observation> {
         guard let currentState = state else {
-            fatalError("Call reset() before step()")
+            throw GymnazoError.stepBeforeReset
         }
         
         var position = currentState[0].item(Float.self)
@@ -155,7 +148,6 @@ public struct MountainCarContinuous: Env {
         
         let terminated = position >= goalPosition && velocity >= goalVelocity
         
-        // Reward: 100 for reaching goal, minus action cost
         var reward: Double = 0.0
         if terminated {
             reward = 100.0
@@ -177,7 +169,7 @@ public struct MountainCarContinuous: Env {
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {
@@ -187,7 +179,6 @@ public struct MountainCarContinuous: Env {
         let (stepKey, nextKey) = MLX.split(key: self._key!)
         self._key = nextKey
         
-        // Random starting position in [-0.6, -0.4], velocity = 0
         let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(Float.self)
         let velocity: Float = 0.0
         
@@ -198,20 +189,20 @@ public struct MountainCarContinuous: Env {
     
     /// Render the environment.
     ///
-    /// - Returns: A `MountainCarView` for human mode, `nil` otherwise.
-    public func render() -> Any? {
+    /// - Returns: A `MountainCarSnapshot` for human mode, `nil` otherwise.
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
         
         switch mode {
-        case "human":
+        case .human:
             #if canImport(SwiftUI)
-            return MountainCarView(snapshot: self.currentSnapshot)
+            return .other(self.currentSnapshot)
             #else
             return nil
             #endif
-        case "rgb_array":
+        case .rgbArray:
             return nil
-        default:
+        case .ansi, .statePixels:
             return nil
         }
     }

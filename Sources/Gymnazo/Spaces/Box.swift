@@ -43,7 +43,6 @@ public struct Box: Space {
         self.shape = shape
         self.dtype = dtype
         
-        // Scalar bounds
         let count = shape.reduce(1, *)
         self.boundedBelow = [Bool](repeating: !low.isInfinite, count: count)
         self.boundedAbove = [Bool](repeating: !high.isInfinite, count: count)
@@ -62,10 +61,8 @@ public struct Box: Space {
 
     /// Create a Box with array bounds.
     public init(low: MLXArray, high: MLXArray, dtype: DType = .float32) {
-        // coerce dtype
         let lowC = low.asType(dtype)
         let highC = high.asType(dtype)
-        // validate shapes
         let ls = lowC.shape
         let hs = highC.shape
         precondition(ls == hs, "Box: low/high shapes must match")
@@ -79,7 +76,6 @@ public struct Box: Space {
         self.boundedBelow = flatLow.map { !$0.isInfinite }
         self.boundedAbove = flatHigh.map { !$0.isInfinite }
         
-        // Cache effective bounds as MLXArrays
         let (effLow, effHigh) = Box.computeEffectiveBounds(
             flatLow: flatLow,
             flatHigh: flatHigh,
@@ -119,9 +115,6 @@ public struct Box: Space {
         }
         let xC = x.asType(dtype ?? .float32)
         
-        // For comparison with infinity:
-        // x >= -inf is always true for finite x
-        // x <= +inf is always true for finite x
         let geLow = xC .>= low
         let leHigh = xC .<= high
         let mask = MLX.logicalAnd(geLow.asType(.bool), leHigh.asType(.bool))
@@ -147,7 +140,7 @@ public struct Box: Space {
     }
 }
 
-extension Box: MLXSpace {
+extension Box: TensorSpace {
     public func sampleBatch(key: MLXArray, count: Int) -> MLXArray {
         precondition(count >= 0, "count must be non-negative")
         let elementShape = shape ?? low.shape

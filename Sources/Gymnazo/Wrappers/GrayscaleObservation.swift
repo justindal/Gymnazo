@@ -43,16 +43,19 @@ import MLX
 /// - ``keepDim``
 public struct GrayscaleObservation<BaseEnv: Env>: Env
 where BaseEnv.Observation == MLXArray {
+    public typealias Observation = MLXArray
+    public typealias Action = BaseEnv.Action
+
     public var env: BaseEnv
     public let keepDim: Bool
-    public let observationSpace: Box
+    public let observationSpace: any Space<Observation>
 
-    public var actionSpace: BaseEnv.ActionSpace { env.actionSpace }
+    public var actionSpace: any Space<BaseEnv.Action> { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
     }
-    public var renderMode: String? {
+    public var renderMode: RenderMode? {
         get { env.renderMode }
         set { env.renderMode = newValue }
     }
@@ -62,7 +65,7 @@ where BaseEnv.Observation == MLXArray {
     /// - Parameters:
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, 3])
     ///   - keepDim: If true, output shape is [H, W, 1]. If false, output shape is [H, W].
-    public init(env: BaseEnv, keepDim: Bool = false) {
+    public init(env: BaseEnv, keepDim: Bool = false) throws {
         self.env = env
         self.keepDim = keepDim
 
@@ -71,7 +74,7 @@ where BaseEnv.Observation == MLXArray {
             shape.count == 3,
             shape[2] == 3
         else {
-            fatalError("GrayscaleObservation requires Box observation space with shape [H, W, 3]")
+            throw GymnazoError.invalidObservationSpace
         }
 
         let newShape: [Int] = keepDim ? [shape[0], shape[1], 1] : [shape[0], shape[1]]
@@ -83,8 +86,8 @@ where BaseEnv.Observation == MLXArray {
         )
     }
 
-    public mutating func step(_ action: BaseEnv.Action) -> Step<MLXArray> {
-        let result = env.step(action)
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<MLXArray> {
+        let result = try env.step(action)
         return Step(
             obs: toGrayscale(result.obs),
             reward: result.reward,
@@ -94,20 +97,19 @@ where BaseEnv.Observation == MLXArray {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: [String: Any]?) -> Reset<MLXArray> {
-        let result = env.reset(seed: seed, options: options)
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
+        let result = try env.reset(seed: seed, options: options)
         return Reset(obs: toGrayscale(result.obs), info: result.info)
     }
 
     public var unwrapped: any Env { env.unwrapped }
 
     @discardableResult
-    public func render() -> Any? { env.render() }
+    public func render() throws -> RenderOutput? { try env.render() }
 
-    public func close() { env.close() }
+    public mutating func close() { env.close() }
 
     private func toGrayscale(_ obs: MLXArray) -> MLXArray {
-        // ITU-R BT.601 standard weights
         let r = obs[.ellipsis, 0].asType(.float32)
         let g = obs[.ellipsis, 1].asType(.float32)
         let b = obs[.ellipsis, 2].asType(.float32)

@@ -36,22 +36,24 @@ public struct FrameSkip<BaseEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap
     ///   - skip: Number of times to repeat each action (must be >= 1)
-    public init(env: BaseEnv, skip: Int = 2) {
-        precondition(skip >= 1, "skip must be at least 1")
+    public init(env: BaseEnv, skip: Int = 2) throws {
+        guard skip >= 1 else {
+            throw GymnazoError.invalidFrameSkip(skip)
+        }
         self.env = env
         self.skip = skip
     }
     
-    public init(env: BaseEnv) {
-        self.init(env: env, skip: 2)
+    public init(env: BaseEnv) throws {
+        try self.init(env: env, skip: 2)
     }
     
-    public mutating func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
         var totalReward: Double = 0
         var lastResult: Step<BaseEnv.Observation>!
         
         for _ in 0..<skip {
-            lastResult = env.step(action)
+            lastResult = try env.step(action)
             totalReward += lastResult.reward
             
             if lastResult.terminated || lastResult.truncated {

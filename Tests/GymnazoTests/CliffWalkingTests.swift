@@ -1,19 +1,32 @@
-//
-// CliffWalkingTests.swift
-//
-
 import Testing
 @testable import Gymnazo
 
 @Suite("CliffWalking Environment Tests")
 struct CliffWalkingTests {
+    func makeCliffWalking(isSlippery: Bool? = nil, renderMode: RenderMode? = nil) async throws -> CliffWalking {
+        var options: EnvOptions = [:]
+        if let isSlippery {
+            options["is_slippery"] = isSlippery
+        }
+        if let renderMode {
+            options["render_mode"] = renderMode.rawValue
+        }
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make("CliffWalking", options: options)
+        guard let cliffWalking = env.unwrapped as? CliffWalking else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "CliffWalking",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return cliffWalking
+    }
     
     @Test("Reset always starts at state 36")
-    func testResetStartsAtState36() {
-        let env = CliffWalking()
+    func testResetStartsAtState36() async throws {
+        let env = try await makeCliffWalking()
         
         for seed in [42, 123, 999, 0, 12345] as [UInt64] {
-            let obs = env.reset(seed: seed).obs
+            let obs = try! env.reset(seed: seed).obs
             #expect(obs == CliffWalking.startState)
         }
     }
@@ -44,35 +57,45 @@ struct CliffWalkingTests {
     }
     
     @Test("Action space contains valid actions")
-    func testActionSpace() {
-        let env = CliffWalking()
-        
-        #expect(env.action_space.n == 4)
-        for action in 0..<4 {
-            #expect(env.action_space.contains(action))
+    func testActionSpace() async throws {
+        let env = try await makeCliffWalking()
+
+        guard let actionSpace = env.actionSpace as? Discrete else {
+            Issue.record("Action space is not Discrete")
+            return
         }
-        #expect(!env.action_space.contains(-1))
-        #expect(!env.action_space.contains(4))
+
+        #expect(actionSpace.n == 4)
+        for action in 0..<4 {
+            #expect(actionSpace.contains(action))
+        }
+        #expect(!actionSpace.contains(-1))
+        #expect(!actionSpace.contains(4))
     }
     
     @Test("Observation space contains valid states")
-    func testObservationSpace() {
-        let env = CliffWalking()
-        
-        #expect(env.observation_space.n == 48)
-        for state in 0..<48 {
-            #expect(env.observation_space.contains(state))
+    func testObservationSpace() async throws {
+        let env = try await makeCliffWalking()
+
+        guard let observationSpace = env.observationSpace as? Discrete else {
+            Issue.record("Observation space is not Discrete")
+            return
         }
-        #expect(!env.observation_space.contains(-1))
-        #expect(!env.observation_space.contains(48))
+
+        #expect(observationSpace.n == 48)
+        for state in 0..<48 {
+            #expect(observationSpace.contains(state))
+        }
+        #expect(!observationSpace.contains(-1))
+        #expect(!observationSpace.contains(48))
     }
     
     @Test("Moving up from start goes to row 2")
-    func testMoveUp() {
-        let env = CliffWalking()
-        _ = env.reset(seed: 42)
+    func testMoveUp() async throws {
+        let env = try await makeCliffWalking()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(0)
+        let result = try env.step(0)
         let obs = result.obs
         let reward = result.reward
         let terminated = result.terminated
@@ -84,11 +107,11 @@ struct CliffWalkingTests {
     }
     
     @Test("Moving left from start stays at start (wall collision)")
-    func testMoveLeftFromStart() {
-        let env = CliffWalking()
-        _ = env.reset(seed: 42)
+    func testMoveLeftFromStart() async throws {
+        let env = try await makeCliffWalking()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(3)
+        let result = try env.step(3)
         let obs = result.obs
         let reward = result.reward
         let terminated = result.terminated
@@ -99,11 +122,11 @@ struct CliffWalkingTests {
     }
     
     @Test("Stepping on cliff returns to start with -100 reward")
-    func testCliffPenalty() {
-        let env = CliffWalking()
-        _ = env.reset(seed: 42)
+    func testCliffPenalty() async throws {
+        let env = try await makeCliffWalking()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(1)
+        let result = try env.step(1)
         let obs = result.obs
         let reward = result.reward
         let terminated = result.terminated
@@ -114,12 +137,12 @@ struct CliffWalkingTests {
     }
     
     @Test("Multiple cliff steps always return to start")
-    func testMultipleCliffSteps() {
-        let env = CliffWalking()
+    func testMultipleCliffSteps() async throws {
+        let env = try await makeCliffWalking()
         
         for _ in 0..<5 {
-            _ = env.reset(seed: 42)
-            let result = env.step(1)
+            _ = try env.reset(seed: 42)
+            let result = try env.step(1)
             let obs = result.obs
             let reward = result.reward
             #expect(obs == CliffWalking.startState)
@@ -128,18 +151,18 @@ struct CliffWalkingTests {
     }
     
     @Test("Path to goal terminates episode")
-    func testPathToGoal() {
-        let env = CliffWalking()
-        _ = env.reset(seed: 42)
+    func testPathToGoal() async throws {
+        let env = try await makeCliffWalking()
+        _ = try env.reset(seed: 42)
         
-        _ = env.step(0)
+        _ = try env.step(0)
         
         for _ in 0..<11 {
-            let result = env.step(1)
+            let result = try env.step(1)
             if result.terminated { break }
         }
         
-        let result = env.step(2)
+        let result = try env.step(2)
         let obs = result.obs
         let terminated = result.terminated
         
@@ -148,9 +171,9 @@ struct CliffWalkingTests {
     }
     
     @Test("ANSI rendering includes grid symbols")
-    func testAnsiRendering() {
-        let env = CliffWalking(render_mode: "ansi")
-        _ = env.reset(seed: 42)
+    func testAnsiRendering() async throws {
+        let env = try await makeCliffWalking(renderMode: .ansi)
+        _ = try env.reset(seed: 42)
         
         let output = env.renderAnsi()
         
@@ -160,14 +183,14 @@ struct CliffWalkingTests {
     }
     
     @Test("Slippery mode creates stochastic transitions")
-    func testSlipperyMode() {
-        let env = CliffWalking(isSlippery: true)
+    func testSlipperyMode() async throws {
+        let env = try await makeCliffWalking(isSlippery: true)
         
         var outcomes: Set<Int> = []
         for seed in 0..<100 as Range<UInt64> {
-            _ = env.reset(seed: seed)
-            _ = env.step(0)
-            let obs = env.step(0).obs
+            _ = try env.reset(seed: seed)
+            _ = try env.step(0)
+            let obs = try env.step(0).obs
             outcomes.insert(obs)
         }
         
@@ -175,13 +198,13 @@ struct CliffWalkingTests {
     }
     
     @Test("Non-slippery mode is deterministic")
-    func testNonSlipperyDeterministic() {
-        let env = CliffWalking(isSlippery: false)
+    func testNonSlipperyDeterministic() async throws {
+        let env = try await makeCliffWalking(isSlippery: false)
         
         var outcomes: [Int] = []
         for seed in 0..<10 as Range<UInt64> {
-            _ = env.reset(seed: seed)
-            outcomes.append(env.step(0).obs)
+            _ = try env.reset(seed: seed)
+            outcomes.append(try env.step(0).obs)
         }
         
         let expected = CliffWalking.positionToState(row: 2, col: 0)
@@ -191,50 +214,53 @@ struct CliffWalkingTests {
     }
     
     @Test("Wall collision on top edge")
-    func testTopWallCollision() {
-        let env = CliffWalking()
-        _ = env.reset(seed: 42)
+    func testTopWallCollision() async throws {
+        let env = try await makeCliffWalking()
+        _ = try env.reset(seed: 42)
         
-        _ = env.step(0)
-        _ = env.step(0)
-        let obs1 = env.step(0).obs
+        _ = try env.step(0)
+        _ = try env.step(0)
+        let obs1 = try env.step(0).obs
         
         #expect(obs1 == CliffWalking.positionToState(row: 0, col: 0))
         
-        let obs2 = env.step(0).obs
+        let obs2 = try env.step(0).obs
         #expect(obs2 == CliffWalking.positionToState(row: 0, col: 0))
     }
     
     @Test("Wall collision on right edge")
-    func testRightWallCollision() {
-        let env = CliffWalking()
-        _ = env.reset(seed: 42)
+    func testRightWallCollision() async throws {
+        let env = try await makeCliffWalking()
+        _ = try env.reset(seed: 42)
         
-        _ = env.step(0)
+        _ = try env.step(0)
         
         for _ in 0..<12 {
-            _ = env.step(1)
+            _ = try env.step(1)
         }
         
-        let obs = env.step(1).obs
+        let obs = try env.step(1).obs
         #expect(obs == CliffWalking.positionToState(row: 2, col: 11))
     }
     
     @Test
     @MainActor
     func testGymnazoMakeCliffWalking() async throws {
-        let env = Gymnazo.make("CliffWalking")
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make("CliffWalking")
         let cliffWalking = env.unwrapped as! CliffWalking
-        let obs = cliffWalking.reset(seed: 123).obs
+        let obs = try cliffWalking.reset(seed: 123).obs
         #expect(obs == CliffWalking.startState)
     }
     
     @Test
     @MainActor
     func testGymnazoMakeCliffWalkingWithKwargs() async throws {
-        let env = Gymnazo.make("CliffWalking", kwargs: ["render_mode": "ansi"])
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+            "CliffWalking",
+            options: ["render_mode": "ansi"]
+        )
         let cliffWalking = env.unwrapped as! CliffWalking
-        let obs = cliffWalking.reset(seed: 42).obs
+        let obs = try cliffWalking.reset(seed: 42).obs
         #expect(obs == CliffWalking.startState)
     }
 }

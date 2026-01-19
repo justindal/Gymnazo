@@ -56,8 +56,8 @@ public extension Env {
     func recordingStatistics(
         bufferLength: Int = 100,
         statsKey: String = "episode"
-    ) -> RecordEpisodeStatistics<Self> {
-        RecordEpisodeStatistics(env: self, bufferLength: bufferLength, statsKey: statsKey)
+    ) throws -> RecordEpisodeStatistics<Self> {
+        try RecordEpisodeStatistics(env: self, bufferLength: bufferLength, statsKey: statsKey)
     }
     
     /// Wraps the environment with a time limit.
@@ -67,8 +67,8 @@ public extension Env {
     ///
     /// - Parameter maxSteps: Maximum steps before truncation.
     /// - Returns: The wrapped environment.
-    func timeLimited(_ maxSteps: Int) -> TimeLimit<Self> {
-        TimeLimit(env: self, maxEpisodeSteps: maxSteps)
+    func timeLimited(_ maxSteps: Int) throws -> TimeLimit<Self> {
+        try TimeLimit(env: self, maxEpisodeSteps: maxSteps)
     }
 
     func rewardsTransformed(
@@ -90,8 +90,8 @@ public extension Env {
         AutoReset(env: self, mode: mode)
     }
 
-    func observationsFlattened() -> FlattenObservation<Self> {
-        FlattenObservation(env: self)
+    func observationsFlattened() throws -> FlattenObservation<Self> {
+        try FlattenObservation(env: self)
     }
 }
 
@@ -103,8 +103,8 @@ public extension Env where Observation == MLXArray {
     /// using a running mean and variance estimator.
     ///
     /// - Returns: The wrapped environment.
-    func observationsNormalized() -> NormalizeObservation<Self> {
-        NormalizeObservation(env: self)
+    func observationsNormalized() throws -> NormalizeObservation<Self> {
+        try NormalizeObservation(env: self)
     }
     
     /// Wraps the environment with a custom observation transform.
@@ -114,7 +114,7 @@ public extension Env where Observation == MLXArray {
     ///   - transform: A closure that transforms each observation.
     /// - Returns: The wrapped environment.
     func observationsTransformed(
-        observationSpace: ObservationSpace? = nil,
+        observationSpace: (any Space<MLXArray>)? = nil,
         _ transform: @escaping (MLXArray) -> MLXArray
     ) -> TransformObservation<Self> {
         TransformObservation(env: self, transform: transform, observationSpace: observationSpace)
@@ -124,16 +124,16 @@ public extension Env where Observation == MLXArray {
     ///
     /// - Parameter keepDim: If true, keeps channel dimension as [H, W, 1]. Default is [H, W].
     /// - Returns: The wrapped environment.
-    func grayscale(keepDim: Bool = false) -> GrayscaleObservation<Self> {
-        GrayscaleObservation(env: self, keepDim: keepDim)
+    func grayscale(keepDim: Bool = false) throws -> GrayscaleObservation<Self> {
+        try GrayscaleObservation(env: self, keepDim: keepDim)
     }
     
     /// Resizes observations to the target dimensions.
     ///
     /// - Parameter shape: Target (height, width) for the resized observations.
     /// - Returns: The wrapped environment.
-    func resized(to shape: (Int, Int)) -> ResizeObservation<Self> {
-        ResizeObservation(env: self, shape: shape)
+    func resized(to shape: (Int, Int)) throws -> ResizeObservation<Self> {
+        try ResizeObservation(env: self, shape: shape)
     }
     
     /// Stacks the last N observations for temporal information.
@@ -145,8 +145,8 @@ public extension Env where Observation == MLXArray {
     func frameStacked(
         _ stackSize: Int,
         paddingType: FrameStackPadding = .reset
-    ) -> FrameStackObservation<Self> {
-        FrameStackObservation(env: self, stackSize: stackSize, paddingType: paddingType)
+    ) throws -> FrameStackObservation<Self> {
+        try FrameStackObservation(env: self, stackSize: stackSize, paddingType: paddingType)
     }
     
     /// Applies state-aware reward shaping.
@@ -164,7 +164,7 @@ public extension Env where Observation == MLXArray {
     }
 }
 
-public extension Env where ActionSpace == Box {
+public extension Env where Action == MLXArray {
     
     /// Wraps the environment with action clipping.
     ///
@@ -236,8 +236,8 @@ public extension Env {
     /// - Returns: The wrapped environment.
     func validated(
         maxSteps: Int
-    ) -> TimeLimit<OrderEnforcing<PassiveEnvChecker<Self>>> {
-        self.passiveChecked()
+    ) throws -> TimeLimit<OrderEnforcing<PassiveEnvChecker<Self>>> {
+        try self.passiveChecked()
             .orderEnforced()
             .timeLimited(maxSteps)
     }

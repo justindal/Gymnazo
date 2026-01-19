@@ -34,11 +34,11 @@ public struct CarRacing: Env {
     public typealias Observation = MLXArray
     public typealias Action = MLXArray
     
-    public let actionSpace: Box
-    public let observationSpace: Box
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     
     public var spec: EnvSpec? = nil
-    public var renderMode: String? = nil
+    public var renderMode: RenderMode? = nil
     
     public let lapCompletePercent: Float
     public let domainRandomize: Bool
@@ -74,7 +74,7 @@ public struct CarRacing: Env {
     }
     
     public init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         lapCompletePercent: Float = 0.95,
         domainRandomize: Bool = false
     ) {
@@ -153,9 +153,9 @@ public struct CarRacing: Env {
         }
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: Action) throws -> Step<Observation> {
         guard var car = car, let worldId = worldId, let trackData = trackData else {
-            fatalError("Call reset() before step()")
+            throw GymnazoError.stepBeforeReset
         }
         
         let actionArray = action.asArray(Float.self)
@@ -202,8 +202,8 @@ public struct CarRacing: Env {
             info["lap_finished"] = .bool(false)
         }
         
-        if renderMode == "human" {
-            _ = render()
+        if renderMode == .human {
+            _ = try render()
         }
         
         return Step(
@@ -274,7 +274,7 @@ public struct CarRacing: Env {
         self.car = car
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {
@@ -300,13 +300,16 @@ public struct CarRacing: Env {
         
         var attempts = 0
         while true {
+            guard _key != nil else {
+                throw GymnazoError.invalidState("Missing RNG key")
+            }
             trackData = TrackGenerator.createTrack(key: &_key!, roadColor: roadColor)
             if trackData != nil {
                 break
             }
             attempts += 1
             if attempts > 100 {
-                fatalError("Failed to generate track after 100 attempts")
+                throw GymnazoError.operationFailed("Failed to generate track after 100 attempts")
             }
         }
         
@@ -322,8 +325,8 @@ public struct CarRacing: Env {
         
         let state = renderStatePixels()
         
-        if renderMode == "human" {
-            _ = render()
+        if renderMode == .human {
+            _ = try render()
         }
         
         return Reset(obs: state, info: [:])
@@ -355,13 +358,16 @@ public struct CarRacing: Env {
     }
     
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
         
         switch mode {
-        case "human":
-            return currentSnapshot
-        case "rgb_array":
+        case .human:
+            if let snapshot = currentSnapshot {
+                return .other(snapshot)
+            }
+            return nil
+        case .rgbArray:
             #if canImport(SwiftUI)
             if let snapshot = currentSnapshot {
                 let box = UnsafeBox<CGImage>()
@@ -374,11 +380,13 @@ public struct CarRacing: Env {
                         box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
                     }
                 }
-                return box.value
+                if let image = box.value {
+                    return .rgbArray(image)
+                }
             }
             #endif
             return nil
-        case "state_pixels":
+        case .statePixels:
             #if canImport(SwiftUI)
             if let snapshot = currentSnapshot {
                 let box = UnsafeBox<CGImage>()
@@ -391,11 +399,13 @@ public struct CarRacing: Env {
                         box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
                     }
                 }
-                return box.value
+                if let image = box.value {
+                    return .statePixels(image)
+                }
             }
             #endif
             return nil
-        default:
+        case .ansi:
             return nil
         }
     }

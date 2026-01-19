@@ -1,7 +1,3 @@
-//
-//  LunarLander.swift
-//
-
 import Box2D
 import Foundation
 import MLX
@@ -206,11 +202,11 @@ public struct LunarLander: Env {
     private var lastMainPower: Float = 0
     private var lastSidePower: Float = 0
     
-    public let actionSpace: Discrete
-    public let observationSpace: Box
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     
     public var spec: EnvSpec? = nil
-    public var renderMode: String? = nil
+    public var renderMode: RenderMode? = nil
     
     private var _key: MLXArray?
     
@@ -222,14 +218,17 @@ public struct LunarLander: Env {
     }
     
     public init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         gravity: Float = -10.0,
         enableWind: Bool = false,
         windPower: Float = 15.0,
         turbulencePower: Float = 1.5
-    ) {
-        precondition(gravity > -12.0 && gravity < 0.0,
-                     "gravity must be between -12.0 and 0.0, got \(gravity)")
+    ) throws {
+        guard gravity > -12.0 && gravity < 0.0 else {
+            throw GymnazoError.invalidConfiguration(
+                "gravity must be between -12.0 and 0.0, got \(gravity)"
+            )
+        }
         
         self.renderMode = renderMode
         self.gravity = gravity
@@ -240,14 +239,14 @@ public struct LunarLander: Env {
         self.actionSpace = Discrete(n: 4)
         
         let low = MLXArray([
-            -2.5,   // x position
-            -2.5,   // y position
-            -10.0,  // x velocity
-            -10.0,  // y velocity
-            -2 * Float.pi, // angle
-            -10.0,  // angular velocity
-            0.0,    // left leg contact
-            0.0     // right leg contact
+            -2.5,
+            -2.5,
+            -10.0,
+            -10.0,
+            -2 * Float.pi,
+            -10.0,
+            0.0,
+            0.0
         ] as [Float32])
         let high = MLXArray([
             2.5,
@@ -262,12 +261,14 @@ public struct LunarLander: Env {
         self.observationSpace = Box(low: low, high: high, dtype: .float32)
     }
     
-    public mutating func step(_ action: Action) -> Step<Observation> {
+    public mutating func step(_ action: Action) throws -> Step<Observation> {
         guard let worldId = worldId, let landerId = landerId else {
-            fatalError("Call reset() before step()")
+            throw GymnazoError.stepBeforeReset
         }
-        
-        precondition(actionSpace.contains(action), "Invalid action: \(action)")
+
+        guard actionSpace.contains(action) else {
+            throw GymnazoError.invalidAction("Invalid action: \(action)")
+        }
         
         if enableWind && !leftLegContact && !rightLegContact {
             let windMag = tanh(sin(0.02 * Float(windIdx)) + sin(Float.pi * 0.01 * Float(windIdx))) * windPower
@@ -285,7 +286,10 @@ public struct LunarLander: Env {
         let tip = (sin(angle), cos(angle))
         let side = (-tip.1, tip.0)
         
-        let (k1, k2, nextKey) = splitKey3(_key!)
+        guard let key = _key else {
+            throw GymnazoError.invalidState("Missing RNG key")
+        }
+        let (k1, k2, nextKey) = splitKey3(key)
         _key = nextKey
         let dispersion0 = MLX.uniform(low: -1.0, high: 1.0, [1], key: k1)[0].item(Float.self) / Self.scale
         let dispersion1 = MLX.uniform(low: -1.0, high: 1.0, [1], key: k2)[0].item(Float.self) / Self.scale
@@ -330,7 +334,7 @@ public struct LunarLander: Env {
         checkBodyContact()
         maybeForceSleepForLanding(timeStep: 1.0 / Self.fps)
         
-        let obs = getObservation()
+        let obs = try getObservation()
         let stateArray = obs.asArray(Float.self)
         
         let shaping = -100.0 * sqrt(stateArray[0] * stateArray[0] + stateArray[1] * stateArray[1])
@@ -375,7 +379,7 @@ public struct LunarLander: Env {
         )
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {
@@ -397,7 +401,10 @@ public struct LunarLander: Env {
         let W = Self.viewportW / Self.scale
         let H = Self.viewportH / Self.scale
         
-        let (terrainKey, nextKey) = MLX.split(key: _key!)
+        guard let key = _key else {
+            throw GymnazoError.invalidState("Missing RNG key")
+        }
+        let (terrainKey, nextKey) = MLX.split(key: key)
         _key = nextKey
         
         var heights = [Float](repeating: 0, count: Self.chunks + 1)
@@ -435,7 +442,10 @@ public struct LunarLander: Env {
         createTerrain()
         createLander()
         
-        let (forceKey1, forceKey2, finalKey) = splitKey3(_key!)
+        guard let forceKey = _key else {
+            throw GymnazoError.invalidState("Missing RNG key")
+        }
+        let (forceKey1, forceKey2, finalKey) = splitKey3(forceKey)
         _key = finalKey
         
         let forceX = MLX.uniform(low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey1)[0].item(Float.self)
@@ -446,7 +456,10 @@ public struct LunarLander: Env {
         }
         
         if enableWind {
-            let (windKey, turbKey, newKey) = splitKey3(_key!)
+            guard let windKeySource = _key else {
+                throw GymnazoError.invalidState("Missing RNG key")
+            }
+            let (windKey, turbKey, newKey) = splitKey3(windKeySource)
             _key = newKey
             windIdx = Int(MLX.randInt(low: -9999, high: 9999, key: windKey).item(Int32.self))
             torqueIdx = Int(MLX.randInt(low: -9999, high: 9999, key: turbKey).item(Int32.self))
@@ -458,22 +471,25 @@ public struct LunarLander: Env {
         b2World_Step(worldId!, 1.0 / Self.fps, 8)
         updateLegContacts()
         checkBodyContact()
-        let obs = getObservation()
+        let obs = try getObservation()
         prevShaping = computeShaping(from: obs)
         
         return Reset(obs: obs, info: [:])
     }
     
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
         
         switch mode {
-        case "human":
-            return currentSnapshot
-        case "rgb_array":
+        case .human:
+            if let snapshot = currentSnapshot {
+                return .other(snapshot)
+            }
             return nil
-        default:
+        case .rgbArray:
+            return nil
+        case .ansi, .statePixels:
             return nil
         }
     }
@@ -623,11 +639,11 @@ public struct LunarLander: Env {
             jointDef.localAnchorB = b2Vec2(x: sign * Self.legAway / Self.scale, y: Self.legDown / Self.scale)
             jointDef.enableLimit = true
             if i == -1 {
-                jointDef.lowerAngle = 0.9 - 0.5  // +0.4
+                jointDef.lowerAngle = 0.9 - 0.5
                 jointDef.upperAngle = 0.9
             } else {
                 jointDef.lowerAngle = -0.9
-                jointDef.upperAngle = -0.9 + 0.5  // -0.4
+                jointDef.upperAngle = -0.9 + 0.5
             }
             jointDef.enableMotor = true
             jointDef.maxMotorTorque = Self.legSpringTorque
@@ -654,8 +670,6 @@ public struct LunarLander: Env {
         let v = b2Body_GetLinearVelocity(bodyId)
         let w = b2Body_GetAngularVelocity(bodyId)
 
-        // Approximate maxExtent using the world AABB half-diagonal.
-        // This roughly matches Box2D's `sim->maxExtent` usage in sleep calculations.
         let aabb = b2Body_ComputeAABB(bodyId)
         let width = aabb.upperBound.x - aabb.lowerBound.x
         let height = aabb.upperBound.y - aabb.lowerBound.y
@@ -756,9 +770,9 @@ public struct LunarLander: Env {
         }
     }
     
-    private func getObservation() -> MLXArray {
+    private func getObservation() throws -> MLXArray {
         guard let landerId = landerId else {
-            fatalError("State is nil - call reset() first")
+            throw GymnazoError.invalidState("State is nil - call reset() first")
         }
         
         let pos = b2Body_GetPosition(landerId)

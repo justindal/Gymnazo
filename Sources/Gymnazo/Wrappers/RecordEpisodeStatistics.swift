@@ -21,27 +21,29 @@ public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
     private var episodeReturns: Double = 0.0
     private var episodeLengths: Int = 0
 
-    public required convenience init(env: BaseEnv) {
-        self.init(env: env, bufferLength: 100, statsKey: "episode")
+    public convenience init(env: BaseEnv) throws {
+        try self.init(env: env, bufferLength: 100, statsKey: "episode")
     }
 
-    public init(env: BaseEnv, bufferLength: Int = 100, statsKey: String = "episode") {
-        precondition(bufferLength > 0, "bufferLength must be positive, got \(bufferLength)")
+    public init(env: BaseEnv, bufferLength: Int = 100, statsKey: String = "episode") throws {
+        guard bufferLength > 0 else {
+            throw GymnazoError.invalidRecordBufferLength(bufferLength)
+        }
         self.env = env
         self.bufferLength = bufferLength
         self.statsKey = statsKey
     }
 
-    public func reset(seed: UInt64?, options: [String : Any]?) -> Reset<BaseEnv.Observation> {
-        let result = env.reset(seed: seed, options: options)
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+        let result = try env.reset(seed: seed, options: options)
         episodeStartTime = RecordEpisodeStatistics.now()
         episodeReturns = 0.0
         episodeLengths = 0
         return result
     }
 
-    public func step(_ action: BaseEnv.Action) -> Step<BaseEnv.Observation> {
-        let result = env.step(action)
+    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+        let result = try env.step(action)
 
         episodeReturns += result.reward
         episodeLengths += 1
@@ -49,7 +51,9 @@ public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
         var info = result.info
 
         if result.terminated || result.truncated {
-            precondition(info[statsKey] == nil, "RecordEpisodeStatistics: info already contains key \(statsKey)")
+            if info[statsKey] != nil {
+                throw GymnazoError.invalidStatsKey(statsKey)
+            }
 
             let now = RecordEpisodeStatistics.now()
             let elapsed = RecordEpisodeStatistics.roundTime(now - episodeStartTime)

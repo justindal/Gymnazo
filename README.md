@@ -60,17 +60,17 @@ import MLX
 @main
 struct Demo {
     @MainActor
-    static func main() {
-        var env = Gymnazo.make("CartPole")
-        let reset = env.reset(seed: 42)
+    static func main() async throws {
+        var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+        let reset = try env.reset(seed: 42)
         var observation = reset.obs
         var key = MLX.key(42)
         var done = false
         var totalReward = 0.0
 
         while !done {
-            let action = env.action_space.sample(key: key)
-            let step = env.step(action)
+            let action = env.actionSpace.sample(key: key)
+            let step = try env.step(action)
             totalReward += step.reward
             observation = step.obs
             done = step.terminated || step.truncated
@@ -83,7 +83,7 @@ struct Demo {
 ```
 
 ## Vector Environments
-> Note: Vector environments are currently in development and may not be fully functional.
+> Note: Vector environments are currently still in development and may not be fully functional.
 
 For parallel training, Gymnazo provides vector environments (sync + async):
 
@@ -91,13 +91,13 @@ For parallel training, Gymnazo provides vector environments (sync + async):
 import Gymnazo
 
 // Synchronous vector environment with 4 CartPoles
-let syncEnv = Gymnazo.make_vec("CartPole", numEnvs: 4)
-let reset = syncEnv.reset(seed: 42)
+let syncEnv: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
+let reset = try syncEnv.reset(seed: 42)
 _ = reset.observations
 
 // Asynchronous vector environment with 4 CartPoles
-let asyncEnv = Gymnazo.make_vec_async("CartPole", numEnvs: 4)
-let step = await asyncEnv.stepAsync([1, 0, 1, 0])
+let asyncEnv: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
+let step = try await asyncEnv.stepAsync([1, 0, 1, 0])
 _ = step.rewards
 ```
 
@@ -115,10 +115,10 @@ When you call `Gymnazo.make(...)`, wrappers are applied automatically in the fol
 import Gymnazo
 
 // default
-var env = Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 
 // customize environment behavior
-var customEnv = Gymnazo.make(
+var customEnv = try await Gymnazo.make(
     "CartPole",
     maxEpisodeSteps: 500,
     disableEnvChecker: true,
@@ -126,7 +126,7 @@ var customEnv = Gymnazo.make(
 )
 
 // wrappers can also be applied using the chainable extension methods
-let chainedEnv = CartPole()
+let chainedEnv = try CartPole()
     .validated(maxSteps: 500)
     .observationsNormalized()
 ```
@@ -160,10 +160,17 @@ Gymnazo includes common reinforcement learning algorithms implementations, inspi
 ```swift
 import Gymnazo
 
-let env = Gymnazo.make("Pendulum")
-let model = SAC(env: env)
-model.learn(totalTimesteps: 100000)
+let env = try await Gymnazo.make("Pendulum")
+let model = try SAC(env: env)
+try model.learn(totalTimesteps: 100000)
 ```
+
+## TODO
+- [ ] switch from kwargs-based configs to object-based configs
+- [ ] add more common RL algorithms
+- [ ] fix Vector Environments and better use Swift concurrency
+- [ ] add more wrapper types
+
 
 ## Documentation
 To learn more about Gymnazo, please refer to the 

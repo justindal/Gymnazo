@@ -34,38 +34,21 @@ public struct VectorStepResult {
     /// Truncation flags for all sub-environments with shape `[num_envs]`.
     public let truncations: MLXArray
     
-    /// Combined info dictionary from all sub-environments.
-    /// May contain `final_observation` and `final_info` arrays for autoreset.
-    public let infos: Info
-
-    public let finals: VectorFinals?
+    /// Per-environment info dictionaries.
+    public let infos: [Info]
     
     public init(
         observations: MLXArray,
         rewards: MLXArray,
         terminations: MLXArray,
         truncations: MLXArray,
-        infos: Info,
-        finals: VectorFinals? = nil
+        infos: [Info]
     ) {
         self.observations = observations
         self.rewards = rewards
         self.terminations = terminations
         self.truncations = truncations
         self.infos = infos
-        self.finals = finals
-    }
-}
-
-public struct VectorFinals {
-    public let observations: [Int: MLXArray]
-    public let infos: [Int: Info]
-    public let indices: [Int]
-
-    public init(observations: [Int: MLXArray], infos: [Int: Info], indices: [Int]) {
-        self.observations = observations
-        self.infos = infos
-        self.indices = indices
     }
 }
 
@@ -74,10 +57,10 @@ public struct VectorResetResult {
     /// Batched observations from all sub-environments with shape `[num_envs, ...obs_shape]`.
     public let observations: MLXArray
     
-    /// Combined info dictionary from all sub-environments.
-    public let infos: Info
+    /// Per-environment info dictionaries.
+    public let infos: [Info]
     
-    public init(observations: MLXArray, infos: Info) {
+    public init(observations: MLXArray, infos: [Info]) {
         self.observations = observations
         self.infos = infos
     }
@@ -89,27 +72,28 @@ public struct VectorResetResult {
 /// Vector environments provide a linear speed-up in steps taken per second by
 /// sampling multiple sub-environments at the same time.
 @MainActor
-public protocol VectorEnv: AnyObject {
+public protocol VectorEnv<Action>: AnyObject {
+    associatedtype Action
     /// The number of sub-environments in the vector environment.
     var numEnvs: Int { get }
     
     /// The observation space of a single sub-environment.
-    var singleObservationSpace: any Space { get }
+    var singleObservationSpace: any Space<MLXArray> { get }
     
     /// The action space of a single sub-environment.
-    var singleActionSpace: any Space { get }
+    var singleActionSpace: any Space<Action> { get }
     
     /// The batched observation space for all sub-environments.
-    var observationSpace: any Space { get }
+    var observationSpace: any Space<MLXArray> { get }
     
     /// The batched action space for all sub-environments.
-    var actionSpace: any Space { get }
+    var actionSpace: any Space<MLXArray> { get }
     
     /// The environment specification, if available.
     var spec: EnvSpec? { get set }
     
     /// The render mode for all sub-environments.
-    var renderMode: String? { get }
+    var renderMode: RenderMode? { get }
     
     /// The autoreset mode used by this vector environment.
     var autoresetMode: AutoresetMode { get }
@@ -121,7 +105,7 @@ public protocol VectorEnv: AnyObject {
     ///
     /// - Parameter actions: Array of actions, one for each sub-environment.
     /// - Returns: Batched results containing observations, rewards, terminations, truncations, and infos.
-    func step(_ actions: [Any]) -> VectorStepResult
+    func step(_ actions: [Action]) throws -> VectorStepResult
     
     /// Reset all parallel environments and return a batch of initial observations and info.
     ///
@@ -129,19 +113,19 @@ public protocol VectorEnv: AnyObject {
     ///   - seed: Optional seed for reproducibility. If an Int, seeds are `[seed, seed+1, ..., seed+n-1]`.
     ///   - options: Optional dictionary of reset options.
     /// - Returns: Batched observations and info from all sub-environments.
-    func reset(seed: UInt64?, options: [String: Any]?) -> VectorResetResult
+    func reset(seed: UInt64?, options: EnvOptions?) throws -> VectorResetResult
     
     /// Close all parallel environments and release resources.
     func close()
 }
 
 public extension VectorEnv {
-    func reset(seed: UInt64? = nil) -> VectorResetResult {
-        return reset(seed: seed, options: nil)
+    func reset(seed: UInt64? = nil) throws -> VectorResetResult {
+        try reset(seed: seed, options: nil)
     }
-    
-    func reset() -> VectorResetResult {
-        return reset(seed: nil, options: nil)
+
+    func reset() throws -> VectorResetResult {
+        try reset(seed: nil, options: nil)
     }
 }
 

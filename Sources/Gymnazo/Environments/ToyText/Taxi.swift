@@ -1,7 +1,3 @@
-//
-// Taxi.swift
-//
-
 import Foundation
 import MLX
 #if canImport(SwiftUI)
@@ -110,13 +106,11 @@ public final class Taxi: Env {
     
     public typealias Observation = Int
     public typealias Action = Int
-    public typealias ObservationSpace = Discrete
-    public typealias ActionSpace = Discrete
     
-    public let actionSpace: Discrete
-    public let observationSpace: Discrete
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     public var spec: EnvSpec?
-    public var renderMode: String?
+    public var renderMode: RenderMode?
     
     private let desc: [[UInt8]]
     private let maxRow: Int = 4
@@ -143,7 +137,7 @@ public final class Taxi: Env {
 #endif
     
     public init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         isRainy: Bool = false,
         ficklePassenger: Bool = false
     ) {
@@ -389,20 +383,23 @@ public final class Taxi: Env {
         return mask
     }
     
-    private func prepareKey(with seed: UInt64?) -> MLXArray {
+    private func prepareKey(with seed: UInt64?) throws -> MLXArray {
         if let seed {
             _key = MLX.key(seed)
         } else if _key == nil {
             _key = MLX.key(UInt64.random(in: 0...UInt64.max))
         }
-        return _key!
+        guard let key = _key else {
+            throw GymnazoError.invalidState("Failed to initialize RNG key")
+        }
+        return key
     }
     
     public func reset(
         seed: UInt64? = nil,
-        options: [String: Any]? = nil
-    ) -> Reset<Observation> {
-        let key = prepareKey(with: seed)
+        options: EnvOptions? = nil
+    ) throws -> Reset<Observation> {
+        let key = try prepareKey(with: seed)
         let (sampleKey, nextKey) = MLX.split(key: key)
         _key = nextKey
         
@@ -416,7 +413,10 @@ public final class Taxi: Env {
         taxiOrientation = 0
         
         if ficklePassenger {
-            let (fickleKey, nk) = MLX.split(key: _key!)
+            guard let fickleKeySource = _key else {
+                throw GymnazoError.invalidState("Missing RNG key")
+            }
+            let (fickleKey, nk) = MLX.split(key: fickleKeySource)
             _key = nk
             let fickleRand = MLX.uniform(0..<1, key: fickleKey).item(Float.self)
             fickleStep = fickleRand < 0.3
@@ -427,12 +427,15 @@ public final class Taxi: Env {
         return Reset(obs: s, info: ["prob": 1.0])
     }
     
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: Action) throws -> Step<Observation> {
         guard let transitions = P[s][action], !transitions.isEmpty else {
-            fatalError("Invalid state or action")
+            throw GymnazoError.invalidState("Invalid state or action")
         }
         
-        let (sampleKey, nextKey) = MLX.split(key: _key!)
+        guard let key = _key else {
+            throw GymnazoError.invalidState("Missing RNG key")
+        }
+        let (sampleKey, nextKey) = MLX.split(key: key)
         _key = nextKey
         
         let probs = transitions.map { Float($0.prob) }
@@ -456,7 +459,10 @@ public final class Taxi: Env {
                 }
             }
             
-            let (destKey, nk) = MLX.split(key: _key!)
+            guard let destKeySource = _key else {
+                throw GymnazoError.invalidState("Missing RNG key")
+            }
+            let (destKey, nk) = MLX.split(key: destKeySource)
             _key = nk
             let destRand = MLX.randInt(low: 0, high: possibleDestinations.count, key: destKey)
             destIdx = possibleDestinations[Int(destRand.item(Int32.self))]
@@ -485,7 +491,7 @@ public final class Taxi: Env {
     }
     
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else {
             if let specId = spec?.id {
                 print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
@@ -494,23 +500,26 @@ public final class Taxi: Env {
         }
         
         switch mode {
-        case "ansi":
-            return _renderText()
-        case "human", "rgb_array":
+        case .ansi:
+            return .ansi(_renderText())
+        case .human, .rgbArray:
 #if canImport(SwiftUI)
             let snapshot = currentSnapshot
             let result = DispatchQueue.main.sync {
                 Taxi.renderGUI(snapshot: snapshot, mode: mode)
             }
-            if mode == "rgb_array" {
-                lastRGBFrame = result as! CGImage?
+            if mode == .rgbArray {
+                lastRGBFrame = result
             }
-            return result
+            if let image = result {
+                return .rgbArray(image)
+            }
+            return nil
 #else
             return nil
 #endif
-        default:
-            print("[Gymnazo] Unsupported renderMode \(mode).")
+        case .statePixels:
+            print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
         }
     }
@@ -549,18 +558,18 @@ public final class Taxi: Env {
     
 #if canImport(SwiftUI)
     @MainActor
-    private static func renderGUI(snapshot: TaxiRenderSnapshot, mode: String) -> Any? {
+    private static func renderGUI(snapshot: TaxiRenderSnapshot, mode: RenderMode) -> CGImage? {
         let view = TaxiCanvasView(snapshot: snapshot)
         
         switch mode {
-        case "human":
+        case .human:
 #if canImport(PlaygroundSupport)
             PlaygroundPage.current.setLiveView(view)
 #else
             print("[Gymnazo] SwiftUI Canvas available via TaxiCanvasView; integrate it into your app UI.")
 #endif
             return nil
-        case "rgb_array":
+        case .rgbArray:
             if #available(macOS 13.0, iOS 16.0, *) {
                 let renderer = ImageRenderer(content: view)
 #if os(macOS)
@@ -573,7 +582,9 @@ public final class Taxi: Env {
                 print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
                 return nil
             }
-        default:
+        case .ansi:
+            return nil
+        case .statePixels:
             return nil
         }
     }

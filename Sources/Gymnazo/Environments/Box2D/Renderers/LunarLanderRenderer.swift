@@ -1,7 +1,3 @@
-//
-//  LunarLanderRenderer.swift
-//
-
 #if canImport(SwiftUI) && canImport(SpriteKit)
 import SwiftUI
 import SpriteKit
@@ -44,7 +40,6 @@ public class LunarLanderScene: SKScene {
     private var leftFlagNode: SKNode?
     private var rightFlagNode: SKNode?
     
-    // Particle emitters for engine flames (like Gymnasium)
     private var mainEngineEmitter: SKEmitterNode?
     private var leftEngineEmitter: SKEmitterNode?
     private var rightEngineEmitter: SKEmitterNode?
@@ -72,7 +67,7 @@ public class LunarLanderScene: SKScene {
     }
     
     required init?(coder aDecoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        return nil
     }
     
     public func updateSnapshot(_ newSnapshot: LunarLanderSnapshot) {
