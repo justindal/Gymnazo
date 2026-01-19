@@ -4,11 +4,32 @@ import MLX
 
 @Suite("Taxi environment")
 struct TaxiTests {
+    func makeTaxi(renderMode: RenderMode? = nil, isRainy: Bool? = nil, ficklePassenger: Bool? = nil) async throws -> Taxi {
+        var options: EnvOptions = [:]
+        if let renderMode {
+            options["render_mode"] = renderMode.rawValue
+        }
+        if let isRainy {
+            options["is_rainy"] = isRainy
+        }
+        if let ficklePassenger {
+            options["fickle_passenger"] = ficklePassenger
+        }
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make("Taxi", options: options)
+        guard let taxi = env.unwrapped as? Taxi else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "Taxi",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return taxi
+    }
+
     @Test
     func testResetDeterminismWithSeed() async throws {
-        let env = Taxi()
-        let r1 = env.reset(seed: 42)
-        let r2 = env.reset(seed: 42)
+        let env = try await makeTaxi()
+        let r1 = try env.reset(seed: 42)
+        let r2 = try env.reset(seed: 42)
         #expect(r1.obs == r2.obs)
     }
     
@@ -33,15 +54,15 @@ struct TaxiTests {
     
     @Test
     func testStateSpaceSize() async throws {
-        let env = Taxi()
-        #expect(env.observation_space.n == 500)
-        #expect(env.action_space.n == 6)
+        let env = try await makeTaxi()
+        #expect((env.observationSpace as? Discrete)?.n == 500)
+        #expect((env.actionSpace as? Discrete)?.n == 6)
     }
     
     @Test
     func testInfoContainsProbOnly() async throws {
-        let env = Taxi()
-        let result = env.reset(seed: 123)
+        let env = try await makeTaxi()
+        let result = try env.reset(seed: 123)
         
         #expect(result.info["prob"]?.double == 1.0)
         #expect(result.info["action_mask"] == nil)
@@ -49,14 +70,14 @@ struct TaxiTests {
     
     @Test
     func testMovementSouth() async throws {
-        let env = Taxi()
-        _ = env.reset(seed: 0)
+        let env = try await makeTaxi()
+        _ = try env.reset(seed: 0)
         
         let initialState = Taxi.encode(taxiRow: 0, taxiCol: 0, passLoc: 1, destIdx: 0)
         
         let (row, col, _, _) = Taxi.decode(initialState)
         if row < 4 {
-            let result = env.step(0)
+            let result = try env.step(0)
             let (newRow, _, _, _) = Taxi.decode(result.obs)
             #expect(newRow >= row)
         }
@@ -64,10 +85,10 @@ struct TaxiTests {
     
     @Test
     func testIllegalPickupPenalty() async throws {
-        let env = Taxi()
-        _ = env.reset(seed: 42)
+        let env = try await makeTaxi()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(4)
+        let result = try env.step(4)
         
         if result.reward == -10.0 {
             #expect(result.terminated == false)
@@ -76,10 +97,10 @@ struct TaxiTests {
     
     @Test
     func testIllegalDropoffPenalty() async throws {
-        let env = Taxi()
-        _ = env.reset(seed: 42)
+        let env = try await makeTaxi()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(5)
+        let result = try env.step(5)
         
         #expect(result.reward == -10.0 || result.reward == -1.0)
         #expect(result.terminated == false)
@@ -87,18 +108,18 @@ struct TaxiTests {
     
     @Test
     func testStepReward() async throws {
-        let env = Taxi()
-        _ = env.reset(seed: 100)
+        let env = try await makeTaxi()
+        _ = try env.reset(seed: 100)
         
-        let result = env.step(0)
+        let result = try env.step(0)
         
         #expect(result.reward == -1.0 || result.reward == -10.0)
     }
     
     @Test
     func testActionMaskValidActions() async throws {
-        let env = Taxi()
-        _ = env.reset(seed: 42)
+        let env = try await makeTaxi()
+        _ = try env.reset(seed: 42)
         
         let state = Taxi.encode(taxiRow: 2, taxiCol: 2, passLoc: 0, destIdx: 1)
         let mask = env.actionMask(for: state)
@@ -109,7 +130,7 @@ struct TaxiTests {
     
     @Test
     func testActionMaskAtCorner() async throws {
-        let env = Taxi()
+        let env = try await makeTaxi()
         
         let state = Taxi.encode(taxiRow: 0, taxiCol: 0, passLoc: 0, destIdx: 1)
         let mask = env.actionMask(for: state)
@@ -122,8 +143,8 @@ struct TaxiTests {
     
     @Test
     func testSuccessfulEpisode() async throws {
-        let env = Taxi()
-        _ = env.reset(seed: 42)
+        let env = try await makeTaxi()
+        _ = try env.reset(seed: 42)
         
         var terminated = false
         var totalReward: Double = 0.0
@@ -131,14 +152,14 @@ struct TaxiTests {
         let maxSteps = 500
         
         while !terminated && steps < maxSteps {
-            let mask = env.actionMask(for: env.reset(seed: nil).obs)
+            let mask = env.actionMask(for: try env.reset(seed: nil).obs)
             var validActions = [Int]()
             for (i, m) in mask.enumerated() {
                 if m == 1 { validActions.append(i) }
             }
             
             let action = validActions.isEmpty ? 0 : validActions[steps % validActions.count]
-            let result = env.step(action)
+            let result = try env.step(action)
             totalReward += result.reward
             terminated = result.terminated
             steps += 1
@@ -149,24 +170,24 @@ struct TaxiTests {
     
     @Test
     func testRainyModeCreation() async throws {
-        let env = Taxi(isRainy: true)
-        let result = env.reset(seed: 42)
+        let env = try await makeTaxi(isRainy: true)
+        let result = try env.reset(seed: 42)
         #expect(result.obs >= 0)
         #expect(result.obs < 500)
     }
     
     @Test
     func testFicklePassengerModeCreation() async throws {
-        let env = Taxi(ficklePassenger: true)
-        let result = env.reset(seed: 42)
+        let env = try await makeTaxi(ficklePassenger: true)
+        let result = try env.reset(seed: 42)
         #expect(result.obs >= 0)
         #expect(result.obs < 500)
     }
     
     @Test
     func testAnsiRender() async throws {
-        let env = Taxi(render_mode: "ansi")
-        _ = env.reset(seed: 42)
+        let env = try await makeTaxi(renderMode: .ansi)
+        _ = try env.reset(seed: 42)
         let ansi = env.renderAnsi()
         #expect(ansi.contains("+"))
         #expect(ansi.contains("-"))
@@ -176,10 +197,10 @@ struct TaxiTests {
     @Test
     @MainActor
     func testGymnazoMakeTaxi() async throws {
-        let env = Gymnazo.make("Taxi")
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make("Taxi")
         let taxi = env.unwrapped as! Taxi
-        _ = taxi.reset(seed: 123)
-        let result = taxi.step(0)
+        _ = try taxi.reset(seed: 123)
+        let result = try taxi.step(0)
         #expect(result.obs >= 0)
         #expect(result.obs < 500)
     }
@@ -187,10 +208,13 @@ struct TaxiTests {
     @Test
     @MainActor
     func testGymnazoMakeTaxiWithKwargs() async throws {
-        let env = Gymnazo.make("Taxi", kwargs: ["render_mode": "ansi"])
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+            "Taxi",
+            options: ["render_mode": "ansi"]
+        )
         let taxi = env.unwrapped as! Taxi
-        _ = taxi.reset(seed: 42)
-        #expect(taxi.action_space.n == 6)
+        _ = try taxi.reset(seed: 42)
+        #expect((taxi.actionSpace as? Discrete)?.n == 6)
     }
     
     @Test
@@ -204,16 +228,16 @@ struct TaxiTests {
     
     @Test
     func testPickupAtCorrectLocation() async throws {
-        let env = Taxi()
+        let env = try await makeTaxi()
         
         for seed: UInt64 in 0..<100 {
-            _ = env.reset(seed: seed)
-            let (taxiRow, taxiCol, passIdx, _) = Taxi.decode(env.reset(seed: seed).obs)
+            _ = try env.reset(seed: seed)
+            let (taxiRow, taxiCol, passIdx, _) = Taxi.decode(try env.reset(seed: seed).obs)
             
             if passIdx < 4 {
                 let passLoc = Taxi.locs[passIdx]
                 if (taxiRow, taxiCol) == passLoc {
-                    let result = env.step(4)
+                    let result = try env.step(4)
                     let (_, _, newPassIdx, _) = Taxi.decode(result.obs)
                     #expect(newPassIdx == 4)
                     #expect(result.reward == -1.0)

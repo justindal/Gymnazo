@@ -4,10 +4,21 @@ import MLX
 
 @Suite("CartPole environment")
 struct CartPoleTests {
+    func makeCartPole(renderMode: RenderMode? = nil) async throws -> CartPole {
+        let options: EnvOptions = renderMode.map { ["render_mode": $0.rawValue] } ?? [:]
+        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole", options: options)
+        guard let cartPole = env.unwrapped as? CartPole else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "CartPole",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return cartPole
+    }
     
     @Test
     func testInitialization() async throws {
-        let env = CartPole()
+        let env = try await makeCartPole()
         
         #expect(env.gravity == 9.8)
         #expect(env.masscart == 1.0)
@@ -19,80 +30,80 @@ struct CartPoleTests {
     
     @Test
     func testActionSpace() async throws {
-        let env = CartPole()
-        
-        // CartPole has 2 actions: push left (0) or push right (1)
-        #expect(env.action_space.n == 2)
-        #expect(env.action_space.start == 0)
+        let env = try await makeCartPole()
+
+        guard let actionSpace = env.actionSpace as? Discrete else {
+            Issue.record("Action space is not Discrete")
+            return
+        }
+
+        #expect(actionSpace.n == 2)
+        #expect(actionSpace.start == 0)
     }
     
     @Test
     func testObservationSpace() async throws {
-        let env = CartPole()
+        let env = try await makeCartPole()
         
-        // Observation: [x, x_dot, theta, theta_dot]
-        #expect(env.observation_space.shape == [4])
+        #expect(env.observationSpace.shape == [4])
     }
     
     @Test
     func testRenderModeInitialization() async throws {
-        let envNoRender = CartPole(render_mode: nil)
-        #expect(envNoRender.render_mode == nil)
+        let envNoRender = try await makeCartPole(renderMode: nil)
+        #expect(envNoRender.renderMode == nil)
         
-        let envHuman = CartPole(render_mode: "human")
-        #expect(envHuman.render_mode == "human")
+        let envHuman = try await makeCartPole(renderMode: .human)
+        #expect(envHuman.renderMode == .human)
     }
     
     @Test
     func testResetReturnsObservation() async throws {
-        var env = CartPole()
-        let result = env.reset(seed: 42)
+        var env = try await makeCartPole()
+        let result = try env.reset(seed: 42)
         let obs = result.obs
         let info = result.info
         
         #expect(obs.shape == [4])
-        #expect(info.isEmpty || info.count >= 0) // info can be empty
+        #expect(info.isEmpty || info.count >= 0)
     }
     
     @Test
     func testResetDeterminismWithSeed() async throws {
-        var env1 = CartPole()
-        var env2 = CartPole()
+        var env1 = try await makeCartPole()
+        var env2 = try await makeCartPole()
         
-        let obs1 = env1.reset(seed: 123).obs
-        let obs2 = env2.reset(seed: 123).obs
+        let obs1 = try env1.reset(seed: 123).obs
+        let obs2 = try env2.reset(seed: 123).obs
         
         eval(obs1, obs2)
         
-        // Same seed should give same initial state
         let diff = abs(obs1 - obs2).sum().item(Float.self)
         #expect(diff < 1e-6)
     }
     
     @Test
     func testResetDifferentSeedsGiveDifferentStates() async throws {
-        var env1 = CartPole()
-        var env2 = CartPole()
+        var env1 = try await makeCartPole()
+        var env2 = try await makeCartPole()
         
-        let obs1 = env1.reset(seed: 1).obs
-        let obs2 = env2.reset(seed: 999).obs
+        let obs1 = try env1.reset(seed: 1).obs
+        let obs2 = try env2.reset(seed: 999).obs
         
         eval(obs1, obs2)
         
-        // Different seeds should (almost certainly) give different states
         let diff = abs(obs1 - obs2).sum().item(Float.self)
         #expect(diff > 1e-6)
     }
     
     @Test
     func testResetStateWithinBounds() async throws {
-        var env = CartPole()
+        var env = try await makeCartPole()
         
         for seed in 0..<10 {
-            let obs = env.reset(seed: UInt64(seed)).obs
+            let obs = try env.reset(seed: UInt64(seed)).obs
             eval(obs)
             
-            // Initial state should be within [-0.05, 0.05]
             let x = obs[0].item(Float.self)
             let xDot = obs[1].item(Float.self)
             let theta = obs[2].item(Float.self)
@@ -107,61 +118,55 @@ struct CartPoleTests {
     
     @Test
     func testStepReturnsValidResult() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(1) // push right
+        let result = try env.step(1)
         
         #expect(result.obs.shape == [4])
         #expect(result.reward >= 0)
-        #expect(result.truncated == false) // CartPole doesn't truncate
+        #expect(result.truncated == false)
     }
     
     @Test
     func testStepPushLeft() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 0)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 0)
         
-        // Get initial x position
         let initialX = env.state![0].item(Float.self)
         
-        // Push left multiple times
         for _ in 0..<5 {
-            _ = env.step(0) // push left
+            _ = try env.step(0)
         }
         
         let finalX = env.state![0].item(Float.self)
         
-        // Cart should have moved left (negative x direction)
         #expect(finalX < initialX)
     }
     
     @Test
     func testStepPushRight() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 0)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 0)
         
         let initialX = env.state![0].item(Float.self)
         
-        // Push right multiple times
         for _ in 0..<5 {
-            _ = env.step(1) // push right
+            _ = try env.step(1)
         }
         
         let finalX = env.state![0].item(Float.self)
         
-        // Cart should have moved right (positive x direction)
         #expect(finalX > initialX)
     }
     
     @Test
     func testStepRewardIsOneWhileBalancing() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 42)
         
-        // Take a few steps - should get reward of 1 while still balancing
         for _ in 0..<10 {
-            let result = env.step(1)
+            let result = try env.step(1)
             if !result.terminated {
                 #expect(result.reward == 1.0)
             }
@@ -170,13 +175,12 @@ struct CartPoleTests {
     
     @Test
     func testTerminationWhenPoleAngleExceeded() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 42)
         
-        // Keep pushing in one direction to eventually fail
         var terminated = false
         for _ in 0..<500 {
-            let result = env.step(0) // always push left
+            let result = try env.step(0)
             if result.terminated {
                 terminated = true
                 break
@@ -188,13 +192,12 @@ struct CartPoleTests {
     
     @Test
     func testTerminationWhenCartPositionExceeded() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 0)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 0)
         
-        // This might terminate from position or angle
         var terminated = false
         for _ in 0..<1000 {
-            let result = env.step(1) // always push right
+            let result = try env.step(1)
             if result.terminated {
                 terminated = true
                 break
@@ -225,21 +228,19 @@ struct CartPoleTests {
     
     @Test
     func testCurrentSnapshotBeforeReset() async throws {
-        let env = CartPole()
+        let env = try await makeCartPole()
         let snapshot = env.currentSnapshot
         
-        // Before reset, should return zero snapshot
         #expect(snapshot == CartPoleSnapshot.zero)
     }
     
     @Test
     func testCurrentSnapshotAfterReset() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 42)
         
         let snapshot = env.currentSnapshot
         
-        // After reset, snapshot should reflect actual state
         let expectedX = env.state![0].item(Float.self)
         let expectedTheta = env.state![2].item(Float.self)
         
@@ -250,47 +251,46 @@ struct CartPoleTests {
     
     @Test
     func testCurrentSnapshotUpdatesAfterStep() async throws {
-        var env = CartPole()
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole()
+        _ = try env.reset(seed: 42)
         
         let snapshotBefore = env.currentSnapshot
-        _ = env.step(1)
+        _ = try env.step(1)
         let snapshotAfter = env.currentSnapshot
         
-        // Snapshot should change after step
         #expect(snapshotBefore != snapshotAfter)
     }
     
     @Test
     func testRenderReturnsNilWhenNoRenderMode() async throws {
-        var env = CartPole(render_mode: nil)
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole(renderMode: nil)
+        _ = try env.reset(seed: 42)
         
-        let result = env.render()
+        let result = try env.render()
         #expect(result == nil)
     }
     
     @Test
-    func testRenderReturnsNilForUnsupportedMode() async throws {
-        var env = CartPole(render_mode: "unsupported")
-        _ = env.reset(seed: 42)
+    func testRenderReturnsNilForAnsiMode() async throws {
+        var env = try await makeCartPole(renderMode: .ansi)
+        _ = try env.reset(seed: 42)
         
-        let result = env.render()
+        let result = try env.render()
         #expect(result == nil)
     }
     
     @Test
     func testRenderRgbArrayNotImplemented() async throws {
-        var env = CartPole(render_mode: "rgb_array")
-        _ = env.reset(seed: 42)
+        var env = try await makeCartPole(renderMode: .rgbArray)
+        _ = try env.reset(seed: 42)
         
-        let result = env.render()
-        #expect(result == nil) // not implemented yet
+        let result = try env.render()
+        #expect(result == nil)
     }
     
     @Test
     func testPhysicsConstants() async throws {
-        let env = CartPole()
+        let env = try await makeCartPole()
         
         #expect(env.total_mass == env.masscart + env.masspole)
         #expect(env.polemass_length == env.masspole * env.length)
@@ -298,27 +298,26 @@ struct CartPoleTests {
     
     @Test
     func testThresholds() async throws {
-        let env = CartPole()
+        let env = try await makeCartPole()
         
         #expect(env.x_threshold == 2.4)
-        // theta_threshold_radians ≈ 12 degrees in radians
         let expectedThetaThreshold = 12.0 * 2.0 * Float.pi / 360.0
         #expect(abs(env.theta_threshold_radians - expectedThetaThreshold) < 0.001)
     }
     
     @Test
     func testDeterministicStepSequence() async throws {
-        var env1 = CartPole()
-        var env2 = CartPole()
+        var env1 = try await makeCartPole()
+        var env2 = try await makeCartPole()
         
-        _ = env1.reset(seed: 777)
-        _ = env2.reset(seed: 777)
+        _ = try env1.reset(seed: 777)
+        _ = try env2.reset(seed: 777)
         
         let actions = [1, 0, 1, 1, 0, 0, 1, 0]
         
         for action in actions {
-            let result1 = env1.step(action)
-            let result2 = env2.step(action)
+            let result1 = try env1.step(action)
+            let result2 = try env2.step(action)
             
             eval(result1.obs, result2.obs)
             

@@ -4,10 +4,62 @@ import MLX
 
 @Suite("CarRacing environment")
 struct CarRacingTests {
+    func makeCarRacing(
+        renderMode: RenderMode? = nil,
+        lapCompletePercent: Float? = nil,
+        domainRandomize: Bool? = nil
+    ) async throws -> CarRacing {
+        var options: EnvOptions = [:]
+        if let renderMode {
+            options["render_mode"] = renderMode.rawValue
+        }
+        if let lapCompletePercent {
+            options["lap_complete_percent"] = lapCompletePercent
+        }
+        if let domainRandomize {
+            options["domain_randomize"] = domainRandomize
+        }
+        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("CarRacing", options: options)
+        guard let carRacing = env.unwrapped as? CarRacing else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "CarRacing",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return carRacing
+    }
+
+    func makeCarRacingDiscrete(
+        renderMode: RenderMode? = nil,
+        lapCompletePercent: Float? = nil,
+        domainRandomize: Bool? = nil
+    ) async throws -> CarRacingDiscrete {
+        var options: EnvOptions = [:]
+        if let renderMode {
+            options["render_mode"] = renderMode.rawValue
+        }
+        if let lapCompletePercent {
+            options["lap_complete_percent"] = lapCompletePercent
+        }
+        if let domainRandomize {
+            options["domain_randomize"] = domainRandomize
+        }
+        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make(
+            "CarRacingDiscrete",
+            options: options
+        )
+        guard let carRacing = env.unwrapped as? CarRacingDiscrete else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "CarRacingDiscrete",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return carRacing
+    }
     
     @Test
     func testContinuousInitialization() async throws {
-        let env = CarRacing()
+        let env = try await makeCarRacing()
         
         #expect(env.lapCompletePercent == 0.95)
         #expect(env.domainRandomize == false)
@@ -15,12 +67,17 @@ struct CarRacingTests {
     
     @Test
     func testContinuousActionSpace() async throws {
-        let env = CarRacing()
+        let env = try await makeCarRacing()
         
-        #expect(env.action_space.shape == [3])
+        guard let actionSpace = env.actionSpace as? Box else {
+            Issue.record("Action space is not Box")
+            return
+        }
         
-        let low = env.action_space.low.asArray(Float.self)
-        let high = env.action_space.high.asArray(Float.self)
+        #expect(actionSpace.shape == [3])
+        
+        let low = actionSpace.low.asArray(Float.self)
+        let high = actionSpace.high.asArray(Float.self)
         
         #expect(low[0] == -1.0)
         #expect(low[1] == 0.0)
@@ -32,13 +89,18 @@ struct CarRacingTests {
     
     @Test
     func testContinuousObservationSpace() async throws {
-        let env = CarRacing()
+        let env = try await makeCarRacing()
         
-        #expect(env.observation_space.shape == [96, 96, 3])
-        #expect(env.observation_space.dtype == .uint8)
+        guard let observationSpace = env.observationSpace as? Box else {
+            Issue.record("Observation space is not Box")
+            return
+        }
         
-        let low = env.observation_space.low.asArray(Float.self)
-        let high = env.observation_space.high.asArray(Float.self)
+        #expect(observationSpace.shape == [96, 96, 3])
+        #expect(observationSpace.dtype == .uint8)
+        
+        let low = observationSpace.low.asArray(Float.self)
+        let high = observationSpace.high.asArray(Float.self)
         
         #expect(low[0] == 0.0)
         #expect(high[0] == 255.0)
@@ -46,7 +108,7 @@ struct CarRacingTests {
     
     @Test
     func testDiscreteInitialization() async throws {
-        let env = CarRacingDiscrete()
+        let env = try await makeCarRacingDiscrete()
         
         #expect(env.lapCompletePercent == 0.95)
         #expect(env.domainRandomize == false)
@@ -54,30 +116,35 @@ struct CarRacingTests {
     
     @Test
     func testDiscreteActionSpace() async throws {
-        let env = CarRacingDiscrete()
+        let env = try await makeCarRacingDiscrete()
+
+        guard let actionSpace = env.actionSpace as? Discrete else {
+            Issue.record("Action space is not Discrete")
+            return
+        }
         
-        #expect(env.action_space.n == 5)
-        #expect(env.action_space.start == 0)
-        #expect(env.action_space.contains(0))
-        #expect(env.action_space.contains(1))
-        #expect(env.action_space.contains(2))
-        #expect(env.action_space.contains(3))
-        #expect(env.action_space.contains(4))
-        #expect(!env.action_space.contains(5))
+        #expect(actionSpace.n == 5)
+        #expect(actionSpace.start == 0)
+        #expect(actionSpace.contains(0))
+        #expect(actionSpace.contains(1))
+        #expect(actionSpace.contains(2))
+        #expect(actionSpace.contains(3))
+        #expect(actionSpace.contains(4))
+        #expect(!actionSpace.contains(5))
     }
     
     @Test
     func testDiscreteObservationSpace() async throws {
-        let env = CarRacingDiscrete()
+        let env = try await makeCarRacingDiscrete()
         
-        #expect(env.observation_space.shape == [96, 96, 3])
-        #expect(env.observation_space.dtype == .uint8)
+        #expect(env.observationSpace.shape == [96, 96, 3])
+        #expect(env.observationSpace.dtype == .uint8)
     }
     
     @Test
     func testContinuousResetReturnsObservation() async throws {
-        var env = CarRacing()
-        let result = env.reset(seed: 42)
+        var env = try await makeCarRacing()
+        let result = try env.reset(seed: 42)
         let obs = result.obs
         
         #expect(obs.shape == [96, 96, 3])
@@ -86,8 +153,8 @@ struct CarRacingTests {
     
     @Test
     func testDiscreteResetReturnsObservation() async throws {
-        var env = CarRacingDiscrete()
-        let result = env.reset(seed: 42)
+        var env = try await makeCarRacingDiscrete()
+        let result = try env.reset(seed: 42)
         let obs = result.obs
         
         #expect(obs.shape == [96, 96, 3])
@@ -96,11 +163,11 @@ struct CarRacingTests {
     
     @Test
     func testContinuousStepReturnsCorrectShape() async throws {
-        var env = CarRacing()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacing()
+        _ = try env.reset(seed: 42)
         
         let action = MLXArray([0.0, 0.5, 0.0] as [Float32])
-        let result = env.step(action)
+        let result = try env.step(action)
         
         #expect(result.obs.shape == [96, 96, 3])
         #expect(result.obs.dtype == .uint8)
@@ -110,10 +177,10 @@ struct CarRacingTests {
     
     @Test
     func testDiscreteStepReturnsCorrectShape() async throws {
-        var env = CarRacingDiscrete()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacingDiscrete()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(0)
+        let result = try env.step(0)
         
         #expect(result.obs.shape == [96, 96, 3])
         #expect(result.obs.dtype == .uint8)
@@ -123,29 +190,29 @@ struct CarRacingTests {
     
     @Test
     func testContinuousRewardIsNegativePerFrame() async throws {
-        var env = CarRacing()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacing()
+        _ = try env.reset(seed: 42)
         
         let action = MLXArray([0.0, 0.0, 0.0] as [Float32])
-        let result = env.step(action)
+        let result = try env.step(action)
         
         #expect(result.reward <= 0)
     }
     
     @Test
     func testDiscreteRewardIsNegativePerFrame() async throws {
-        var env = CarRacingDiscrete()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacingDiscrete()
+        _ = try env.reset(seed: 42)
         
-        let result = env.step(0)
+        let result = try env.step(0)
         
         #expect(result.reward <= 0)
     }
     
     @Test
     func testTerminationInfoContainsLapFinished() async throws {
-        var env = CarRacing()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacing()
+        _ = try env.reset(seed: 42)
         
         var terminated = false
         var stepCount = 0
@@ -153,7 +220,7 @@ struct CarRacingTests {
         
         while !terminated && stepCount < maxSteps {
             let action = MLXArray([0.0, 1.0, 0.0] as [Float32])
-            let result = env.step(action)
+            let result = try env.step(action)
             
             if result.terminated {
                 terminated = true
@@ -167,8 +234,9 @@ struct CarRacingTests {
     @Test
     @MainActor
     func testRegistryContainsCarRacing() async throws {
-        let hasCarRacing = Gymnazo.registry.keys.contains("CarRacing")
-        let hasCarRacingDiscrete = Gymnazo.registry.keys.contains("CarRacingDiscrete")
+        let specs = await Gymnazo.registry()
+        let hasCarRacing = specs.keys.contains("CarRacing")
+        let hasCarRacingDiscrete = specs.keys.contains("CarRacingDiscrete")
         
         #expect(hasCarRacing)
         #expect(hasCarRacingDiscrete)
@@ -177,7 +245,7 @@ struct CarRacingTests {
     @Test
     @MainActor
     func testMakeCarRacing() async throws {
-        let env = make("CarRacing")
+        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("CarRacing")
         
         #expect(env.spec != nil)
         #expect(env.spec?.id == "CarRacing")
@@ -188,7 +256,7 @@ struct CarRacingTests {
     @Test
     @MainActor
     func testMakeCarRacingDiscrete() async throws {
-        let env = make("CarRacingDiscrete")
+        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CarRacingDiscrete")
         
         #expect(env.spec != nil)
         #expect(env.spec?.id == "CarRacingDiscrete")
@@ -198,75 +266,72 @@ struct CarRacingTests {
     
     @Test
     func testDomainRandomize() async throws {
-        var env = CarRacing(domainRandomize: true)
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacing(domainRandomize: true)
+        _ = try env.reset(seed: 42)
         
         #expect(env.domainRandomize == true)
     }
     
     @Test
     func testLapCompletePercent() async throws {
-        let env = CarRacing(lapCompletePercent: 0.8)
+        let env = try await makeCarRacing(lapCompletePercent: 0.8)
         
         #expect(env.lapCompletePercent == 0.8)
     }
     
     @Test
     func testClose() async throws {
-        var env = CarRacing()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacing()
+        _ = try env.reset(seed: 42)
         env.close()
     }
     
     @Test
     func testDiscreteClose() async throws {
-        var env = CarRacingDiscrete()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacingDiscrete()
+        _ = try env.reset(seed: 42)
         env.close()
     }
     
     @Test
     func testMultipleResets() async throws {
-        var env = CarRacing()
+        var env = try await makeCarRacing()
         
         for i in 0..<3 {
-            let result = env.reset(seed: UInt64(i + 100))
+            let result = try env.reset(seed: UInt64(i + 100))
             #expect(result.obs.shape == [96, 96, 3])
         }
     }
     
     @Test
     func testDiscreteMultipleResets() async throws {
-        var env = CarRacingDiscrete()
+        var env = try await makeCarRacingDiscrete()
         
         for i in 0..<3 {
-            let result = env.reset(seed: UInt64(i + 100))
+            let result = try env.reset(seed: UInt64(i + 100))
             #expect(result.obs.shape == [96, 96, 3])
         }
     }
     
     @Test
     func testSteeringCausesDirectionChange() async throws {
-        var env = CarRacing()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacing()
+        _ = try env.reset(seed: 42)
         
-        // Build up speed first
         for _ in 0..<50 {
             let action = MLXArray([0.0, 1.0, 0.0] as [Float32])
-            _ = env.step(action)
+            _ = try env.step(action)
         }
         
         let snapshot1 = env.currentSnapshot!
         let initialAngle = snapshot1.carAngle
         let initialSpeed = snapshot1.trueSpeed
         
-        // Verify we have some speed
         #expect(initialSpeed > 1.0, "Car should have built up speed")
         
-        // Now steer left while maintaining gas
         for _ in 0..<100 {
             let action = MLXArray([-1.0, 0.5, 0.0] as [Float32])
-            _ = env.step(action)
+            _ = try env.step(action)
         }
         
         let snapshot2 = env.currentSnapshot!
@@ -274,18 +339,16 @@ struct CarRacingTests {
         
         let angleDiff = abs(finalAngle - initialAngle)
         
-        // Car should have turned significantly (more than 0.1 radians ≈ 5.7 degrees)
         #expect(angleDiff > 0.1, "Car should turn when steering is applied. Angle only changed by \(angleDiff)")
     }
     
     @Test
     func testDiscreteSteeringCausesDirectionChange() async throws {
-        var env = CarRacingDiscrete()
-        _ = env.reset(seed: 42)
+        var env = try await makeCarRacingDiscrete()
+        _ = try env.reset(seed: 42)
         
-        // Build up speed first
         for _ in 0..<100 {
-            _ = env.step(3)
+            _ = try env.step(3)
         }
         
         let snapshot1 = env.currentSnapshot!
@@ -294,14 +357,13 @@ struct CarRacingTests {
         
         print("DEBUG: Initial speed = \(initialSpeed), initial angle = \(initialAngle)")
         
-        // Verify we have some speed
         #expect(initialSpeed > 1.0, "Car should have built up speed")
         
         for i in 0..<200 {
             if i % 2 == 0 {
-                _ = env.step(1)
+                _ = try env.step(1)
             } else {
-                _ = env.step(3)
+                _ = try env.step(3)
             }
             
             if i % 40 == 0 {

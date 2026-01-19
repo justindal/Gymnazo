@@ -6,25 +6,22 @@ import MLX
 final class DummyBoxEnv: Env {
     typealias Observation = MLXArray
     typealias Action = MLXArray
-    typealias ObservationSpace = Box
-    typealias ActionSpace = Box
-
-    let action_space: Box
-    let observation_space: Box
+    let actionSpace: any Space<Action>
+    let observationSpace: any Space<Observation>
     var spec: EnvSpec? = nil
-    var render_mode: String? = nil
+    var renderMode: RenderMode? = nil
 
     init(low: Float = -2.0, high: Float = 2.0, shape: [Int] = [2]) {
-        self.action_space = Box(low: low, high: high, shape: shape, dtype: .float32)
-        self.observation_space = Box(low: low, high: high, shape: shape, dtype: .float32)
+        self.actionSpace = Box(low: low, high: high, shape: shape, dtype: .float32)
+        self.observationSpace = Box(low: low, high: high, shape: shape, dtype: .float32)
     }
 
-    func step(_ action: MLXArray) -> Step<Observation> {
+    func step(_ action: MLXArray) throws -> Step<Observation> {
         return Step(obs: action, reward: 0.0, terminated: false, truncated: false, info: [:])
     }
 
-    func reset(seed: UInt64?, options: [String : Any]?) -> Reset<Observation> {
-        let zeros = MLXArray.zeros(action_space.shape ?? [1], type: Float.self)
+    func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<Observation> {
+        let zeros = MLXArray.zeros(actionSpace.shape ?? [1], type: Float.self)
         return Reset(obs: zeros, info: [:])
     }
 }
@@ -35,9 +32,9 @@ struct ActionWrappersTests {
     func testClipAction() async throws {
         let env = DummyBoxEnv(low: -1.0, high: 1.0, shape: [3])
         var wrapper = ClipAction(env: env)
-        _ = wrapper.reset(seed: 0, options: nil)
+        _ = try wrapper.reset(seed: 0, options: nil)
         let action = MLXArray([2.0 as Float, -2.0 as Float, 0.5 as Float])
-        let result = wrapper.step(action)
+        let result = try wrapper.step(action)
         let obs = result.obs.asArray(Float.self)
         #expect(abs(obs[0] - 1.0) < 1e-6)
         #expect(abs(obs[1] - (-1.0)) < 1e-6)
@@ -48,11 +45,10 @@ struct ActionWrappersTests {
     func testRescaleAction() async throws {
         let env = DummyBoxEnv(low: 0.0, high: 2.0, shape: [2])
         var wrapper = RescaleAction(env: env, sourceLow: -1.0, sourceHigh: 1.0)
-        _ = wrapper.reset(seed: 0, options: nil)
+        _ = try wrapper.reset(seed: 0, options: nil)
         
-        // input in [-1,1]; expect mapping to [0,2]
         let action = MLXArray([-1.0 as Float, 1.0 as Float])
-        let result = wrapper.step(action)
+        let result = try wrapper.step(action)
         let obs = result.obs.asArray(Float.self)
         #expect(abs(obs[0] - 0.0) < 1e-6)
         #expect(abs(obs[1] - 2.0) < 1e-6)

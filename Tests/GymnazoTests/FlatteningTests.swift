@@ -4,6 +4,20 @@ import MLX
 
 @Suite("Space flattening utilities")
 struct FlatteningTests {
+    func makeFrozenLake(isSlippery: Bool) async throws -> FrozenLake {
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+            "FrozenLake",
+            options: ["is_slippery": isSlippery]
+        )
+        guard let frozenLake = env.unwrapped as? FrozenLake else {
+            throw GymnazoError.invalidEnvironmentType(
+                expected: "FrozenLake",
+                actual: String(describing: type(of: env.unwrapped))
+            )
+        }
+        return frozenLake
+    }
+
     @Test
     func testDiscreteOneHotRoundTrip() async throws {
         let space = Discrete(n: 5)
@@ -54,8 +68,9 @@ struct FlatteningTests {
 
     @Test
     func testFlattenObservationFrozenLakeIsOneHot() async throws {
-        var env = FrozenLake().observationsFlattened()
-        let obs = env.reset(seed: 0, options: nil).obs
+        let baseEnv = try await makeFrozenLake(isSlippery: false)
+        var env = try baseEnv.observationsFlattened()
+        let obs = try env.reset(seed: 0, options: nil).obs
         eval(obs)
         let values = obs.asArray(Float.self)
         let sum = values.reduce(0, +)

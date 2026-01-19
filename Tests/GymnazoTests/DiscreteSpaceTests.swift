@@ -24,7 +24,6 @@ struct DiscreteSpaceTests {
     func testSampleWithMask() async throws {
         var key = MLX.key(123)
         let space = Discrete(n: 6)
-        // allow only index 3
         let maskValues: [Float] = (0..<6).map { $0 == 3 ? Float(1) : Float(0) }
         let mask = MLXArray(maskValues)
         for _ in 0..<20 {
@@ -39,7 +38,6 @@ struct DiscreteSpaceTests {
     func testSampleWithProbability() async throws {
         var key = MLX.key(456)
         let space = Discrete(n: 4)
-        // all mass on index 2
         let prob = MLXArray([Float](arrayLiteral: 0.0, 0.0, 1.0, 0.0))
         for _ in 0..<20 {
             let (k, _) = MLX.split(key: key)

@@ -6,17 +6,19 @@ import MLX
 struct RewardWrappersTests {
     @Test
     func testTransformRewardApplies() async throws {
-        var env = CartPole().rewardsTransformed { $0 * 2 }
-        _ = env.reset(seed: 0, options: nil)
-        let result = env.step(0)
+        var baseEnv: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+        var env = try baseEnv.rewardsTransformed { $0 * 2 }
+        _ = try env.reset(seed: 0, options: nil)
+        let result = try env.step(0)
         #expect(result.reward == 2)
     }
 
     @Test
     func testNormalizeRewardIsFinite() async throws {
-        var env = CartPole().rewardsNormalized()
-        _ = env.reset(seed: 0, options: nil)
-        let result = env.step(0)
+        var baseEnv: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+        var env = try baseEnv.rewardsNormalized()
+        _ = try env.reset(seed: 0, options: nil)
+        let result = try env.step(0)
         #expect(result.reward.isFinite)
     }
 }

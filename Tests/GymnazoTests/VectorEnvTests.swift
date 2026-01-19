@@ -4,72 +4,91 @@ import MLX
 
 @Suite("Vector Environment Tests")
 struct VectorEnvTests {
+    @MainActor
+    func makeCartPoleEnv() async throws -> AnyEnv<MLXArray, Int> {
+        try await Gymnazo.make("CartPole")
+    }
+
+    @MainActor
+    func makeCartPoleEnvFns(count: Int) async throws -> [() -> any Env] {
+        var envs: [AnyEnv<MLXArray, Int>] = []
+        envs.reserveCapacity(count)
+        for _ in 0..<count {
+            envs.append(try await makeCartPoleEnv())
+        }
+        return envs.map { env in { env } }
+    }
+
+    @MainActor
+    func makeSyncVectorEnv(
+        count: Int,
+        copyObservations: Bool = true,
+        autoresetMode: AutoresetMode = .nextStep
+    ) async throws -> SyncVectorEnv<Int> {
+        let envFns = try await makeCartPoleEnvFns(count: count)
+        return try SyncVectorEnv(
+            envFns: envFns,
+            copyObservations: copyObservations,
+            autoresetMode: autoresetMode
+        )
+    }
     
     @Test
     @MainActor
     func testSyncVectorEnvInitialization() async throws {
-        let envs = SyncVectorEnv(envFns: [
-            { CartPole() },
-            { CartPole() },
-            { CartPole() }
-        ])
+        let envs = try await makeSyncVectorEnv(count: 3)
         
-        #expect(envs.num_envs == 3)
+        #expect(envs.numEnvs == 3)
         #expect(envs.closed == false)
-        #expect(envs.autoreset_mode == .nextStep)
+        #expect(envs.autoresetMode == .nextStep)
     }
     
     @Test
     @MainActor
     func testSyncVectorEnvFromEnvFns() async throws {
-        let envs = SyncVectorEnv(envFns: [
-            { CartPole() },
-            { CartPole() }
-        ])
+        let envFns = try await makeCartPoleEnvFns(count: 2)
+        let envs: SyncVectorEnv<Int> = try SyncVectorEnv(envFns: envFns)
         
-        #expect(envs.num_envs == 2)
+        #expect(envs.numEnvs == 2)
     }
     
     @Test
     @MainActor
     func testMakeVecFunction() async throws {
-        let envs = make_vec("CartPole", numEnvs: 3)
+        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 3)
         
-        #expect(envs.num_envs == 3)
+        #expect(envs.numEnvs == 3)
         #expect(envs.spec?.name == "CartPole")
     }
     
     @Test
     @MainActor
     func testMakeVecWithEnvFns() async throws {
-        let envs = make_vec(envFns: [
-            { CartPole() },
-            { CartPole() }
-        ])
+        let envFns = try await makeCartPoleEnvFns(count: 2)
+        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec(envFns: envFns)
         
-        #expect(envs.num_envs == 2)
+        #expect(envs.numEnvs == 2)
     }
     
     @Test
     @MainActor
     func testResetReturnsCorrectShape() async throws {
         let numEnvs = 4
-        let envs = SyncVectorEnv(envFns: (0..<numEnvs).map { _ in { CartPole() } })
+        let envs = try await makeSyncVectorEnv(count: numEnvs)
         
-        let result = envs.reset(seed: 42)
+        let result = try envs.reset(seed: 42)
         
-        // CartPole has observation shape [4], so batched should be [numEnvs, 4]
         #expect(result.observations.shape == [numEnvs, 4])
     }
     
     @Test
     @MainActor
     func testResetWithSeedIsDeterministic() async throws {
-        let envs1 = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
-        let envs2 = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
+        let envs1 = try await makeSyncVectorEnv(count: 2)
+        let envs2 = try await makeSyncVectorEnv(count: 2)
         
-        let result1 = envs1.reset(seed: 123)
-        let result2 = envs2.reset(seed: 123)
+        let result1 = try envs1.reset(seed: 123)
+        let result2 = try envs2.reset(seed: 123)
         
         eval(result1.observations, result2.observations)
         
@@ -80,11 +99,11 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testResetWithDifferentSeedsProducesDifferentResults() async throws {
-        let envs1 = SyncVectorEnv(envFns: [{ CartPole() }])
-        let envs2 = SyncVectorEnv(envFns: [{ CartPole() }])
+        let envs1 = try await makeSyncVectorEnv(count: 1)
+        let envs2 = try await makeSyncVectorEnv(count: 1)
         
-        let result1 = envs1.reset(seed: 1)
-        let result2 = envs2.reset(seed: 999)
+        let result1 = try envs1.reset(seed: 1)
+        let result2 = try envs2.reset(seed: 999)
         
         eval(result1.observations, result2.observations)
         
@@ -95,23 +114,19 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testResetSeedIsIncrementedPerEnv() async throws {
-        // When seed=42 is provided, env[0] gets seed 42, env[1] gets seed 43, etc.
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
-        let result = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: 2)
+        let result = try envs.reset(seed: 42)
         
-        // Create individual environments with seeds 42 and 43 to verify
-        var singleEnv1 = CartPole()
-        var singleEnv2 = CartPole()
-        let obs1 = singleEnv1.reset(seed: 42).obs
-        let obs2 = singleEnv2.reset(seed: 43).obs
+        var singleEnv1 = try await makeCartPoleEnv()
+        var singleEnv2 = try await makeCartPoleEnv()
+        let obs1 = try singleEnv1.reset(seed: 42).obs
+        let obs2 = try singleEnv2.reset(seed: 43).obs
         
         eval(result.observations, obs1, obs2)
         
-        // First row should match env with seed 42
         let diff1 = abs(result.observations[0] - obs1).sum().item(Float.self)
         #expect(diff1 < 1e-6)
         
-        // Second row should match env with seed 43
         let diff2 = abs(result.observations[1] - obs2).sum().item(Float.self)
         #expect(diff2 < 1e-6)
     }
@@ -120,13 +135,12 @@ struct VectorEnvTests {
     @MainActor
     func testStepReturnsCorrectShapes() async throws {
         let numEnvs = 3
-        let envs = SyncVectorEnv(envFns: (0..<numEnvs).map { _ in { CartPole() } })
-        _ = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: numEnvs)
+        _ = try envs.reset(seed: 42)
         
         let actions = [1, 0, 1]
-        let result = envs.step(actions)
+        let result = try envs.step(actions)
         
-        // Check shapes
         #expect(result.observations.shape == [numEnvs, 4])
         #expect(result.rewards.shape == [numEnvs])
         #expect(result.terminations.shape == [numEnvs])
@@ -136,15 +150,13 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testStepWithDiscreteActions() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
-        _ = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: 2)
+        _ = try envs.reset(seed: 42)
         
-        // Step with discrete actions
-        let result = envs.step([1, 0])
+        let result = try envs.step([1, 0])
         
         eval(result.observations, result.rewards)
         
-        // Both environments should have received reward (1.0 for CartPole)
         let rewards = result.rewards
         #expect(rewards[0].item(Float.self) == 1.0)
         #expect(rewards[1].item(Float.self) == 1.0)
@@ -153,15 +165,15 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testStepIsDeterministic() async throws {
-        let envs1 = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
-        let envs2 = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
+        let envs1 = try await makeSyncVectorEnv(count: 2)
+        let envs2 = try await makeSyncVectorEnv(count: 2)
         
-        _ = envs1.reset(seed: 42)
-        _ = envs2.reset(seed: 42)
+        _ = try envs1.reset(seed: 42)
+        _ = try envs2.reset(seed: 42)
         
         let actions = [1, 0]
-        let result1 = envs1.step(actions)
-        let result2 = envs2.step(actions)
+        let result1 = try envs1.step(actions)
+        let result2 = try envs2.step(actions)
         
         eval(result1.observations, result2.observations, result1.rewards, result2.rewards)
         
@@ -175,69 +187,60 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testMultipleSteps() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }, { CartPole() }])
-        _ = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: 2)
+        _ = try envs.reset(seed: 42)
         
-        // Take multiple steps
         for _ in 0..<10 {
-            let result = envs.step([1, 0])
+            let result = try envs.step([1, 0])
             #expect(result.observations.shape == [2, 4])
         }
     }
     
     @Test
     @MainActor
-    func testAutoresetStoresFinalObservation() async throws {
-        let envs = SyncVectorEnv(
-            envFns: [{ CartPole() }],
-            autoresetMode: .nextStep
-        )
-        _ = envs.reset(seed: 42)
+    func testAutoresetStoresFinalInfo() async throws {
+        let envs = try await makeSyncVectorEnv(count: 1, autoresetMode: .nextStep)
+        _ = try envs.reset(seed: 42)
         
-        // Step until termination
         var terminated = false
-        var finalObsStored = false
+        var finalInfoStored = false
         
         for _ in 0..<500 {
-            let result = envs.step([0]) // Always push left to eventually fail
+            let result = try envs.step([0])
             
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
             
             if term {
                 terminated = true
-                if let finals = result.finals {
-                    finalObsStored = finals.observations[0] != nil
+                if result.infos[0]["final_info"] != nil {
+                    finalInfoStored = true
                 }
                 break
             }
         }
         
         #expect(terminated == true)
-        #expect(finalObsStored == true)
+        #expect(finalInfoStored == true)
     }
 
     @Test
     @MainActor
     func testSameStepAutoresetReturnsResetObservation() async throws {
-        let envs = SyncVectorEnv(
-            envFns: [{ CartPole() }],
-            autoresetMode: .sameStep
-        )
-        _ = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: 1, autoresetMode: .sameStep)
+        _ = try envs.reset(seed: 42)
         
         var terminated = false
         var checked = false
         
         for _ in 0..<500 {
-            let result = envs.step([0])
+            let result = try envs.step([0])
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
             
             if term {
                 terminated = true
-                #expect(result.finals?.indices.contains(0) == true)
-                #expect(result.finals?.observations[0] != nil)
+                #expect(result.infos[0]["final_info"] != nil)
                 
                 let obs = result.observations[0]
                 eval(obs)
@@ -255,16 +258,12 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testAutoresetNextStepResetsEnvironment() async throws {
-        let envs = SyncVectorEnv(
-            envFns: [{ CartPole() }],
-            autoresetMode: .nextStep
-        )
-        _ = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: 1, autoresetMode: .nextStep)
+        _ = try envs.reset(seed: 42)
         
-        // Step until termination
         var stepsUntilTermination = 0
         for i in 0..<500 {
-            let result = envs.step([0])
+            let result = try envs.step([0])
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
             if term {
@@ -273,46 +272,34 @@ struct VectorEnvTests {
             }
         }
         
-        // Take one more step - should autoreset and continue
-        let resultAfterReset = envs.step([1])
+        let resultAfterReset = try envs.step([1])
         eval(resultAfterReset.observations)
         
-        // Environment should have reset, observation should be valid
         #expect(resultAfterReset.observations.shape == [1, 4])
         
-        // Observation values should be small (reset state is within [-0.05, 0.05])
         let obs = resultAfterReset.observations[0]
         eval(obs)
         let maxVal = abs(obs).max().item(Float.self)
-        // After reset, values should be small again
-        // (this might not always be true if the step after reset moved the cart significantly)
     }
     
     @Test
     @MainActor
     func testAutoResetIndicesTracked() async throws {
-        // Create environments that will terminate at different times
-        let envs = SyncVectorEnv(
-            envFns: [{ CartPole() }, { CartPole() }],
-            autoresetMode: .nextStep
-        )
-        _ = envs.reset(seed: 42)
+        let envs = try await makeSyncVectorEnv(count: 2, autoresetMode: .nextStep)
+        _ = try envs.reset(seed: 42)
         
-        // Step with action that causes one env to fail faster
-        // (pushing consistently in one direction)
         var terminatedIndices: Set<Int> = []
         
         for _ in 0..<500 {
-            let result = envs.step([0, 1]) // Different actions for each env
+            let result = try envs.step([0, 1])
             eval(result.terminations)
             
-            if let indices = result.finals?.indices {
-                for idx in indices {
+            for (idx, info) in result.infos.enumerated() {
+                if info["final_info"] != nil {
                     terminatedIndices.insert(idx)
                 }
             }
             
-            // Check individual terminations
             let term0 = result.terminations[0].item(Bool.self)
             let term1 = result.terminations[1].item(Bool.self)
             
@@ -321,14 +308,13 @@ struct VectorEnvTests {
             }
         }
         
-        // At least one environment should have terminated
         #expect(!terminatedIndices.isEmpty)
     }
     
     @Test
     @MainActor
     func testCloseMarksEnvironmentAsClosed() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }])
+        let envs = try await makeSyncVectorEnv(count: 1)
         #expect(envs.closed == false)
         
         envs.close()
@@ -339,10 +325,10 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testDoubleCloseIsIdempotent() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }])
+        let envs = try await makeSyncVectorEnv(count: 1)
         
         envs.close()
-        envs.close() // Should not crash
+        envs.close()
         
         #expect(envs.closed == true)
     }
@@ -350,19 +336,18 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testSingleObservationSpace() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }])
+        let envs = try await makeSyncVectorEnv(count: 1)
         
-        // Single observation space should match CartPole's observation space
-        #expect(envs.single_observation_space.shape == [4])
+        #expect(envs.singleObservationSpace.shape == [4])
     }
     
     @Test
     @MainActor
     func testSingleActionSpace() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }])
+        let envs = try await makeSyncVectorEnv(count: 1)
         
-        if let discreteSpace = envs.single_action_space as? Discrete {
-            #expect(discreteSpace.n == 2) // CartPole has 2 actions
+        if let discreteSpace = envs.singleActionSpace as? Discrete {
+            #expect(discreteSpace.n == 2)
         } else {
             Issue.record("Expected Discrete action space")
         }
@@ -371,14 +356,14 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testSingleEnvironment() async throws {
-        let envs = SyncVectorEnv(envFns: [{ CartPole() }])
+        let envs = try await makeSyncVectorEnv(count: 1)
         
-        #expect(envs.num_envs == 1)
+        #expect(envs.numEnvs == 1)
         
-        let result = envs.reset(seed: 42)
+        let result = try envs.reset(seed: 42)
         #expect(result.observations.shape == [1, 4])
         
-        let stepResult = envs.step([1])
+        let stepResult = try envs.step([1])
         #expect(stepResult.observations.shape == [1, 4])
     }
     
@@ -386,32 +371,31 @@ struct VectorEnvTests {
     @MainActor
     func testManyEnvironments() async throws {
         let numEnvs = 10
-        let envs = make_vec("CartPole", numEnvs: numEnvs)
+        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: numEnvs)
         
-        #expect(envs.num_envs == numEnvs)
+        #expect(envs.numEnvs == numEnvs)
         
-        let result = envs.reset(seed: 0)
+        let result = try envs.reset(seed: 0)
         #expect(result.observations.shape == [numEnvs, 4])
         
         let actions = Array(repeating: 1, count: numEnvs)
-        let stepResult = envs.step(actions)
+        let stepResult = try envs.step(actions)
         #expect(stepResult.observations.shape == [numEnvs, 4])
     }
     
     @Test
     @MainActor
     func testFullEpisode() async throws {
-        let envs = make_vec("CartPole", numEnvs: 2)
-        var result = envs.reset(seed: 42)
+        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 2)
+        var result = try envs.reset(seed: 42)
         
         var totalRewards: [Float] = [0, 0]
         var steps = 0
         let maxSteps = 1000
         
         while steps < maxSteps {
-            // Random actions
             let actions = [Int.random(in: 0...1), Int.random(in: 0...1)]
-            let stepResult = envs.step(actions)
+            let stepResult = try envs.step(actions)
             
             eval(stepResult.rewards, stepResult.terminations, stepResult.truncations)
             
@@ -420,13 +404,8 @@ struct VectorEnvTests {
             
             steps += 1
             
-            // Check if both environments have gone through autoreset
-            if let indices = stepResult.infos["_final_observation_indices"] as? [Int] {
-                // Some environments terminated this step
-            }
         }
         
-        // Should have accumulated some rewards
         #expect(totalRewards[0] > 0)
         #expect(totalRewards[1] > 0)
         
@@ -436,15 +415,13 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testWithMountainCar() async throws {
-        let envs = make_vec("MountainCar", numEnvs: 2)
+        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("MountainCar", numEnvs: 2)
         
-        let result = envs.reset(seed: 42)
+        let result = try envs.reset(seed: 42)
         
-        // MountainCar has observation shape [2]
         #expect(result.observations.shape == [2, 2])
         
-        // Step with continuous-ish discrete actions
-        let stepResult = envs.step([0, 2]) // MountainCar has 3 actions: 0, 1, 2
+        let stepResult = try envs.step([0, 2])
         #expect(stepResult.observations.shape == [2, 2])
         
         envs.close()
@@ -467,17 +444,18 @@ struct VectorStepResultTests {
     
     @Test
     func testVectorStepResultInit() {
+        let info: Info = ["key": "value"]
         let result = VectorStepResult(
             observations: MLXArray([1.0, 2.0, 3.0]),
             rewards: MLXArray([1.0]),
             terminations: MLXArray([false]),
             truncations: MLXArray([false]),
-            infos: ["key": "value"]
+            infos: [info]
         )
         
         #expect(result.observations.shape == [3])
         #expect(result.rewards.shape == [1])
-        #expect(result.infos["key"]?.string == "value")
+        #expect(result.infos[0]["key"]?.string == "value")
     }
 }
 
@@ -489,11 +467,13 @@ struct VectorResetResultTests {
         let obs = MLX.stacked([MLXArray([1.0, 2.0] as [Float]), MLXArray([3.0, 4.0] as [Float])], axis: 0)
         let result = VectorResetResult(
             observations: obs,
-            infos: [:]
+            infos: [Info(), Info()]
         )
         
         #expect(result.observations.shape == [2, 2])
-        #expect(result.infos.isEmpty)
+        #expect(result.infos.count == 2)
+        #expect(result.infos[0].isEmpty)
+        #expect(result.infos[1].isEmpty)
     }
 }
 

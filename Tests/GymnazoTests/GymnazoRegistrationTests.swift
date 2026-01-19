@@ -6,12 +6,14 @@ struct GymnazoRegistrationTests {
     @Test
     @MainActor
     func testMakeRegistersEnvironments() async throws {
-        // Calling make triggers lazy initialization
-        let env = Gymnazo.make("FrozenLake", kwargs: ["is_slippery": false])
+        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+            "FrozenLake",
+            options: ["is_slippery": false]
+        )
         #expect(env.spec?.id == "FrozenLake")
         
-        // Registry should now contain registered environments
-        let contains = Gymnazo.registry.keys.contains("FrozenLake")
+        let specs = await Gymnazo.registry()
+        let contains = specs.keys.contains("FrozenLake")
         #expect(contains)
     }
 }
