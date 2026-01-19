@@ -1,7 +1,3 @@
-//
-// CliffWalking.swift
-//
-
 import Foundation
 import MLX
 #if canImport(SwiftUI)
@@ -104,13 +100,11 @@ public final class CliffWalking: Env {
     
     public typealias Observation = Int
     public typealias Action = Int
-    public typealias ObservationSpace = Discrete
-    public typealias ActionSpace = Discrete
     
-    public let actionSpace: Discrete
-    public let observationSpace: Discrete
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     public var spec: EnvSpec?
-    public var renderMode: String?
+    public var renderMode: RenderMode?
     
     private let isSlippery: Bool
     private var cliff: [[Bool]]
@@ -128,7 +122,7 @@ public final class CliffWalking: Env {
 #endif
     
     public init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         isSlippery: Bool = false
     ) {
         self.renderMode = renderMode
@@ -199,20 +193,23 @@ public final class CliffWalking: Env {
         return outcomes
     }
     
-    private func prepareKey(with seed: UInt64?) -> MLXArray {
+    private func prepareKey(with seed: UInt64?) throws -> MLXArray {
         if let seed {
             _key = MLX.key(seed)
         } else if _key == nil {
             _key = MLX.key(UInt64.random(in: 0...UInt64.max))
         }
-        return _key!
+        guard let key = _key else {
+            throw GymnazoError.invalidState("Failed to initialize RNG key")
+        }
+        return key
     }
     
     public func reset(
         seed: UInt64? = nil,
-        options: [String: Any]? = nil
-    ) -> Reset<Observation> {
-        _ = prepareKey(with: seed)
+        options: EnvOptions? = nil
+    ) throws -> Reset<Observation> {
+        _ = try prepareKey(with: seed)
         
         s = Self.startState
         lastAction = nil
@@ -220,12 +217,15 @@ public final class CliffWalking: Env {
         return Reset(obs: s, info: ["prob": 1.0])
     }
     
-    public func step(_ action: Action) -> Step<Observation> {
+    public func step(_ action: Action) throws -> Step<Observation> {
         guard let transitions = P[s][action], !transitions.isEmpty else {
-            fatalError("Invalid state or action")
+            throw GymnazoError.invalidState("Invalid state or action")
         }
         
-        let (sampleKey, nextKey) = MLX.split(key: _key!)
+        guard let key = _key else {
+            throw GymnazoError.invalidState("Missing RNG key")
+        }
+        let (sampleKey, nextKey) = MLX.split(key: key)
         _key = nextKey
         
         let probs = transitions.map { Float($0.prob) }
@@ -252,7 +252,7 @@ public final class CliffWalking: Env {
     }
     
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else {
             if let specId = spec?.id {
                 print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
@@ -261,23 +261,26 @@ public final class CliffWalking: Env {
         }
         
         switch mode {
-        case "ansi":
-            return _renderText()
-        case "human", "rgb_array":
+        case .ansi:
+            return .ansi(_renderText())
+        case .human, .rgbArray:
 #if canImport(SwiftUI)
             let snapshot = currentSnapshot
             let result = DispatchQueue.main.sync {
                 CliffWalking.renderGUI(snapshot: snapshot, mode: mode)
             }
-            if mode == "rgb_array" {
-                lastRGBFrame = result as! CGImage?
+            if mode == .rgbArray {
+                lastRGBFrame = result
             }
-            return result
+            if let image = result {
+                return .rgbArray(image)
+            }
+            return nil
 #else
             return nil
 #endif
-        default:
-            print("[Gymnazo] Unsupported renderMode \(mode).")
+        case .statePixels:
+            print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
         }
     }
@@ -316,18 +319,18 @@ public final class CliffWalking: Env {
     
 #if canImport(SwiftUI)
     @MainActor
-    private static func renderGUI(snapshot: CliffWalkingRenderSnapshot, mode: String) -> Any? {
+    private static func renderGUI(snapshot: CliffWalkingRenderSnapshot, mode: RenderMode) -> CGImage? {
         let view = CliffWalkingCanvasView(snapshot: snapshot)
         
         switch mode {
-        case "human":
+        case .human:
 #if canImport(PlaygroundSupport)
             PlaygroundPage.current.setLiveView(view)
 #else
             print("[Gymnazo] SwiftUI Canvas available via CliffWalkingCanvasView; integrate it into your app UI.")
 #endif
             return nil
-        case "rgb_array":
+        case .rgbArray:
             if #available(macOS 13.0, iOS 16.0, *) {
                 let renderer = ImageRenderer(content: view)
 #if os(macOS)
@@ -340,7 +343,7 @@ public final class CliffWalking: Env {
                 print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
                 return nil
             }
-        default:
+        case .ansi, .statePixels:
             return nil
         }
     }
@@ -437,7 +440,6 @@ public struct CliffWalkingCanvasView: View {
             let cliffColor = Color(red: 0.3, green: 0.15, blue: 0.1)
             context.fill(Path(rect), with: .color(cliffColor))
             
-            // Use drawLayer to isolate the clipping for stripes
             context.drawLayer { layerContext in
                 let stripeSpacing: CGFloat = 8
                 var stripePath = Path()

@@ -1,7 +1,3 @@
-//
-// Blackjack.swift
-//
-
 import Foundation
 import MLX
 #if canImport(SwiftUI)
@@ -146,13 +142,11 @@ public final class Blackjack: Env {
     
     public typealias Observation = BlackjackObservation
     public typealias Action = Int
-    public typealias ObservationSpace = BlackjackObservationSpace
-    public typealias ActionSpace = Discrete
     
-    public let actionSpace: Discrete
-    public let observationSpace: BlackjackObservationSpace
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
     public var spec: EnvSpec?
-    public var renderMode: String?
+    public var renderMode: RenderMode?
     
     private let natural: Bool
     private let sab: Bool
@@ -174,7 +168,7 @@ public final class Blackjack: Env {
 #endif
     
     public init(
-        renderMode: String? = nil,
+        renderMode: RenderMode? = nil,
         natural: Bool = false,
         sab: Bool = false
     ) {
@@ -262,8 +256,8 @@ public final class Blackjack: Env {
     
     public func reset(
         seed: UInt64? = nil,
-        options: [String: Any]? = nil
-    ) -> Reset<Observation> {
+        options: EnvOptions? = nil
+    ) throws -> Reset<Observation> {
         if let seed {
             _key = MLX.key(seed)
             _renderKey = MLX.key(seed ^ 0x9E3779B97F4A7C15)
@@ -279,10 +273,10 @@ public final class Blackjack: Env {
         }
         
         guard var key = _key else {
-            fatalError("Failed to initialize RNG key")
+            throw GymnazoError.invalidState("Failed to initialize RNG key")
         }
         guard var renderKey = _renderKey else {
-            fatalError("Failed to initialize render RNG key")
+            throw GymnazoError.invalidState("Failed to initialize render RNG key")
         }
         
         let (dealerHand, k1) = Self.drawHand(key: key)
@@ -320,24 +314,27 @@ public final class Blackjack: Env {
         return Reset(obs: obs, info: [:])
     }
     
-    public func step(_ action: Action) -> Step<Observation> {
-        guard _key != nil else {
-            fatalError("Call reset() before step()")
+    public func step(_ action: Action) throws -> Step<Observation> {
+        guard var key = _key else {
+            throw GymnazoError.stepBeforeReset
         }
         
         var terminated = false
         var reward: Double = 0.0
         
         if action == 1 {
-            let (drawKey, nextKey) = MLX.split(key: _key!)
-            _key = nextKey
+            let (drawKey, nextKey) = MLX.split(key: key)
+            key = nextKey
             let newCard = Self.drawCard(key: drawKey)
             player.append(newCard)
             
             if _renderKey == nil {
                 _renderKey = MLX.key(UInt64.random(in: 0...UInt64.max))
             }
-            let (valStr, suit, k) = generateCardDisplay(value: newCard, key: _renderKey!)
+            guard let renderKey = _renderKey else {
+                throw GymnazoError.invalidState("Missing render RNG key")
+            }
+            let (valStr, suit, k) = generateCardDisplay(value: newCard, key: renderKey)
             _renderKey = k
             playerCardValueStrs.append(valStr)
             playerCardSuits.append(suit)
@@ -350,8 +347,8 @@ public final class Blackjack: Env {
             terminated = true
             
             while Self.sumHand(dealer) < 17 {
-                let (drawKey, nextKey) = MLX.split(key: _key!)
-                _key = nextKey
+                let (drawKey, nextKey) = MLX.split(key: key)
+                key = nextKey
                 dealer.append(Self.drawCard(key: drawKey))
             }
             
@@ -364,6 +361,7 @@ public final class Blackjack: Env {
             }
         }
         
+        _key = key
         return Step(
             obs: getObs(),
             reward: reward,
@@ -374,7 +372,7 @@ public final class Blackjack: Env {
     }
     
     @discardableResult
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else {
             if let specId = spec?.id {
                 print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
@@ -383,39 +381,42 @@ public final class Blackjack: Env {
         }
         
         switch mode {
-        case "human", "rgb_array":
+        case .human, .rgbArray:
 #if canImport(SwiftUI)
             let snapshot = currentSnapshot
             let result = DispatchQueue.main.sync {
                 Blackjack.renderGUI(snapshot: snapshot, mode: mode)
             }
-            if mode == "rgb_array" {
-                lastRGBFrame = result as! CGImage?
+            if mode == .rgbArray {
+                lastRGBFrame = result
             }
-            return result
+            if let image = result {
+                return .rgbArray(image)
+            }
+            return nil
 #else
             return nil
 #endif
-        default:
-            print("[Gymnazo] Unsupported renderMode \(mode).")
+        case .ansi, .statePixels:
+            print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
         }
     }
     
 #if canImport(SwiftUI)
     @MainActor
-    private static func renderGUI(snapshot: BlackjackRenderSnapshot, mode: String) -> Any? {
+    private static func renderGUI(snapshot: BlackjackRenderSnapshot, mode: RenderMode) -> CGImage? {
         let view = BlackjackCanvasView(snapshot: snapshot)
         
         switch mode {
-        case "human":
+        case .human:
 #if canImport(PlaygroundSupport)
             PlaygroundPage.current.setLiveView(view)
 #else
             print("[Gymnazo] SwiftUI Canvas available via BlackjackCanvasView; integrate it into your app UI.")
 #endif
             return nil
-        case "rgb_array":
+        case .rgbArray:
             if #available(macOS 13.0, iOS 16.0, *) {
                 let renderer = ImageRenderer(content: view)
 #if os(macOS)
@@ -428,7 +429,7 @@ public final class Blackjack: Env {
                 print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
                 return nil
             }
-        default:
+        case .ansi, .statePixels:
             return nil
         }
     }

@@ -1,10 +1,3 @@
-//
-//  Acrobot.swift
-//
-//  A two-link pendulum with only the second joint actuated.
-//  The goal is to swing the free end above a target height.
-//
-
 import Foundation
 import MLX
 
@@ -53,15 +46,14 @@ public struct Acrobot: Env {
     public typealias Observation = MLXArray
     public typealias Action = Int
 
-    // Physics constants
     public let dt: Float = 0.2
-    public let linkLength1: Float = 1.0  // [m]
-    public let linkLength2: Float = 1.0  // [m]
-    public let linkMass1: Float = 1.0  // [kg]
-    public let linkMass2: Float = 1.0  // [kg]
-    public let linkCOMPos1: Float = 0.5  // [m] center of mass position
-    public let linkCOMPos2: Float = 0.5  // [m]
-    public let linkMOI: Float = 1.0  // moment of inertia for both links
+    public let linkLength1: Float = 1.0
+    public let linkLength2: Float = 1.0
+    public let linkMass1: Float = 1.0
+    public let linkMass2: Float = 1.0
+    public let linkCOMPos1: Float = 0.5
+    public let linkCOMPos2: Float = 0.5
+    public let linkMOI: Float = 1.0
     public let gravity: Float = 9.8
 
     public let maxVel1: Float = 4 * Float.pi
@@ -70,17 +62,15 @@ public struct Acrobot: Env {
     public let availableTorques: [Float] = [-1.0, 0.0, 1.0]
     public let torqueNoiseMax: Float
 
-    // Use "book" dynamics (Sutton & Barto) by default
     public var bookOrNips: String = "book"
 
-    // State: [theta1, theta2, dtheta1, dtheta2]
     public var state: [Float]? = nil
 
-    public let actionSpace: Discrete
-    public let observationSpace: Box
+    public let actionSpace: any Space<Action>
+    public let observationSpace: any Space<Observation>
 
     public var spec: EnvSpec? = nil
-    public var renderMode: String? = nil
+    public var renderMode: RenderMode? = nil
 
     private var _key: MLXArray?
 
@@ -91,14 +81,12 @@ public struct Acrobot: Env {
         ]
     }
 
-    public init(renderMode: String? = nil, torque_noise_max: Float = 0.0) {
+    public init(renderMode: RenderMode? = nil, torque_noise_max: Float = 0.0) {
         self.renderMode = renderMode
         self.torqueNoiseMax = torque_noise_max
 
-        // Action Space: 0 = -1 torque, 1 = 0 torque, 2 = +1 torque
         self.actionSpace = Discrete(n: 3)
 
-        // Observation Space: [cos(θ1), sin(θ1), cos(θ2), sin(θ2), dθ1, dθ2]
         let high: [Float] = [1.0, 1.0, 1.0, 1.0, maxVel1, maxVel2]
         let low: [Float] = [-1.0, -1.0, -1.0, -1.0, -maxVel1, -maxVel2]
 
@@ -109,19 +97,20 @@ public struct Acrobot: Env {
         )
     }
 
-    public mutating func step(_ action: Int) -> Step<Observation> {
+    public mutating func step(_ action: Int) throws -> Step<Observation> {
         guard let currentState = state else {
-            fatalError("Call reset() before step()")
+            throw GymnazoError.stepBeforeReset
         }
 
-        precondition(action >= 0 && action < 3, "Invalid action: \(action). Must be 0, 1, or 2.")
+        guard action >= 0 && action < 3 else {
+            throw GymnazoError.invalidAction("Invalid action: \(action). Must be 0, 1, or 2.")
+        }
 
         var torque = availableTorques[action]
 
-        // Add noise to the torque if configured
         if torqueNoiseMax > 0 {
             guard let key = _key else {
-                fatalError("Call reset() before step()")
+                throw GymnazoError.stepBeforeReset
             }
             let (noiseKey, nextKey) = MLX.split(key: key)
             _key = nextKey
@@ -131,17 +120,13 @@ public struct Acrobot: Env {
             torque += noise
         }
 
-        // Augment state with torque for integration
         let sAugmented = currentState + [torque]
 
-        // Integrate using RK4
         var ns = rk4(derivs: dsdt, y0: sAugmented, t: [0, dt])
 
-        // Wrap angles to [-π, π]
         ns[0] = wrap(ns[0], min: -Float.pi, max: Float.pi)
         ns[1] = wrap(ns[1], min: -Float.pi, max: Float.pi)
 
-        // Bound velocities
         ns[2] = bound(ns[2], min: -maxVel1, max: maxVel1)
         ns[3] = bound(ns[3], min: -maxVel2, max: maxVel2)
 
@@ -151,7 +136,7 @@ public struct Acrobot: Env {
         let reward: Double = terminated ? 0.0 : -1.0
 
         return Step(
-            obs: getObservation(),
+            obs: try getObservation(),
             reward: reward,
             terminated: terminated,
             truncated: false,
@@ -159,7 +144,7 @@ public struct Acrobot: Env {
         )
     }
 
-    public mutating func reset(seed: UInt64? = nil, options: [String: Any]? = nil) -> Reset<
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<
         Observation
     > {
         if let seed {
@@ -184,23 +169,23 @@ public struct Acrobot: Env {
             randomState[3].item(Float.self),
         ]
 
-        return Reset(obs: getObservation(), info: [:])
+        return Reset(obs: try getObservation(), info: [:])
     }
 
     /// Get the 6D observation from the internal state
-    private func getObservation() -> MLXArray {
+    private func getObservation() throws -> MLXArray {
         guard let s = state else {
-            fatalError("Call reset() before getting observation")
+            throw GymnazoError.invalidState("Call reset() before getting observation")
         }
 
         return MLXArray(
             [
-                cos(s[0]),  // cos(theta1)
-                sin(s[0]),  // sin(theta1)
-                cos(s[1]),  // cos(theta2)
-                sin(s[1]),  // sin(theta2)
-                s[2],  // dtheta1
-                s[3],  // dtheta2
+                cos(s[0]),
+                sin(s[0]),
+                cos(s[1]),
+                sin(s[1]),
+                s[2],
+                s[3],
             ] as [Float])
     }
 
@@ -239,10 +224,8 @@ public struct Acrobot: Env {
 
         let ddtheta2: Float
         if bookOrNips == "nips" {
-            // NIPS paper equations
             ddtheta2 = (a + d2 / d1 * phi1 - phi2) / (m2 * lc2 * lc2 + I2 - d2 * d2 / d1)
         } else {
-            // Sutton & Barto
             ddtheta2 =
                 (a + d2 / d1 * phi1 - m2 * l1 * lc2 * dtheta1 * dtheta1 * sin(theta2) - phi2)
                 / (m2 * lc2 * lc2 + I2 - d2 * d2 / d1)
@@ -295,19 +278,19 @@ public struct Acrobot: Env {
         return Swift.min(Swift.max(x, m), M)
     }
 
-    public func render() -> Any? {
+    public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
 
         switch mode {
-        case "human":
+        case .human:
             #if canImport(SwiftUI)
-                return AcrobotView(snapshot: self.currentSnapshot)
+                return .other(AcrobotView(snapshot: self.currentSnapshot))
             #else
                 return nil
             #endif
-        case "rgb_array":
+        case .rgbArray:
             return nil
-        default:
+        case .ansi, .statePixels:
             return nil
         }
     }
@@ -394,9 +377,9 @@ public struct AcrobotSnapshot: Sendable, Equatable {
 
         private var link1: SKShapeNode?
         private var link2: SKShapeNode?
-        private var joint0: SKShapeNode?  // Fixed joint at origin
-        private var joint1: SKShapeNode?  // Joint between links
-        private var joint2: SKShapeNode?  // Free end, might not be needed
+        private var joint0: SKShapeNode?
+        private var joint1: SKShapeNode?
+        private var joint2: SKShapeNode?
         private var targetLine: SKShapeNode?
 
         private let linkWidth: CGFloat = 10
@@ -409,7 +392,7 @@ public struct AcrobotSnapshot: Sendable, Equatable {
         }
 
         required init?(coder aDecoder: NSCoder) {
-            fatalError("init(coder:) has not been implemented")
+            return nil
         }
 
         public func resize(to newSize: CGSize) {
@@ -430,7 +413,6 @@ public struct AcrobotSnapshot: Sendable, Equatable {
         private func rebuildScene() {
             removeAllChildren()
 
-            // Create target line
             let bound = snapshot.linkLength1 + snapshot.linkLength2 + 0.2
             let scale = min(size.width, size.height) / CGFloat(bound * 2)
             let targetY = CGFloat(snapshot.targetHeight) * scale + size.height / 2
@@ -444,13 +426,11 @@ public struct AcrobotSnapshot: Sendable, Equatable {
             targetLine?.lineWidth = 2
             addChild(targetLine!)
 
-            // Create links
             link1 = createLink()
             link2 = createLink()
             addChild(link1!)
             addChild(link2!)
 
-            // Create joints
             joint0 = SKShapeNode(circleOfRadius: jointRadius)
             joint0?.fillColor = SKColor(red: 0.8, green: 0.8, blue: 0.0, alpha: 1.0)
             joint0?.strokeColor = .black
@@ -486,37 +466,30 @@ public struct AcrobotSnapshot: Sendable, Equatable {
             let offsetX = size.width / 2
             let offsetY = size.height / 2
 
-            // Origin (fixed joint)
             let origin = CGPoint(x: offsetX, y: offsetY)
 
-            // Position of joint between links
             let p1 = snapshot.p1
             let p1Screen = CGPoint(
                 x: offsetX + CGFloat(p1.x) * scale,
                 y: offsetY + CGFloat(p1.y) * scale
             )
 
-            // Position of free end
             let p2 = snapshot.p2
             let p2Screen = CGPoint(
                 x: offsetX + CGFloat(p2.x) * scale,
                 y: offsetY + CGFloat(p2.y) * scale
             )
 
-            // Update link 1
             updateLinkShape(
                 link1, from: origin, to: p1Screen, length: CGFloat(snapshot.linkLength1) * scale)
 
-            // Update link 2
             updateLinkShape(
                 link2, from: p1Screen, to: p2Screen, length: CGFloat(snapshot.linkLength2) * scale)
 
-            // Update joints
             joint0?.position = origin
             joint1?.position = p1Screen
             joint2?.position = p2Screen
 
-            // Update target line
             let targetY = CGFloat(snapshot.targetHeight) * scale + offsetY
             let targetPath = CGMutablePath()
             targetPath.move(to: CGPoint(x: 0, y: targetY))
