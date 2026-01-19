@@ -284,7 +284,7 @@ public struct Acrobot: Env {
         switch mode {
         case .human:
             #if canImport(SwiftUI)
-                return .other(AcrobotView(snapshot: self.currentSnapshot))
+                return .other(self.currentSnapshot)
             #else
                 return nil
             #endif

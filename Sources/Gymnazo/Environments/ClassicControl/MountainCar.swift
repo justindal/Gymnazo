@@ -188,14 +188,14 @@ public struct MountainCar: Env {
 
     /// Render the environment.
     ///
-    /// - Returns: A `MountainCarView` for human mode, `nil` otherwise.
+    /// - Returns: A `MountainCarSnapshot` for human mode, `nil` otherwise.
     public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
 
         switch mode {
         case .human:
             #if canImport(SwiftUI)
-                return .other(MountainCarView(snapshot: self.currentSnapshot))
+                return .other(self.currentSnapshot)
             #else
                 return nil
             #endif

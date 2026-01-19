@@ -178,7 +178,10 @@ public struct Pendulum: Env {
         switch mode {
         case .human:
             #if canImport(SwiftUI)
-            return .other(PendulumView(snapshot: self.currentSnapshot))
+            if let snapshot = self.currentSnapshot {
+                return .other(snapshot)
+            }
+            return nil
             #else
             return nil
             #endif
