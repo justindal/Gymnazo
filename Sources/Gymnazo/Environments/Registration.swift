@@ -178,7 +178,13 @@ extension GymnazoRegistry {
             id: "Taxi",
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
-                return Taxi(renderMode: renderMode)
+                let isRainy = options["is_rainy"] as? Bool ?? false
+                let ficklePassenger = options["fickle_passenger"] as? Bool ?? false
+                return Taxi(
+                    renderMode: renderMode,
+                    isRainy: isRainy,
+                    ficklePassenger: ficklePassenger
+                )
             },
             maxEpisodeSteps: 200
         )
@@ -189,7 +195,8 @@ extension GymnazoRegistry {
             id: "CliffWalking",
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
-                return CliffWalking(renderMode: renderMode)
+                let isSlippery = options["is_slippery"] as? Bool ?? false
+                return CliffWalking(renderMode: renderMode, isSlippery: isSlippery)
             },
             maxEpisodeSteps: 200
         )
