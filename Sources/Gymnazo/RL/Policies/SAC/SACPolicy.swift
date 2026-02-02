@@ -12,7 +12,9 @@ private let logStdMin: Float = -20.0
 /// Actor (Policy) Network for SAC
 public final class SACActor: Module, Policy {
     public let observationSpace: any Space<MLXArray>
-    public let actionSpace: any Space<MLXArray>
+    private let _actionSpace: any Space<MLXArray>
+    public var actionSpace: any Space { _actionSpace }
+    public var continuousActionSpace: any Space<MLXArray> { _actionSpace }
     public let netArch: NetArch
 
     public let featuresExtractor: any FeaturesExtractor
@@ -44,7 +46,7 @@ public final class SACActor: Module, Policy {
         clipMean: Float = 2.0
     ) {
         self.observationSpace = observationSpace
-        self.actionSpace = actionSpace
+        self._actionSpace = actionSpace
         self.netArch = netArch
         self.featuresExtractor =
             featuresExtractor
