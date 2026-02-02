@@ -16,7 +16,7 @@ import MLX
 public protocol Buffer {
     var bufferSize: Int { get }
     var observationSpace: any Space<MLXArray> { get }
-    var actionSpace: any Space<MLXArray> { get }
+    var actionSpace: any Space { get }
     var numEnvs: Int { get }
     var count: Int { get }
 

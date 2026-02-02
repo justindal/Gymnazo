@@ -104,7 +104,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         self.entropyOptimizer =
             entCoef.isAuto ? optimizerConfig.entropy?.make(learningRate: lr) : nil
 
-        let actionDim = getActionDim(self.policy.actionSpace)
+        let actionDim = getActionDim(self.policy.continuousActionSpace)
         self.targetEntropy = targetEntropy ?? Float(-actionDim)
         self.logEntCoefModule = LogEntropyCoefModule(initialValue: entCoef.initialValue)
     }

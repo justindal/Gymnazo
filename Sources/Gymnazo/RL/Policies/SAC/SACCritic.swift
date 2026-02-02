@@ -12,7 +12,8 @@ import MLXNN
 /// from multiple critic networks for clipped double Q-learning.
 public final class SACCritic: Module, ContinuousCritic {
     public let observationSpace: any Space<MLXArray>
-    public let actionSpace: any Space<MLXArray>
+    private let _actionSpace: any Space<MLXArray>
+    public var actionSpace: any Space { _actionSpace }
     public let normalizeImages: Bool
     public let netArch: [Int]
     public let featuresDim: Int
@@ -42,7 +43,7 @@ public final class SACCritic: Module, ContinuousCritic {
         activation: @escaping () -> any UnaryLayer = { ReLU() }
     ) {
         self.observationSpace = observationSpace
-        self.actionSpace = actionSpace
+        self._actionSpace = actionSpace
         self.normalizeImages = normalizeImages
         self.netArch = netArch
         self.nCritics = nCritics

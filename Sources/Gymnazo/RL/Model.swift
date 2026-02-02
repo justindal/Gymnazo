@@ -20,7 +20,7 @@ import MLXNN
 ///     - normalizeImages: Whether to normalize images or not, dividing by 255.0. True by default.
 public protocol Model: Module {
     var observationSpace: any Space<MLXArray> { get }
-    var actionSpace: any Space<MLXArray> { get }
+    var actionSpace: any Space { get }
     var featuresExtractor: (any FeaturesExtractor)? { get }
     var normalizeImages: Bool { get }
 
