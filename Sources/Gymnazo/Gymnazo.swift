@@ -43,6 +43,9 @@ public actor GymnazoRegistry {
     ///   - nondeterministic: Whether the environment is nondeterministic.
     public func register(
         id: String,
+        displayName: String? = nil,
+        description: String? = nil,
+        category: EnvCategory? = nil,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -51,6 +54,9 @@ public actor GymnazoRegistry {
         let spec = EnvSpec(
             id: id,
             entryPoint: entryPoint,
+            displayName: displayName,
+            description: description,
+            category: category,
             rewardThreshold: rewardThreshold,
             nondeterministic: nondeterministic,
             maxEpisodeSteps: maxEpisodeSteps
@@ -97,12 +103,18 @@ public enum Gymnazo {
     ///
     /// - Parameters:
     ///   - id: The unique identifier for the environment (e.g., "CartPole").
+    ///   - displayName: Human-readable name for UI display.
+    ///   - description: Description of the environment.
+    ///   - category: Environment category for grouping.
     ///   - entryPoint: A closure that creates the environment from options.
     ///   - maxEpisodeSteps: Optional maximum steps per episode.
     ///   - rewardThreshold: Optional reward threshold for solving the environment.
     ///   - nondeterministic: Whether the environment is nondeterministic.
     public static func register(
         id: String,
+        displayName: String? = nil,
+        description: String? = nil,
+        category: EnvCategory? = nil,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -110,6 +122,9 @@ public enum Gymnazo {
     ) async {
         await GymnazoRegistry.shared.register(
             id: id,
+            displayName: displayName,
+            description: description,
+            category: category,
             entryPoint: entryPoint,
             maxEpisodeSteps: maxEpisodeSteps,
             rewardThreshold: rewardThreshold,

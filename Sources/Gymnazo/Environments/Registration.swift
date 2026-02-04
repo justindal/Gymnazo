@@ -49,6 +49,10 @@ public struct EnvSpec: Sendable {
     public let id: String
     public var entryPoint: EntryPoint
 
+    public var displayName: String?
+    public var description: String?
+    public var category: EnvCategory?
+
     public var rewardThreshold: Double? = nil
     public var nondeterministic: Bool = false
 
@@ -91,6 +95,9 @@ public struct EnvSpec: Sendable {
     public init(
         id: String,
         entryPoint: @escaping EntryPoint,
+        displayName: String? = nil,
+        description: String? = nil,
+        category: EnvCategory? = nil,
         rewardThreshold: Double? = nil,
         nondeterministic: Bool = false,
         maxEpisodeSteps: Int? = nil,
@@ -101,6 +108,9 @@ public struct EnvSpec: Sendable {
     ) {
         self.id = id
         self.entryPoint = entryPoint
+        self.displayName = displayName
+        self.description = description
+        self.category = category
         self.rewardThreshold = rewardThreshold
         self.nondeterministic = nondeterministic
         self.maxEpisodeSteps = maxEpisodeSteps
@@ -121,6 +131,9 @@ extension GymnazoRegistry {
 
     private func registerIfNeeded(
         id: String,
+        displayName: String,
+        description: String,
+        category: EnvCategory,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -129,6 +142,9 @@ extension GymnazoRegistry {
         guard !isRegistered(id) else { return }
         register(
             id: id,
+            displayName: displayName,
+            description: description,
+            category: category,
             entryPoint: entryPoint,
             maxEpisodeSteps: maxEpisodeSteps,
             rewardThreshold: rewardThreshold,
@@ -146,6 +162,9 @@ extension GymnazoRegistry {
     private func registerFrozenLake() {
         registerIfNeeded(
             id: "FrozenLake",
+            displayName: "Frozen Lake",
+            description: "Navigate a frozen lake from start to goal without falling into holes.",
+            category: .toyText,
             entryPoint: { options in
                 RegistrationSupport.createFrozenLake(options: options, defaultMap: "4x4")
             },
@@ -154,6 +173,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "FrozenLake8x8",
+            displayName: "Frozen Lake 8x8",
+            description: "Navigate a larger frozen lake from start to goal without falling into holes.",
+            category: .toyText,
             entryPoint: { options in
                 RegistrationSupport.createFrozenLake(options: options, defaultMap: "8x8")
             },
@@ -164,6 +186,9 @@ extension GymnazoRegistry {
     private func registerBlackjack() {
         registerIfNeeded(
             id: "Blackjack",
+            displayName: "Blackjack",
+            description: "Play Blackjack against a dealer by learning when to hit or stand.",
+            category: .toyText,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let natural = options["natural"] as? Bool ?? false
@@ -176,6 +201,9 @@ extension GymnazoRegistry {
     private func registerTaxi() {
         registerIfNeeded(
             id: "Taxi",
+            displayName: "Taxi",
+            description: "Navigate a taxi to pick up and drop off passengers at designated locations.",
+            category: .toyText,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let isRainy = options["is_rainy"] as? Bool ?? false
@@ -193,6 +221,9 @@ extension GymnazoRegistry {
     private func registerCliffWalking() {
         registerIfNeeded(
             id: "CliffWalking",
+            displayName: "Cliff Walking",
+            description: "Reach the end while avoiding falling off the cliff.",
+            category: .toyText,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let isSlippery = options["is_slippery"] as? Bool ?? false
@@ -205,6 +236,9 @@ extension GymnazoRegistry {
     private func registerClassicControl() {
         registerIfNeeded(
             id: "CartPole",
+            displayName: "Cart Pole",
+            description: "Balance a pole on a moving cart by applying left or right forces.",
+            category: .classicControl,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 return CartPole(renderMode: renderMode)
@@ -214,6 +248,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "MountainCar",
+            displayName: "Mountain Car",
+            description: "Drive a car up a steep hill using momentum.",
+            category: .classicControl,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let goalVelocity = RegistrationSupport.floatValue(
@@ -227,6 +264,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "MountainCarContinuous",
+            displayName: "Mountain Car Continuous",
+            description: "Drive a car up a steep hill using continuous force.",
+            category: .classicControl,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let goalVelocity = RegistrationSupport.floatValue(
@@ -243,6 +283,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "Acrobot",
+            displayName: "Acrobot",
+            description: "Swing a two-link robotic arm to reach target height.",
+            category: .classicControl,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let torqueNoiseMax = RegistrationSupport.floatValue(
@@ -257,6 +300,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "Pendulum",
+            displayName: "Pendulum",
+            description: "Swing up and balance an inverted pendulum using torque.",
+            category: .classicControl,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)
                 let g = RegistrationSupport.floatValue(from: options["g"], default: 10.0)
@@ -269,6 +315,9 @@ extension GymnazoRegistry {
     private func registerBox2D() {
         registerIfNeeded(
             id: "LunarLander",
+            displayName: "Lunar Lander",
+            description: "Safely land a rocket on the moon by controlling thrusters.",
+            category: .box2D,
             entryPoint: { options in
                 let settings = RegistrationSupport.lunarLanderSettings(from: options)
                 return try LunarLander(
@@ -284,6 +333,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "LunarLanderContinuous",
+            displayName: "Lunar Lander Continuous",
+            description: "Safely land a rocket on the moon using continuous thrust control.",
+            category: .box2D,
             entryPoint: { options in
                 let settings = RegistrationSupport.lunarLanderSettings(from: options)
                 return try LunarLanderContinuous(
@@ -299,6 +351,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "CarRacing",
+            displayName: "Car Racing",
+            description: "Race a car around a generated track using continuous controls.",
+            category: .box2D,
             entryPoint: { options in
                 let settings = RegistrationSupport.carRacingSettings(from: options)
                 return CarRacing(
@@ -313,6 +368,9 @@ extension GymnazoRegistry {
 
         registerIfNeeded(
             id: "CarRacingDiscrete",
+            displayName: "Car Racing Discrete",
+            description: "Race a car around a generated track using discrete controls.",
+            category: .box2D,
             entryPoint: { options in
                 let settings = RegistrationSupport.carRacingSettings(from: options)
                 return CarRacingDiscrete(

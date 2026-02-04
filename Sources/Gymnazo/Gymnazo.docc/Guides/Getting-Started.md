@@ -8,14 +8,36 @@ Gymnazo follows the Gymnasium API, making it familiar to anyone who has used the
 
 ## Creating an Environment
 
-Use `Gymnazo` to create environments by their ID:
+Use `Gymnazo` to create environments by their ID. Since `Gymnazo.make(...)` is generic, you must specify the observation and action types:
 
 ```swift
 import Gymnazo
+import MLX
 
-// Create an environment
-var env = try await Gymnazo.make("CartPole")
+// Create an environment with explicit types
+var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
 ```
+
+### Environment Types Reference
+
+| Environment | Observation | Action |
+|-------------|-------------|--------|
+| **Toy Text** | | |
+| FrozenLake, FrozenLake8x8 | `Int` | `Int` |
+| Blackjack | `(Int, Int, Bool)` | `Int` |
+| Taxi | `Int` | `Int` |
+| CliffWalking | `Int` | `Int` |
+| **Classic Control** | | |
+| CartPole | `MLXArray` | `Int` |
+| MountainCar | `MLXArray` | `Int` |
+| MountainCarContinuous | `MLXArray` | `MLXArray` |
+| Acrobot | `MLXArray` | `Int` |
+| Pendulum | `MLXArray` | `MLXArray` |
+| **Box2D** | | |
+| LunarLander | `MLXArray` | `Int` |
+| LunarLanderContinuous | `MLXArray` | `MLXArray` |
+| CarRacing | `MLXArray` | `MLXArray` |
+| CarRacingDiscrete | `MLXArray` | `Int` |
 
 See <doc:Environments> to learn more about the included environments.
 

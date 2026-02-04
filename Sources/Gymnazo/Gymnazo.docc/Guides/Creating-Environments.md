@@ -4,11 +4,16 @@ Gymnazo uses a registry (similar to Gymnasium) so you can create environments by
 
 ## Creating by ID
 
+Since `Gymnazo.make(...)` is generic, you must specify the observation and action types:
+
 ```swift
 import Gymnazo
+import MLX
 
-var env = try await Gymnazo.make("CartPole")
+var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
 ```
+
+See <doc:Getting-Started> for a complete table of the environment types.
 
 ## Options
 
