@@ -461,7 +461,8 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
             randomKey = nextKey
 
             if shouldExplore(key: exploreKey) {
-                let (sampleKey, _) = MLX.split(key: randomKey)
+                let (sampleKey, nextKey2) = MLX.split(key: randomKey)
+                randomKey = nextKey2
                 return sampleRandomAction(key: sampleKey)
             }
         }
