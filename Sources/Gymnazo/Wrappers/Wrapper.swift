@@ -4,28 +4,16 @@
 
 import MLX
 
-/// protocol for environment wrappers.
-/// is generic over the `BaseEnv` it wraps for better type safety.
-public protocol Wrapper<BaseEnv>: Env
-where
-    Observation == BaseEnv.Observation,
-    Action == BaseEnv.Action
-{
-    associatedtype BaseEnv: Env
-
-    /// "inner" environment instance.
-    var env: BaseEnv { get set }
+public protocol Wrapper: Env {
+    var env: any Env { get set }
 }
 
-/// This extension provides the "pass-through" logic. By default,
-/// a Wrapper just forwards all calls and properties to its
-/// inner `env`.
 extension Wrapper {
-    public var actionSpace: any Space<Action> {
+    public var actionSpace: any Space {
         env.actionSpace
     }
 
-    public var observationSpace: any Space<Observation> {
+    public var observationSpace: any Space {
         env.observationSpace
     }
 
@@ -43,14 +31,14 @@ extension Wrapper {
         env.unwrapped
     }
 
-    public mutating func step(_ action: Action) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         try env.step(action)
     }
 
     public mutating func reset(
         seed: UInt64?,
         options: EnvOptions?
-    ) throws -> Reset<Observation> {
+    ) throws -> Reset {
         try env.reset(seed: seed, options: options)
     }
 

@@ -1,7 +1,7 @@
 import MLX
 
 /// A type-erased view of a ``SequenceSpace``.
-public protocol AnySequenceSpace: Space<SequenceSample> {
+public protocol AnySequenceSpace {
     var minLength: Int { get }
     var maxLength: Int { get }
     var elementSpace: any TensorSpace { get }
@@ -19,7 +19,7 @@ public struct SequenceSample {
     ///
     /// - Parameters:
     ///   - values: A tensor of shape `[maxLength] + elementShape`.
-    ///   - mask: A boolean vector of shape `[maxLength]` where `true` means “valid element”.
+    ///   - mask: A boolean vector of shape `[maxLength]` where `true` means "valid element".
     public init(values: MLXArray, mask: MLXArray) {
         self.values = values
         self.mask = mask
@@ -27,9 +27,7 @@ public struct SequenceSample {
 }
 
 /// A space representing variable-length sequences of elements from an inner space.
-public struct SequenceSpace<Inner: TensorSpace>: Space {
-    public typealias T = SequenceSample
-
+public struct SequenceSpace<Inner: TensorSpace>: Space, AnySequenceSpace {
     public let space: Inner
     public let minLength: Int
     public let maxLength: Int
@@ -58,12 +56,18 @@ public struct SequenceSpace<Inner: TensorSpace>: Space {
 
     public var shape: [Int]? { nil }
     public var dtype: DType? { nil }
+    public var elementSpace: any TensorSpace { space }
+
+    /// Samples a sequence from the space and returns just the values tensor.
+    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        sampleSequence(key: key, mask: mask, probability: probability).values
+    }
 
     /// Samples a sequence from the space.
     ///
     /// - Returns: A padded ``SequenceSample`` where `mask` is `true` for a prefix of length `L` and `false` elsewhere.
     /// - Note: `mask` and `probability` are currently ignored.
-    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> SequenceSample {
+    public func sampleSequence(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> SequenceSample {
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
         let valKey = keys[1]
@@ -82,8 +86,16 @@ public struct SequenceSpace<Inner: TensorSpace>: Space {
         return SequenceSample(values: values, mask: maskArr)
     }
 
+    /// Returns `true` if the array can be interpreted as valid sequence values.
+    public func contains(_ x: MLXArray) -> Bool {
+        if x.shape.count < 1 { return false }
+        if x.shape[0] != maxLength { return false }
+        if Array(x.shape.dropFirst()) != elementShape { return false }
+        return true
+    }
+
     /// Returns `true` if shapes match, the mask is a valid prefix mask, and all unmasked elements are contained in `space`.
-    public func contains(_ x: SequenceSample) -> Bool {
+    public func containsSequence(_ x: SequenceSample) -> Bool {
         if x.mask.shape != [maxLength] { return false }
         if x.values.shape.count < 1 { return false }
         if x.values.shape[0] != maxLength { return false }
@@ -126,8 +138,4 @@ public struct SequenceSpace<Inner: TensorSpace>: Space {
         }
         return true
     }
-}
-
-extension SequenceSpace: AnySequenceSpace {
-    public var elementSpace: any TensorSpace { space }
 }

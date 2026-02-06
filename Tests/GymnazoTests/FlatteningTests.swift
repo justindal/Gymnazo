@@ -5,7 +5,7 @@ import MLX
 @Suite("Space flattening utilities")
 struct FlatteningTests {
     func makeFrozenLake(isSlippery: Bool) async throws -> FrozenLake {
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "FrozenLake",
             options: ["is_slippery": isSlippery]
         )
@@ -21,13 +21,17 @@ struct FlatteningTests {
     @Test
     func testDiscreteOneHotRoundTrip() async throws {
         let space = Discrete(n: 5)
-        let flattened = flatten(space: space, sample: 3)
+        let flattened = flatten(space: space, sample: MLXArray(Int32(3)))
         guard let flat = flattened as? MLXArray else {
             Issue.record("Expected MLXArray from flatten")
             return
         }
         let restored = unflatten(space: space, flattened: flat)
-        #expect((restored as? Int) == 3)
+        guard let restoredArr = restored as? MLXArray else {
+            Issue.record("Expected MLXArray from unflatten")
+            return
+        }
+        #expect(restoredArr.item(Int.self) == 3)
     }
 
     @Test
@@ -37,8 +41,8 @@ struct FlatteningTests {
             "a": Discrete(n: 3),
         ])
         let sample: [String: Any] = [
-            "a": 1,
-            "b": 0,
+            "a": MLXArray(Int32(1)),
+            "b": MLXArray(Int32(0)),
         ]
         let flattened = flatten(space: space, sample: sample)
         guard let flat = flattened as? MLXArray else {
@@ -47,14 +51,14 @@ struct FlatteningTests {
         }
         let restored = unflatten(space: space, flattened: flat)
         let dict = restored as? [String: Any]
-        #expect((dict?["a"] as? Int) == 1)
-        #expect((dict?["b"] as? Int) == 0)
+        #expect((dict?["a"] as? MLXArray)?.item(Int.self) == 1)
+        #expect((dict?["b"] as? MLXArray)?.item(Int.self) == 0)
     }
 
     @Test
     func testTupleRoundTrip() async throws {
         let space = Tuple(Discrete(n: 2), Discrete(n: 3))
-        let sample: [Any] = [1, 2]
+        let sample: [Any] = [MLXArray(Int32(1)), MLXArray(Int32(2))]
         let flattened = flatten(space: space, sample: sample)
         guard let flat = flattened as? MLXArray else {
             Issue.record("Expected MLXArray from flatten")
@@ -62,8 +66,8 @@ struct FlatteningTests {
         }
         let restored = unflatten(space: space, flattened: flat)
         let tuple = restored as? [Any]
-        #expect((tuple?[0] as? Int) == 1)
-        #expect((tuple?[1] as? Int) == 2)
+        #expect((tuple?[0] as? MLXArray)?.item(Int.self) == 1)
+        #expect((tuple?[1] as? MLXArray)?.item(Int.self) == 2)
     }
 
     @Test
@@ -185,4 +189,3 @@ struct FlatteningTests {
         #expect(flattenSpaceToBox(graph) == nil)
     }
 }
-

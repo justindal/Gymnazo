@@ -20,8 +20,6 @@ import MLX
 /// )
 /// ```
 public struct Box: Space {
-    public typealias T = MLXArray
-
     public let low: MLXArray
     public let high: MLXArray
     public let shape: [Int]?

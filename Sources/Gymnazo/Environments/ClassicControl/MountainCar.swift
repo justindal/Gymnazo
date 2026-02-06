@@ -73,9 +73,6 @@ import MLX
 ///
 /// - v0: Initial version release
 public struct MountainCar: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = Int
-
     public let minPosition: Float = -1.2
     public let maxPosition: Float = 0.6
     public let maxSpeed: Float = 0.07
@@ -87,8 +84,8 @@ public struct MountainCar: Env {
 
     public var state: MLXArray? = nil
 
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
 
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -117,24 +114,29 @@ public struct MountainCar: Env {
             dtype: .float32
         )
     }
+    
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
 
     /// Execute one time step within the environment.
     ///
     /// - Parameter action: An action to take (0: left, 1: no push, 2: right).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
-    public mutating func step(_ action: Int) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard let currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
 
-        guard action >= 0 && action < 3 else {
-            throw GymnazoError.invalidAction("Invalid action: \(action). Must be 0, 1, or 2.")
+        guard a >= 0 && a < 3 else {
+            throw GymnazoError.invalidAction("Invalid action: \(a). Must be 0, 1, or 2.")
         }
 
         var position = currentState[0].item(Float.self)
         var velocity = currentState[1].item(Float.self)
 
-        velocity += Float(action - 1) * force + cos(3 * position) * (-gravity)
+        velocity += Float(a - 1) * force + cos(3 * position) * (-gravity)
         velocity = min(max(velocity, -maxSpeed), maxSpeed)
 
         position += velocity
@@ -165,9 +167,7 @@ public struct MountainCar: Env {
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<
-        Observation
-    > {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {

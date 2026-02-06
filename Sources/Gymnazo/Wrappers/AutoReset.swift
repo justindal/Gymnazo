@@ -1,8 +1,10 @@
+import MLX
+
 /// Automatically resets an environment when an episode ends.
 ///
 /// The wrapper writes terminal observation and info into the info dictionary.
-public struct AutoReset<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+public struct AutoReset: Wrapper {
+    public var env: any Env
     public let mode: AutoresetMode
 
     private var needsReset: Bool = true
@@ -12,24 +14,31 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap.
     ///   - mode: Autoreset behavior (`nextStep`, `sameStep`, or `disabled`).
-    public init(env: BaseEnv, mode: AutoresetMode = .nextStep) {
+    public init(env: any Env, mode: AutoresetMode = .nextStep) {
         self.env = env
         self.mode = mode
     }
 
-    public init(env: BaseEnv) {
+    public init(env: any Env) {
         self.init(env: env, mode: .nextStep)
     }
 
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         needsReset = false
         return try env.reset(seed: seed, options: options)
     }
 
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         if needsReset && mode == .nextStep {
-            _ = try env.reset(seed: nil, options: nil)
+            let resetResult = try env.reset(seed: nil, options: nil)
             needsReset = false
+            return Step(
+                obs: resetResult.obs,
+                reward: 0.0,
+                terminated: false,
+                truncated: false,
+                info: resetResult.info
+            )
         }
 
         let result = try env.step(action)
@@ -46,9 +55,7 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
         if mode == .nextStep {
             needsReset = true
             var info = result.info
-            if let value = sendableValue(result.obs) {
-                info["final_observation"] = value
-            }
+            info["final_observation"] = sendableValue(result.obs)
             info["final_info"] = .object(result.info.storage)
             return Step(
                 obs: result.obs,
@@ -65,9 +72,7 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
         needsReset = false
 
         var info = resetResult.info
-        if let value = sendableValue(terminalObs) {
-            info["final_observation"] = value
-        }
+        info["final_observation"] = sendableValue(terminalObs)
         info["final_info"] = .object(terminalInfo.storage)
 
         return Step(
@@ -80,23 +85,7 @@ public struct AutoReset<BaseEnv: Env>: Wrapper {
     }
 }
 
-private func sendableValue<Observation>(_ value: Observation) -> InfoValue? {
-    switch value {
-    case let v as Bool:
-        return .bool(v)
-    case let v as Int:
-        return .int(v)
-    case let v as Float:
-        return .double(Double(v))
-    case let v as Double:
-        return .double(v)
-    case let v as String:
-        return .string(v)
-    case let v as [InfoValue]:
-        return .array(v)
-    case let v as [String: InfoValue]:
-        return .object(v)
-    default:
-        return nil
-    }
+private func sendableValue(_ value: MLXArray) -> InfoValue {
+    .sendable(MLXArrayBox(array: value))
 }
+

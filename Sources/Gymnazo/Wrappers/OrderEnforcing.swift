@@ -2,30 +2,32 @@
 // OrderEnforcing.swift
 //
 
+import MLX
+
 /// Ensures `reset()` is called before `step()` or `render()`.
-public final class OrderEnforcing<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+public final class OrderEnforcing: Wrapper {
+    public var env: any Env
 
     private var hasReset = false
     private var cachedSpec: EnvSpec?
     private let disableRenderOrderEnforcing: Bool
 
-    public required convenience init(env: BaseEnv) {
+    public required convenience init(env: any Env) {
         self.init(env: env, disableRenderOrderEnforcing: false)
     }
 
-    public init(env: BaseEnv, disableRenderOrderEnforcing: Bool) {
+    public init(env: any Env, disableRenderOrderEnforcing: Bool) {
         self.env = env
         self.disableRenderOrderEnforcing = disableRenderOrderEnforcing
     }
 
-    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         hasReset = true
         cachedSpec = nil
         return try env.reset(seed: seed, options: options)
     }
 
-    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
         guard hasReset else {
             throw GymnazoError.stepBeforeReset
         }
@@ -64,3 +66,4 @@ public final class OrderEnforcing<BaseEnv: Env>: Wrapper {
         hasReset
     }
 }
+

@@ -4,16 +4,16 @@ Gymnazo uses a registry (similar to Gymnasium) so you can create environments by
 
 ## Creating by ID
 
-Since `Gymnazo.make(...)` is generic, you must specify the observation and action types:
+Create environments using `Gymnazo.make(...)`:
 
 ```swift
 import Gymnazo
 import MLX
 
-var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 ```
 
-See <doc:Getting-Started> for a complete table of the environment types.
+All environments use `MLXArray` for observations and actions. See <doc:Getting-Started> for the complete list of available environments.
 
 ## Options
 
@@ -43,18 +43,16 @@ import Gymnazo
 import MLX
 
 struct MyEnv: Env {
-    typealias Observation = MLXArray
-    typealias Action = Int
-    var actionSpace: Discrete { Discrete(2) }
-    var observationSpace: Box { Box(low: -1, high: 1, shape: [4]) }
+    var actionSpace: any Space { Discrete(2) }
+    var observationSpace: any Space { Box(low: -1, high: 1, shape: [4]) }
     var spec: EnvSpec?
     var renderMode: RenderMode?
 
-    mutating func step(_ action: Int) throws -> Step<MLXArray> {
+    mutating func step(_ action: MLXArray) throws -> Step {
         Step(obs: MLXArray.zeros([4]), reward: 0, terminated: false, truncated: false)
     }
 
-    mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
+    mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         Reset(obs: MLXArray.zeros([4]))
     }
 }
@@ -63,8 +61,10 @@ await Gymnazo.register(id: "MyEnv", entryPoint: { _ in
     MyEnv()
 })
 
-let env = try await Gymnazo.make("MyEnv")
+var env = try await Gymnazo.make("MyEnv")
 ```
+
+Note: All observations and actions are `MLXArray`. For discrete actions, use `.item(Int.self)` to extract the integer value when needed.
 
 ## Topics
 

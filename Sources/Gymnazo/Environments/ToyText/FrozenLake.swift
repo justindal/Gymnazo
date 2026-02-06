@@ -108,6 +108,14 @@ public final class FrozenLake: Env {
         case right = 2
         case up = 3
     }
+    
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
+    
+    private func toMLX(_ state: Int) -> MLXArray {
+        MLXArray([Int32(state)])
+    }
 
     public static let MAPS: [String : [String]] = [
         "4x4": ["SFFF", "FHFH", "FFFH", "HFFG"],
@@ -227,11 +235,8 @@ public final class FrozenLake: Env {
         ]
     }
 
-    public typealias Observation = Int
-    public typealias Action = Int
-
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     public var spec: EnvSpec?
     public var renderMode: RenderMode?
     
@@ -247,7 +252,7 @@ public final class FrozenLake: Env {
     private let P: [[[Transition]]]
 
     private var s: Int
-    private var lastAction: Action?
+    private var lastAction: Int?
     
     private var _key: MLXArray?
     private var _seed: UInt64?
@@ -406,7 +411,7 @@ public final class FrozenLake: Env {
     public func reset(
         seed: UInt64? = nil,
         options: EnvOptions? = nil
-    ) throws -> Reset<Observation> {
+    ) throws -> Reset {
         
         let key = try self.prepareKey(with: seed)
         
@@ -417,15 +422,15 @@ public final class FrozenLake: Env {
         self.s = s_ml.item(Int.self)
         self.lastAction = nil
         
-        return Reset(obs: self.s, info: ["prob": 1.0])
+        return Reset(obs: toMLX(self.s), info: ["prob": 1.0])
     }
 
-    public func step(_ action: Action) throws -> Step<Observation> {
-
+    public func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard actionSpace.contains(action) else {
-            throw GymnazoError.invalidAction("Invalid action: \(action)")
+            throw GymnazoError.invalidAction("Invalid action: \(a)")
         }
-        let transitions = self.P[self.s][action]
+        let transitions = self.P[self.s][a]
         
         guard let key = self._key else {
             throw GymnazoError.invalidState("Env must be seeded with reset(seed:)")
@@ -442,9 +447,9 @@ public final class FrozenLake: Env {
         let (p, s, r, t) = transitions[i]
         
         self.s = s
-        self.lastAction = action
+        self.lastAction = a
         
-        return Step(obs: self.s, reward: r, terminated: t, truncated: false, info: ["prob": .double(p)])
+        return Step(obs: toMLX(self.s), reward: r, terminated: t, truncated: false, info: ["prob": .double(p)])
     }
 
     /// returns an ansi representation of the current grid, independent of `render_mode`.
@@ -464,22 +469,14 @@ public final class FrozenLake: Env {
         switch mode {
         case .ansi:
             return .ansi(_renderText())
-        case .human, .rgbArray:
+        case .human:
             #if canImport(SwiftUI)
-            let snapshot = self.currentSnapshot
-            let result = DispatchQueue.main.sync {
-                FrozenLake._renderGUI(snapshot: snapshot, mode: mode)
-            }
-            if mode == .rgbArray {
-                self.lastRGBFrame = result
-            }
-            if let image = result {
-                return .rgbArray(image)
-            }
-            return nil
+            return .other(currentSnapshot)
             #else
             return nil
             #endif
+        case .rgbArray:
+            return nil
         case .statePixels:
             print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
@@ -546,6 +543,13 @@ public final class FrozenLake: Env {
         lastRGBFrame
     }
 
+    @MainActor
+    public func renderRGBArray() -> CGImage? {
+        let image = Self._renderGUI(snapshot: currentSnapshot, mode: .rgbArray)
+        lastRGBFrame = image
+        return image
+    }
+
     /// snapshot of the current grid state for use with `FrozenLakeCanvasView`.
     public var currentSnapshot: FrozenLakeRenderSnapshot {
         FrozenLakeRenderSnapshot(
@@ -569,11 +573,11 @@ public final class FrozenLake: Env {
 #if canImport(SwiftUI)
 /// Snapshot of the lake grid used by SwiftUI renderers.
 public struct FrozenLakeRenderSnapshot: Sendable {
-    let rows: Int
-    let cols: Int
-    let tiles: [[Character]]
-    let playerIndex: Int
-    let lastAction: Int?
+    public let rows: Int
+    public let cols: Int
+    public let tiles: [[Character]]
+    public let playerIndex: Int
+    public let lastAction: Int?
 
     func tile(at index: Int) -> Character {
         let row = index / cols

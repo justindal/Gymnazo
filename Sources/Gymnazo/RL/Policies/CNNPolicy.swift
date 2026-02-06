@@ -12,7 +12,7 @@ import MLXNN
 /// Uses ``NatureCNN`` as the default feature extractor.
 ///
 /// - Parameters:
-///     - observationSpace: Observation space (Box with 3 dimensions [C, H, W]).
+///     - observationSpace: Observation space (Box with 3 dimensions [H, W, C]).
 ///     - actionSpace: Action space.
 ///     - netArch: Network architecture specification.
 ///     - orthoInit: Whether to use orthogonal initialization.

@@ -24,7 +24,7 @@ Four discrete actions:
 
 ## Observation Space
 
-The observation is an `Int` representing the agent's current state index in the grid.
+The observation is an `MLXArray` (scalar) representing the agent's current state index in the grid. Use `.item(Int.self)` to extract the integer value.
 
 ## Rewards
 

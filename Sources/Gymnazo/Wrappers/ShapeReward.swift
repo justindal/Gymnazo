@@ -19,8 +19,8 @@ import MLX
 ///         return shaped
 ///     }
 /// ```
-public struct ShapeReward<BaseEnv: Env>: Wrapper where BaseEnv.Observation == MLXArray {
-    public var env: BaseEnv
+public struct ShapeReward: Wrapper {
+    public var env: any Env
     
     /// A closure that receives the original reward, observation, and termination status,
     /// and returns the shaped reward.
@@ -31,12 +31,12 @@ public struct ShapeReward<BaseEnv: Env>: Wrapper where BaseEnv.Observation == ML
     /// - Parameters:
     ///   - env: The environment to wrap.
     ///   - shaper: A function that transforms rewards based on (reward, observation, terminated).
-    public init(env: BaseEnv, shaper: @escaping (Double, MLXArray, Bool) -> Double) {
+    public init(env: any Env, shaper: @escaping (Double, MLXArray, Bool) -> Double) {
         self.env = env
         self.shaper = shaper
     }
 
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         eval(result.obs)
         let shapedReward = shaper(result.reward, result.obs, result.terminated)
@@ -49,7 +49,8 @@ public struct ShapeReward<BaseEnv: Env>: Wrapper where BaseEnv.Observation == ML
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         try env.reset(seed: seed, options: options)
     }
 }
+

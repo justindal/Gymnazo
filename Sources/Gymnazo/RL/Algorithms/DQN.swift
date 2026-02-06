@@ -11,10 +11,8 @@ import MLXOptimizers
 ///
 /// Implements vanilla DQN with experience replay and target network.
 /// Uses epsilon-greedy exploration during training.
-public final class DQN<Environment: Env>: OffPolicyAlgorithm
-where Environment.Observation == MLXArray, Environment.Action == Int {
+public final class DQN: OffPolicyAlgorithm, @unchecked Sendable {
     public typealias PolicyType = DQNPolicy
-    public typealias EnvType = Environment
 
     public var config: OffPolicyConfig
     public let dqnConfig: DQNConfig
@@ -22,7 +20,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
 
     public let policy: DQNPolicy
     public let qNetTarget: DQNPolicy
-    public var env: Environment?
+    public var env: (any Env)?
 
     public var learningRate: any LearningRateSchedule
     public var currentProgressRemaining: Double
@@ -34,6 +32,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
 
     private var explorationRate: Double
     private var randomKey: MLXArray
+    private let seed: UInt64?
 
     public var qNet: DQNPolicy { policy }
 
@@ -53,26 +52,18 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         config: DQNConfig = DQNConfig(),
         optimizerConfig: DQNOptimizerConfig = DQNOptimizerConfig(),
         seed: UInt64? = nil
-    ) throws where Environment == AnyEnv<MLXArray, Int> {
-        guard let typed = env as? any Env<MLXArray, Int> else {
-            throw GymnazoError.invalidEnvironmentType(
-                expected: "Env<MLXArray, Int>",
-                actual: String(describing: type(of: env))
-            )
-        }
-        let wrapped = AnyEnv(typed)
-
-        guard let discrete = wrapped.actionSpace as? Discrete else {
+    ) throws {
+        guard let discrete = env.actionSpace as? Discrete else {
             throw GymnazoError.invalidActionType(
                 expected: "Discrete",
-                actual: String(describing: type(of: wrapped.actionSpace))
+                actual: String(describing: type(of: env.actionSpace))
             )
         }
 
         self.init(
-            observationSpace: wrapped.observationSpace,
+            observationSpace: env.observationSpace,
             actionSpace: discrete,
-            env: wrapped,
+            env: env,
             learningRate: learningRate,
             policyConfig: policyConfig,
             config: config,
@@ -92,7 +83,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
     ///   - seed: Random seed.
     public init(
         networks: DQNNetworks,
-        env: Environment? = nil,
+        env: (any Env)? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(1e-4),
         config: DQNConfig = DQNConfig(),
         optimizerConfig: DQNOptimizerConfig = DQNOptimizerConfig(),
@@ -109,6 +100,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         self.numTimesteps = 0
         self.totalTimesteps = 0
         self.explorationRate = config.explorationInitialEps
+        self.seed = seed
 
         let lr = Float(learningRate.value(at: 1.0))
         self.optimizer = optimizerConfig.optimizer.make(learningRate: lr)
@@ -125,7 +117,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
     ///   - seed: Random seed.
     public convenience init(
         policy: DQNPolicy,
-        env: Environment? = nil,
+        env: (any Env)? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(1e-4),
         config: DQNConfig = DQNConfig(),
         optimizerConfig: DQNOptimizerConfig = DQNOptimizerConfig(),
@@ -154,9 +146,9 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
     ///   - optimizerConfig: Optimizer configuration.
     ///   - seed: Random seed.
     public init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         actionSpace: Discrete,
-        env: Environment? = nil,
+        env: (any Env)? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(1e-4),
         policyConfig: DQNPolicyConfig = DQNPolicyConfig(),
         config: DQNConfig = DQNConfig(),
@@ -180,6 +172,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         self.numTimesteps = 0
         self.totalTimesteps = 0
         self.explorationRate = config.explorationInitialEps
+        self.seed = seed
 
         let lr = Float(learningRate.value(at: 1.0))
         self.optimizer = optimizerConfig.optimizer.make(learningRate: lr)
@@ -190,7 +183,8 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         let bufferConfig = ReplayBuffer<MLXArray>.Configuration(
             bufferSize: dqnConfig.bufferSize,
             optimizeMemoryUsage: dqnConfig.optimizeMemoryUsage,
-            handleTimeoutTermination: dqnConfig.handleTimeoutTermination
+            handleTimeoutTermination: dqnConfig.handleTimeoutTermination,
+            seed: seed
         )
         replayBuffer = ReplayBuffer(
             observationSpace: policy.observationSpace,
@@ -206,6 +200,17 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
     /// - Returns: Self for chaining.
     @discardableResult
     public func learn(totalTimesteps: Int) throws -> Self {
+        try learn(totalTimesteps: totalTimesteps, callbacks: nil)
+    }
+
+    /// Trains the DQN for the specified number of timesteps with optional callbacks.
+    ///
+    /// - Parameters:
+    ///   - totalTimesteps: Total environment steps to train for.
+    ///   - callbacks: Optional callbacks for step updates and episode completion.
+    /// - Returns: Self for chaining.
+    @discardableResult
+    public func learn(totalTimesteps: Int, callbacks: LearnCallbacks?) throws -> Self {
         self.totalTimesteps = totalTimesteps
         self.numTimesteps = 0
 
@@ -221,12 +226,13 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         var numCollectedSteps = 0
         var numCollectedEpisodes = 0
         var stepsSinceLastTrain = 0
+        var episodeReward: Double = 0
+        var episodeLength: Int = 0
 
         while numTimesteps < totalTimesteps {
             updateExplorationRate()
 
-            let action: Int
-            let bufferAction: MLXArray
+            let action: MLXArray
 
             let (exploreKey, nextKey) = MLX.split(key: randomKey)
             randomKey = nextKey
@@ -236,28 +242,36 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
                 randomKey = nextKey2
                 action = sampleRandomAction(key: sampleKey)
             } else {
-                action = selectAction(observation: lastObs)
+                action = selectAction(obs: lastObs)
             }
-            bufferAction = MLXArray(Int32(action))
 
             let stepResult = try environment.step(action)
             let reward = Float(stepResult.reward)
             let terminated = stepResult.terminated
             let truncated = stepResult.truncated
 
+            episodeReward += Double(reward)
+            episodeLength += 1
+
             let bufferNextObs =
                 stepResult.info["final_observation"]?.cast(MLXArray.self) ?? stepResult.obs
 
             storeTransition(
                 obs: lastObs,
-                action: bufferAction,
+                action: action,
                 reward: reward,
                 nextObs: bufferNextObs,
                 terminated: terminated,
                 truncated: truncated
             )
 
+            eval(action, bufferNextObs)
+
             if terminated || truncated {
+                callbacks?.onEpisodeEnd?(episodeReward, episodeLength)
+                episodeReward = 0
+                episodeLength = 0
+
                 lastObs = try environment.reset().obs
                 numCollectedEpisodes += 1
             } else {
@@ -271,6 +285,20 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
                 stepsSinceLastTrain += 1
             }
             currentProgressRemaining = 1.0 - Double(numTimesteps) / Double(totalTimesteps)
+
+            if let onStep = callbacks?.onStep {
+                let shouldContinue = onStep(numTimesteps, totalTimesteps, explorationRate)
+                if !shouldContinue {
+                    break
+                }
+            }
+            if let onSnapshot = callbacks?.onSnapshot {
+                if let output = try? environment.render() {
+                    if case .other(let snapshot) = output {
+                        onSnapshot(snapshot)
+                    }
+                }
+            }
 
             let shouldTrain: Bool
             switch dqnConfig.trainFrequency.unit {
@@ -301,7 +329,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
 
     private func updateExplorationRate() {
         let fraction = min(
-            1.0, Double(numTimesteps) / Double(Double(totalTimesteps) * dqnConfig.explorationFraction))
+            1.0, Double(numTimesteps) / (Double(totalTimesteps) * dqnConfig.explorationFraction))
         explorationRate =
             dqnConfig.explorationInitialEps
             + fraction * (dqnConfig.explorationFinalEps - dqnConfig.explorationInitialEps)
@@ -309,24 +337,27 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
 
     private func shouldExplore(key: MLXArray) -> Bool {
         let random = MLX.uniform(0.0..<1.0, key: key)
-        MLX.eval(random)
+        eval(random)
         let value: Float = random.item()
         return Double(value) < explorationRate
     }
 
-    private func sampleRandomAction(key: MLXArray) -> Int {
+    private func sampleRandomAction(key: MLXArray) -> MLXArray {
         guard let discrete = env?.actionSpace as? Discrete else {
             preconditionFailure("DQN requires a Discrete action space")
         }
         return discrete.sample(key: key, mask: nil, probability: nil)
     }
 
-    private func selectAction(observation: MLXArray) -> Int {
+    private func selectAction(obs: MLXArray) -> MLXArray {
         policy.setTrainingMode(false)
-        let qValues = policy.forward(obs: observation)
-        let action = MLX.argMax(qValues, axis: -1)
-        MLX.eval(action)
-        return Int(action.item(Int32.self))
+        let qValues = policy.forward(obs: obs)
+        var action = MLX.argMax(qValues, axis: -1).asType(.int32)
+        if action.ndim == 0 {
+            action = action.reshaped([1])
+        }
+        eval(action)
+        return action
     }
 
     private func storeTransition(
@@ -348,7 +379,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
     }
 
     public func train(gradientSteps: Int, batchSize: Int) {
-        guard let buffer = replayBuffer, buffer.count >= batchSize else { return }
+        guard var buffer = replayBuffer, buffer.count >= batchSize else { return }
 
         let lr = Float(learningRate.value(at: currentProgressRemaining))
         optimizer.learningRate = lr
@@ -359,21 +390,24 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
             let batch = buffer.sample(batchSize, key: sampleKey)
             trainStep(batch: batch)
         }
+        replayBuffer = buffer
     }
 
     private func trainStep(batch: ReplayBuffer<MLXArray>.Sample) {
-        policy.setTrainingMode(true)
         qNetTarget.setTrainingMode(false)
 
         let gamma = Float(dqnConfig.gamma)
 
-        let targetQValues = MLX.stopGradient(
-            computeTargetQ(
-                nextObs: batch.nextObs,
-                rewards: batch.rewards,
-                dones: batch.dones,
-                gamma: gamma
-            ))
+        let targetQValues = targetQ(
+            nextObs: batch.nextObs,
+            rewards: batch.rewards,
+            dones: batch.dones,
+            gamma: gamma
+        )
+        eval(targetQValues)
+        let detachedTargetQ = MLX.stopGradient(targetQValues)
+
+        policy.setTrainingMode(true)
 
         typealias QNetArgs = (obs: MLXArray, actions: MLXArray, targetQ: MLXArray)
         let qNetVG = valueAndGrad(model: policy) {
@@ -381,14 +415,14 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
             [self.qNetLoss(model, obs: args.obs, actions: args.actions, targetQ: args.targetQ)]
         }
 
-        var (_, grads) = qNetVG(policy, (batch.obs, batch.actions, targetQValues))
+        var (_, grads) = qNetVG(policy, (batch.obs, batch.actions, detachedTargetQ))
 
         if let maxNorm = dqnConfig.maxGradNorm {
             grads = clipGradients(grads, maxNorm: Float(maxNorm))
         }
 
         optimizer.update(model: policy, gradients: grads)
-        MLX.eval(policy.parameters())
+        eval(policy.parameters())
 
         numGradientSteps += 1
         if numGradientSteps % dqnConfig.targetUpdateInterval == 0 {
@@ -396,7 +430,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         }
     }
 
-    private func computeTargetQ(
+    private func targetQ(
         nextObs: MLXArray,
         rewards: MLXArray,
         dones: MLXArray,
@@ -441,7 +475,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         let updated = polyakUpdate(target: targetParams, source: qNetParams, tau: tau)
         _ = try? qNetTarget.update(parameters: updated, verify: .noUnusedKeys)
         qNetTarget.setTrainingMode(false)
-        MLX.eval(qNetTarget.parameters())
+        eval(qNetTarget.parameters())
     }
 
     /// Gets the current exploration rate.
@@ -454,8 +488,8 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
     /// - Parameters:
     ///   - observation: The observation.
     ///   - deterministic: If true, ignores exploration and returns greedy action.
-    /// - Returns: The selected action.
-    public func predict(observation: MLXArray, deterministic: Bool = false) -> Int {
+    /// - Returns: The selected action as MLXArray.
+    public func predict(observation: MLXArray, deterministic: Bool = false) -> MLXArray {
         if !deterministic {
             let (exploreKey, nextKey) = MLX.split(key: randomKey)
             randomKey = nextKey
@@ -467,7 +501,7 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
             }
         }
 
-        return selectAction(observation: observation)
+        return selectAction(obs: observation)
     }
 
     private func clipGradients(_ gradients: ModuleParameters, maxNorm: Float) -> ModuleParameters {
@@ -507,4 +541,3 @@ where Environment.Observation == MLXArray, Environment.Action == Int {
         )
     }
 }
-

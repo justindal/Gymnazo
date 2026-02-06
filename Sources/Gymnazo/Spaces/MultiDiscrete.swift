@@ -6,8 +6,6 @@ import Foundation
 import MLX
 
 public struct MultiDiscrete: Space {
-    public typealias T = MLXArray
-    
     public let nvec: MLXArray
     public let shape: [Int]?
     public let dtype: DType? = .int32

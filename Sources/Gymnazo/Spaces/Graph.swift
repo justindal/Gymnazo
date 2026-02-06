@@ -1,7 +1,7 @@
 import MLX
 
 /// A type-erased view of a ``Graph`` space.
-public protocol AnyGraphSpace: Space<GraphSample> {
+public protocol AnyGraphSpace {
     var maxNodes: Int { get }
     var maxEdges: Int { get }
     var allowSelfLoops: Bool { get }
@@ -36,9 +36,7 @@ public struct GraphSample {
 }
 
 /// A space representing graph-structured samples with node and edge features.
-public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space {
-    public typealias T = GraphSample
-
+public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyGraphSpace {
     public let nodeSpace: NodeSpace
     public let edgeSpace: EdgeSpace
     public let maxNodes: Int
@@ -90,11 +88,26 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space {
 
     public var shape: [Int]? { nil }
     public var dtype: DType? { nil }
+    public var nodeSpaceAny: any TensorSpace { nodeSpace }
+    public var edgeSpaceAny: any TensorSpace { edgeSpace }
+
+    /// Samples a graph and returns a flattened representation.
+    /// Use `sampleGraph` for the full `GraphSample` struct.
+    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        let g = sampleGraph(key: key, mask: mask, probability: probability)
+        return MLX.concatenated([
+            g.nodes.flattened(),
+            g.edges.flattened(),
+            g.edgeLinks.flattened(),
+            g.nodeMask.asType(.int32).flattened(),
+            g.edgeMask.asType(.int32).flattened()
+        ])
+    }
 
     /// Samples a graph with random node/edge counts and returns a padded ``GraphSample``.
     ///
     /// - Note: `mask` and `probability` are currently ignored.
-    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> GraphSample {
+    public func sampleGraph(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> GraphSample {
         let keys = MLX.split(key: key, into: 4)
         let nodeCountKey = keys[0]
         let edgeCountKey = keys[1]
@@ -152,7 +165,13 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space {
         )
     }
 
-    public func contains(_ x: GraphSample) -> Bool {
+    /// Returns `true` if the array matches expected flattened size.
+    public func contains(_ x: MLXArray) -> Bool {
+        let expectedSize = maxNodes * nodeCount + maxEdges * edgeCount + maxEdges * 2 + maxNodes + maxEdges
+        return x.size == expectedSize
+    }
+
+    public func containsGraph(_ x: GraphSample) -> Bool {
         if x.nodeMask.shape != [maxNodes] { return false }
         if x.edgeMask.shape != [maxEdges] { return false }
         if x.edgeLinks.shape != [maxEdges, 2] { return false }
@@ -248,9 +267,3 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space {
         return true
     }
 }
-
-extension Graph: AnyGraphSpace {
-    public var nodeSpaceAny: any TensorSpace { nodeSpace }
-    public var edgeSpaceAny: any TensorSpace { edgeSpace }
-}
-

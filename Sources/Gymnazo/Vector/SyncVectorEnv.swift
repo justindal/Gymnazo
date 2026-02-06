@@ -38,13 +38,13 @@ import MLX
 /// 2. The final info is stored in `infos["final_info"]`
 /// 3. On the next step, the sub-environment is automatically reset
 @MainActor
-public final class SyncVectorEnv<Action>: VectorEnv {
+public final class SyncVectorEnv: VectorEnv {
     
     /// The number of sub-environments.
     public let numEnvs: Int
     
     /// The sub-environments managed by this vector environment.
-    private var envs: [AnyEnv<MLXArray, Action>]
+    private var envs: [any Env]
     
     /// Tracks which sub-environments need to be reset on the next step.
     private var needsReset: [Bool]
@@ -53,18 +53,18 @@ public final class SyncVectorEnv<Action>: VectorEnv {
     private var lastObservations: [MLXArray]
     
     /// The observation space of a single sub-environment.
-    public let singleObservationSpace: any Space<MLXArray>
+    public let singleObservationSpace: any Space
     
     /// The action space of a single sub-environment.
-    public let singleActionSpace: any Space<Action>
+    public let singleActionSpace: any Space
     
     /// The batched observation space for all sub-environments.
     /// For Box spaces, this has shape `[num_envs, ...single_obs_shape]`.
-    public private(set) var observationSpace: any Space<MLXArray>
+    public private(set) var observationSpace: any Space
     
     /// The batched action space for all sub-environments.
     /// For Discrete spaces, this becomes MultiDiscrete with `num_envs` dimensions.
-    public private(set) var actionSpace: any Space<MLXArray>
+    public private(set) var actionSpace: any Space
     
     /// The environment specification.
     public var spec: EnvSpec?
@@ -106,7 +106,7 @@ public final class SyncVectorEnv<Action>: VectorEnv {
         }
         
         self.numEnvs = envFns.count
-        self.envs = try envFns.map { try Self.wrapEnv($0()) }
+        self.envs = envFns.map { $0() }
         self.needsReset = Array(repeating: true, count: envFns.count)
         self.copyObservations = copyObservations
         self.autoresetMode = autoresetMode
@@ -175,7 +175,7 @@ public final class SyncVectorEnv<Action>: VectorEnv {
     ///
     /// - Parameter actions: Array of actions, one for each sub-environment.
     /// - Returns: Batched results containing observations, rewards, terminations, truncations, and infos.
-    public func step(_ actions: [Action]) throws -> VectorStepResult {
+    public func step(_ actions: [MLXArray]) throws -> VectorStepResult {
         guard !closed else {
             throw GymnazoError.vectorEnvClosed
         }
@@ -195,8 +195,15 @@ public final class SyncVectorEnv<Action>: VectorEnv {
             if needsReset[i] {
                 if autoresetMode == .nextStep {
                     let resetResult = try envs[i].reset(seed: nil, options: nil)
+                    let obs = copyObservations ? (resetResult.obs + MLXArray(Float(0))) : resetResult.obs
+                    observations.append(obs)
                     lastObservations[i] = resetResult.obs
                     needsReset[i] = false
+                    infos[i] = resetResult.info
+                    rewardsBuffer[i] = 0.0
+                    terminationsBuffer[i] = false
+                    truncationsBuffer[i] = false
+                    continue
                 } else {
                     throw GymnazoError.vectorEnvNeedsReset(index: i)
                 }
@@ -308,22 +315,12 @@ public final class SyncVectorEnv<Action>: VectorEnv {
         
         closed = true
     }
-    
-    private static func wrapEnv(_ env: any Env) throws -> AnyEnv<MLXArray, Action> {
-        guard let typed = env as? any Env<MLXArray, Action> else {
-            throw GymnazoError.invalidEnvironmentType(
-                expected: "Env<MLXArray, \(Action.self)>",
-                actual: String(describing: type(of: env))
-            )
-        }
-        return AnyEnv(typed)
-    }
 
     /// Creates a batched observation space from a single observation space.
     private static func createBatchedObservationSpace(
-        singleSpace: any Space<MLXArray>,
+        singleSpace: any Space,
         numEnvs: Int
-    ) -> any Space<MLXArray> {
+    ) -> any Space {
         if let boxSpace = singleSpace as? Box {
             return batchedBox(space: boxSpace, numEnvs: numEnvs)
         }
@@ -332,18 +329,15 @@ public final class SyncVectorEnv<Action>: VectorEnv {
     
     /// Creates a batched action space from a single action space.
     private static func createBatchedActionSpace(
-        singleSpace: any Space<Action>,
+        singleSpace: any Space,
         numEnvs: Int
-    ) -> any Space<MLXArray> {
+    ) -> any Space {
         if let discreteSpace = singleSpace as? Discrete {
             return MultiDiscrete(Array(repeating: discreteSpace.n, count: numEnvs))
         } else if let boxSpace = singleSpace as? Box {
             return batchedBox(space: boxSpace, numEnvs: numEnvs)
         }
-        if let space = singleSpace as? any Space<MLXArray> {
-            return space
-        }
-        fatalError("Unsupported action space for vectorization")
+        return singleSpace
     }
 }
 

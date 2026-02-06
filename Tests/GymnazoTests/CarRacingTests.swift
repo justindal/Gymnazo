@@ -19,7 +19,7 @@ struct CarRacingTests {
         if let domainRandomize {
             options["domain_randomize"] = domainRandomize
         }
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("CarRacing", options: options)
+        let env = try await Gymnazo.make("CarRacing", options: options)
         guard let carRacing = env.unwrapped as? CarRacing else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "CarRacing",
@@ -44,7 +44,7 @@ struct CarRacingTests {
         if let domainRandomize {
             options["domain_randomize"] = domainRandomize
         }
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "CarRacingDiscrete",
             options: options
         )
@@ -125,12 +125,12 @@ struct CarRacingTests {
         
         #expect(actionSpace.n == 5)
         #expect(actionSpace.start == 0)
-        #expect(actionSpace.contains(0))
-        #expect(actionSpace.contains(1))
-        #expect(actionSpace.contains(2))
-        #expect(actionSpace.contains(3))
-        #expect(actionSpace.contains(4))
-        #expect(!actionSpace.contains(5))
+        #expect(actionSpace.contains(MLXArray(Int32(0))))
+        #expect(actionSpace.contains(MLXArray(Int32(1))))
+        #expect(actionSpace.contains(MLXArray(Int32(2))))
+        #expect(actionSpace.contains(MLXArray(Int32(3))))
+        #expect(actionSpace.contains(MLXArray(Int32(4))))
+        #expect(!actionSpace.contains(MLXArray(Int32(5))))
     }
     
     @Test
@@ -180,7 +180,7 @@ struct CarRacingTests {
         var env = try await makeCarRacingDiscrete()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
         
         #expect(result.obs.shape == [96, 96, 3])
         #expect(result.obs.dtype == .uint8)
@@ -204,7 +204,7 @@ struct CarRacingTests {
         var env = try await makeCarRacingDiscrete()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
         
         #expect(result.reward <= 0)
     }
@@ -245,7 +245,7 @@ struct CarRacingTests {
     @Test
     @MainActor
     func testMakeCarRacing() async throws {
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("CarRacing")
+        let env = try await Gymnazo.make("CarRacing")
         
         #expect(env.spec != nil)
         #expect(env.spec?.id == "CarRacing")
@@ -256,7 +256,7 @@ struct CarRacingTests {
     @Test
     @MainActor
     func testMakeCarRacingDiscrete() async throws {
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CarRacingDiscrete")
+        let env = try await Gymnazo.make("CarRacingDiscrete")
         
         #expect(env.spec != nil)
         #expect(env.spec?.id == "CarRacingDiscrete")
@@ -348,7 +348,7 @@ struct CarRacingTests {
         _ = try env.reset(seed: 42)
         
         for _ in 0..<100 {
-            _ = try env.step(3)
+            _ = try env.step(MLXArray(Int32(3)))
         }
         
         let snapshot1 = env.currentSnapshot!
@@ -361,9 +361,9 @@ struct CarRacingTests {
         
         for i in 0..<200 {
             if i % 2 == 0 {
-                _ = try env.step(1)
+                _ = try env.step(MLXArray(Int32(1)))
             } else {
-                _ = try env.step(3)
+                _ = try env.step(MLXArray(Int32(3)))
             }
             
             if i % 40 == 0 {

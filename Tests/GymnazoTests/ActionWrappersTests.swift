@@ -2,12 +2,9 @@ import Testing
 import MLX
 @testable import Gymnazo
 
-/// minimal continuous env whose step returns the action it received as the observation.
 final class DummyBoxEnv: Env {
-    typealias Observation = MLXArray
-    typealias Action = MLXArray
-    let actionSpace: any Space<Action>
-    let observationSpace: any Space<Observation>
+    let actionSpace: any Space
+    let observationSpace: any Space
     var spec: EnvSpec? = nil
     var renderMode: RenderMode? = nil
 
@@ -16,11 +13,11 @@ final class DummyBoxEnv: Env {
         self.observationSpace = Box(low: low, high: high, shape: shape, dtype: .float32)
     }
 
-    func step(_ action: MLXArray) throws -> Step<Observation> {
+    func step(_ action: MLXArray) throws -> Step {
         return Step(obs: action, reward: 0.0, terminated: false, truncated: false, info: [:])
     }
 
-    func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<Observation> {
+    func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let zeros = MLXArray.zeros(actionSpace.shape ?? [1], type: Float.self)
         return Reset(obs: zeros, info: [:])
     }
@@ -54,4 +51,3 @@ struct ActionWrappersTests {
         #expect(abs(obs[1] - 2.0) < 1e-6)
     }
 }
-

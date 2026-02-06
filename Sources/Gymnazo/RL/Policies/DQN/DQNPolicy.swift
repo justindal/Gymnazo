@@ -8,7 +8,7 @@ import MLXNN
 
 /// Q-Network for DQN that outputs Q-values for all discrete actions.
 public final class DQNPolicy: Module, Policy {
-    public let observationSpace: any Space<MLXArray>
+    public let observationSpace: any Space
     public let actionSpace: any Space
     public let normalizeImages: Bool
     public let netArch: [Int]
@@ -27,7 +27,7 @@ public final class DQNPolicy: Module, Policy {
     ///   - nActions: Number of discrete actions.
     ///   - config: Configuration for the Q-Network.
     public init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         nActions: Int,
         config: DQNPolicyConfig = DQNPolicyConfig()
     ) {
@@ -62,7 +62,7 @@ public final class DQNPolicy: Module, Policy {
     ///   - actionSpace: The discrete action space.
     ///   - config: Configuration for the Q-Network.
     public convenience init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         actionSpace: Discrete,
         config: DQNPolicyConfig = DQNPolicyConfig()
     ) {
@@ -83,7 +83,7 @@ public final class DQNPolicy: Module, Policy {
     ///   - normalizeImages: Whether to normalize images.
     ///   - activation: Activation function factory.
     public init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         nActions: Int,
         netArch: [Int] = [64, 64],
         featuresExtractor: (any FeaturesExtractor)? = nil,

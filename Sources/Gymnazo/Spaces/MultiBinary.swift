@@ -4,8 +4,6 @@ import MLX
 ///
 /// Elements of this space are binary arrays of a shape that is fixed during construction.
 public struct MultiBinary: Space {
-    public typealias T = MLXArray
-
     public let shape: [Int]?
     public let dtype: DType? = .int32
 

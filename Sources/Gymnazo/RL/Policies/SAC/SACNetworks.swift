@@ -18,8 +18,8 @@ public struct SACNetworks {
     }
 
     public init(
-        observationSpace: any Space<MLXArray>,
-        actionSpace: any Space<MLXArray>,
+        observationSpace: any Space,
+        actionSpace: any Space,
         config: SACNetworksConfig = SACNetworksConfig()
     ) {
         let actor = SACActor(

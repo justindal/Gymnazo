@@ -8,11 +8,8 @@ import MLX
 /// A top-down racing environment where the agent controls a car using discrete
 /// actions for steering, gas, and brake. The observation is a 96x96 RGB image.
 public struct CarRacingDiscrete: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = Int
-    
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -75,6 +72,10 @@ public struct CarRacingDiscrete: Env {
         initColors()
     }
     
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
+    
     private mutating func initColors() {
         if domainRandomize {
             let (colorKey, nextKey) = MLX.split(key: _key ?? MLX.key(0))
@@ -130,16 +131,17 @@ public struct CarRacingDiscrete: Env {
         }
     }
     
-    public mutating func step(_ action: Action) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard var car = car, let worldId = worldId, let trackData = trackData else {
             throw GymnazoError.stepBeforeReset
         }
 
-        guard actionSpace.contains(action) else {
-            throw GymnazoError.invalidAction("Invalid action: \(action)")
+        guard actionSpace.contains(MLXArray([Int32(a)])) else {
+            throw GymnazoError.invalidAction("Invalid action: \(a)")
         }
         
-        switch action {
+        switch a {
         case 0:
             currentSteer = 0
             currentGas = 0
@@ -273,7 +275,7 @@ public struct CarRacingDiscrete: Env {
         self.car = car
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {

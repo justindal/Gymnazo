@@ -31,7 +31,7 @@ public extension Env {
     /// - Returns: The wrapped environment.
     func orderEnforced(
         disableRenderOrderEnforcing: Bool = false
-    ) -> OrderEnforcing<Self> {
+    ) -> OrderEnforcing {
         OrderEnforcing(env: self, disableRenderOrderEnforcing: disableRenderOrderEnforcing)
     }
     
@@ -40,7 +40,7 @@ public extension Env {
     /// Runs validation on the first `reset()`/`step()`/`render()` call.
     ///
     /// - Returns: The wrapped environment.
-    func passiveChecked() -> PassiveEnvChecker<Self> {
+    func passiveChecked() -> PassiveEnvChecker {
         PassiveEnvChecker(env: self)
     }
     
@@ -56,7 +56,7 @@ public extension Env {
     func recordingStatistics(
         bufferLength: Int = 100,
         statsKey: String = "episode"
-    ) throws -> RecordEpisodeStatistics<Self> {
+    ) throws -> RecordEpisodeStatistics {
         try RecordEpisodeStatistics(env: self, bufferLength: bufferLength, statsKey: statsKey)
     }
     
@@ -67,35 +67,32 @@ public extension Env {
     ///
     /// - Parameter maxSteps: Maximum steps before truncation.
     /// - Returns: The wrapped environment.
-    func timeLimited(_ maxSteps: Int) throws -> TimeLimit<Self> {
+    func timeLimited(_ maxSteps: Int) throws -> TimeLimit {
         try TimeLimit(env: self, maxEpisodeSteps: maxSteps)
     }
 
     func rewardsTransformed(
         _ transform: @escaping (Double) -> Double
-    ) -> TransformReward<Self> {
+    ) -> TransformReward {
         TransformReward(env: self, transform: transform)
     }
 
     func rewardsNormalized(
         gamma: Double = 0.99,
         epsilon: Double = 1e-8
-    ) -> NormalizeReward<Self> {
+    ) -> NormalizeReward {
         NormalizeReward(env: self, gamma: gamma, epsilon: epsilon)
     }
 
     func autoReset(
         mode: AutoresetMode = .nextStep
-    ) -> AutoReset<Self> {
+    ) -> AutoReset {
         AutoReset(env: self, mode: mode)
     }
 
-    func observationsFlattened() throws -> FlattenObservation<Self> {
+    func observationsFlattened() throws -> FlattenObservation {
         try FlattenObservation(env: self)
     }
-}
-
-public extension Env where Observation == MLXArray {
     
     /// Wraps the environment with observation normalization.
     ///
@@ -103,7 +100,7 @@ public extension Env where Observation == MLXArray {
     /// using a running mean and variance estimator.
     ///
     /// - Returns: The wrapped environment.
-    func observationsNormalized() throws -> NormalizeObservation<Self> {
+    func observationsNormalized() throws -> NormalizeObservation {
         try NormalizeObservation(env: self)
     }
     
@@ -114,9 +111,9 @@ public extension Env where Observation == MLXArray {
     ///   - transform: A closure that transforms each observation.
     /// - Returns: The wrapped environment.
     func observationsTransformed(
-        observationSpace: (any Space<MLXArray>)? = nil,
+        observationSpace: (any Space)? = nil,
         _ transform: @escaping (MLXArray) -> MLXArray
-    ) -> TransformObservation<Self> {
+    ) -> TransformObservation {
         TransformObservation(env: self, transform: transform, observationSpace: observationSpace)
     }
     
@@ -124,7 +121,7 @@ public extension Env where Observation == MLXArray {
     ///
     /// - Parameter keepDim: If true, keeps channel dimension as [H, W, 1]. Default is [H, W].
     /// - Returns: The wrapped environment.
-    func grayscale(keepDim: Bool = false) throws -> GrayscaleObservation<Self> {
+    func grayscale(keepDim: Bool = false) throws -> GrayscaleObservation {
         try GrayscaleObservation(env: self, keepDim: keepDim)
     }
     
@@ -132,7 +129,7 @@ public extension Env where Observation == MLXArray {
     ///
     /// - Parameter shape: Target (height, width) for the resized observations.
     /// - Returns: The wrapped environment.
-    func resized(to shape: (Int, Int)) throws -> ResizeObservation<Self> {
+    func resized(to shape: (Int, Int)) throws -> ResizeObservation {
         try ResizeObservation(env: self, shape: shape)
     }
     
@@ -145,7 +142,7 @@ public extension Env where Observation == MLXArray {
     func frameStacked(
         _ stackSize: Int,
         paddingType: FrameStackPadding = .reset
-    ) throws -> FrameStackObservation<Self> {
+    ) throws -> FrameStackObservation {
         try FrameStackObservation(env: self, stackSize: stackSize, paddingType: paddingType)
     }
     
@@ -159,19 +156,16 @@ public extension Env where Observation == MLXArray {
     /// - Returns: The wrapped environment.
     func rewardsShaped(
         _ shaper: @escaping (Double, MLXArray, Bool) -> Double
-    ) -> ShapeReward<Self> {
+    ) -> ShapeReward {
         ShapeReward(env: self, shaper: shaper)
     }
-}
 
-public extension Env where Action == MLXArray {
-    
     /// Wraps the environment with action clipping.
     ///
     /// Clips actions to the Box action space bounds before passing to the environment.
     ///
     /// - Returns: The wrapped environment.
-    func actionsClipped() -> ClipAction<Self> {
+    func actionsClipped() -> ClipAction {
         ClipAction(env: self)
     }
     
@@ -184,7 +178,7 @@ public extension Env where Action == MLXArray {
     /// - Returns: The wrapped environment.
     func actionsRescaled(
         from sourceRange: (low: Float, high: Float) = (-1.0, 1.0)
-    ) -> RescaleAction<Self> {
+    ) -> RescaleAction {
         RescaleAction(env: self, sourceLow: sourceRange.low, sourceHigh: sourceRange.high)
     }
 }
@@ -221,7 +215,7 @@ public extension Env {
     /// 2. `OrderEnforcing` - ensures reset() before step()
     ///
     /// - Returns: The wrapped environment.
-    func validated() -> OrderEnforcing<PassiveEnvChecker<Self>> {
+    func validated() -> OrderEnforcing {
         self.passiveChecked().orderEnforced()
     }
     
@@ -236,7 +230,7 @@ public extension Env {
     /// - Returns: The wrapped environment.
     func validated(
         maxSteps: Int
-    ) throws -> TimeLimit<OrderEnforcing<PassiveEnvChecker<Self>>> {
+    ) throws -> TimeLimit {
         try self.passiveChecked()
             .orderEnforced()
             .timeLimited(maxSteps)

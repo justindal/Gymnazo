@@ -41,16 +41,11 @@ import MLX
 ///
 /// ### Configuration
 /// - ``keepDim``
-public struct GrayscaleObservation<BaseEnv: Env>: Env
-where BaseEnv.Observation == MLXArray {
-    public typealias Observation = MLXArray
-    public typealias Action = BaseEnv.Action
-
-    public var env: BaseEnv
+public struct GrayscaleObservation: Wrapper {
+    public var env: any Env
     public let keepDim: Bool
-    public let observationSpace: any Space<Observation>
+    public let observationSpace: any Space
 
-    public var actionSpace: any Space<BaseEnv.Action> { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
@@ -65,7 +60,7 @@ where BaseEnv.Observation == MLXArray {
     /// - Parameters:
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, 3])
     ///   - keepDim: If true, output shape is [H, W, 1]. If false, output shape is [H, W].
-    public init(env: BaseEnv, keepDim: Bool = false) throws {
+    public init(env: any Env, keepDim: Bool = false) throws {
         self.env = env
         self.keepDim = keepDim
 
@@ -86,7 +81,7 @@ where BaseEnv.Observation == MLXArray {
         )
     }
 
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<MLXArray> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
             obs: toGrayscale(result.obs),
@@ -97,17 +92,10 @@ where BaseEnv.Observation == MLXArray {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         return Reset(obs: toGrayscale(result.obs), info: result.info)
     }
-
-    public var unwrapped: any Env { env.unwrapped }
-
-    @discardableResult
-    public func render() throws -> RenderOutput? { try env.render() }
-
-    public mutating func close() { env.close() }
 
     private func toGrayscale(_ obs: MLXArray) -> MLXArray {
         let r = obs[.ellipsis, 0].asType(.float32)
@@ -126,3 +114,4 @@ where BaseEnv.Observation == MLXArray {
         return result.asType(observationSpace.dtype ?? .uint8)
     }
 }
+

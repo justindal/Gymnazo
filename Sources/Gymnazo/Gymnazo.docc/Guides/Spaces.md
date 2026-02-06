@@ -7,6 +7,8 @@ Every ``Env`` has:
 - `env.actionSpace` (actions your agent can take)
 - `env.observationSpace` (observations the environment can emit)
 
+Both are `any Space`, and all space operations use `MLXArray`.
+
 ## Sampling and validation
 
 All spaces conform to ``Space``:
@@ -16,14 +18,17 @@ import Gymnazo
 import MLX
 
 let space = Discrete(3)      // {0, 1, 2}
-let x = space.sample(key: MLX.key(0))
-let ok = space.contains(x)
+let action = space.sample(key: MLX.key(0))  // Returns MLXArray (scalar)
+let ok = space.contains(action)
+
+// For discrete spaces, extract the integer value when needed:
+let actionInt = action.item(Int.self)  // 0, 1, or 2
 ```
 
 ## Common space types
 
-- ``Discrete``: integer actions in a range
-- ``Box``: continuous tensors (backed by `MLXArray`) with per-dimension bounds
+- ``Discrete``: discrete actions (sampled as scalar `MLXArray`)
+- ``Box``: continuous tensors with per-dimension bounds
 - ``MultiDiscrete`` / ``MultiBinary``: multi-dimensional discrete/binary spaces
 - ``Tuple`` and ``Dict``: structured spaces (product spaces)
 - ``TextSpace``: text samples

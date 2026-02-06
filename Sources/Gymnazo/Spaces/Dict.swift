@@ -5,77 +5,52 @@
 import Foundation
 import MLX
 
-private struct AnySpaceBox {
-    let base: any Space
-    let shape: [Int]?
-    let dtype: DType?
-    let sample: (MLXArray, MLXArray?, MLXArray?) -> Any
-    let contains: (Any) -> Bool
-
-    init<S: Space>(_ space: S) {
-        self.base = space
-        self.shape = space.shape
-        self.dtype = space.dtype
-        self.sample = { key, mask, probability in
-            space.sample(key: key, mask: mask, probability: probability)
-        }
-        self.contains = { value in
-            guard let castValue = value as? S.T else {
-                return false
-            }
-            return space.contains(castValue)
-        }
-    }
-}
-
-private func makeBox(_ space: any Space) -> AnySpaceBox {
-    func build<S: Space>(_ space: S) -> AnySpaceBox {
-        AnySpaceBox(space)
-    }
-    return build(space)
-}
-
+/// A space representing a dictionary of named sub-spaces.
+/// Samples are concatenated MLXArrays from each sub-space (sorted by key).
 public struct Dict: Space {
-    public typealias T = [String: Any]
-    
     public let spaces: [String: any Space]
-    private let boxes: [String: AnySpaceBox]
     
     public init(_ spaces: [String: any Space]) {
         self.spaces = spaces
-        self.boxes = spaces.mapValues { makeBox($0) }
     }
     
     public var shape: [Int]? {
-        return nil
+        nil
     }
     
     public var dtype: DType? {
-        return nil
+        nil
     }
     
-    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> [String: Any] {
-        let keys = MLX.split(key: key, into: boxes.count)
-        var sample: [String: Any] = [:]
-        
-        let sortedKeys = boxes.keys.sorted()
+    /// Samples from each sub-space and concatenates the results (sorted by key).
+    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        let sortedKeys = spaces.keys.sorted()
+        let keys = MLX.split(key: key, into: sortedKeys.count)
+        var samples: [MLXArray] = []
         
         for (i, k) in sortedKeys.enumerated() {
-            let space = boxes[k]!
-            sample[k] = space.sample(keys[i], nil, nil)
+            let space = spaces[k]!
+            let s = space.sample(key: keys[i], mask: nil, probability: nil)
+            samples.append(s.flattened())
         }
         
-        return sample
+        return MLX.concatenated(samples)
     }
     
-    public func contains(_ x: [String: Any]) -> Bool {
-        for (k, space) in boxes {
-            guard let value = x[k] else { return false }
-            if !space.contains(value) {
-                return false
-            }
+    /// Returns `true` if the concatenated array can be split into valid sub-space samples.
+    public func contains(_ x: MLXArray) -> Bool {
+        let sortedKeys = spaces.keys.sorted()
+        var offset = 0
+        for k in sortedKeys {
+            let space = spaces[k]!
+            guard let spaceShape = space.shape else { return false }
+            let size = spaceShape.reduce(1, *)
+            if offset + size > x.size { return false }
+            let slice = x[offset..<(offset + size)].reshaped(spaceShape)
+            if !space.contains(slice) { return false }
+            offset += size
         }
-        return true
+        return offset == x.size
     }
     
     public subscript(key: String) -> (any Space)? {

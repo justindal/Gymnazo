@@ -4,40 +4,41 @@ Learn how to create and interact with Gymnazo environments.
 
 ## Overview
 
-Gymnazo follows the Gymnasium API, making it familiar to anyone who has used the Python library.
+Gymnazo follows the Gymnasium API, making it familiar to anyone who has used the Python library. All observations and actions are represented as `MLXArray` for seamless integration with MLX Swift.
 
 ## Creating an Environment
 
-Use `Gymnazo` to create environments by their ID. Since `Gymnazo.make(...)` is generic, you must specify the observation and action types:
+Use `Gymnazo` to create environments by their ID:
 
 ```swift
 import Gymnazo
 import MLX
 
-// Create an environment with explicit types
-var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 ```
 
-### Environment Types Reference
+### Environment Action Spaces
 
-| Environment | Observation | Action |
-|-------------|-------------|--------|
+All environments use `MLXArray` for observations and actions. Actions from discrete spaces are scalar `MLXArray` values (use `.item(Int.self)` when needed):
+
+| Environment | Action Space | Notes |
+|-------------|--------------|-------|
 | **Toy Text** | | |
-| FrozenLake, FrozenLake8x8 | `Int` | `Int` |
-| Blackjack | `(Int, Int, Bool)` | `Int` |
-| Taxi | `Int` | `Int` |
-| CliffWalking | `Int` | `Int` |
+| FrozenLake, FrozenLake8x8 | `Discrete(4)` | 0-3: Left, Down, Right, Up |
+| Blackjack | `Discrete(2)` | 0: Stick, 1: Hit |
+| Taxi | `Discrete(6)` | Movement + pickup/dropoff |
+| CliffWalking | `Discrete(4)` | 0-3: Up, Right, Down, Left |
 | **Classic Control** | | |
-| CartPole | `MLXArray` | `Int` |
-| MountainCar | `MLXArray` | `Int` |
-| MountainCarContinuous | `MLXArray` | `MLXArray` |
-| Acrobot | `MLXArray` | `Int` |
-| Pendulum | `MLXArray` | `MLXArray` |
+| CartPole | `Discrete(2)` | 0: Left, 1: Right |
+| MountainCar | `Discrete(3)` | 0-2: Left, None, Right |
+| MountainCarContinuous | `Box([-1], [1])` | Continuous force |
+| Acrobot | `Discrete(3)` | Torque direction |
+| Pendulum | `Box([-2], [2])` | Continuous torque |
 | **Box2D** | | |
-| LunarLander | `MLXArray` | `Int` |
-| LunarLanderContinuous | `MLXArray` | `MLXArray` |
-| CarRacing | `MLXArray` | `MLXArray` |
-| CarRacingDiscrete | `MLXArray` | `Int` |
+| LunarLander | `Discrete(4)` | Engine controls |
+| LunarLanderContinuous | `Box` | Continuous engine |
+| CarRacing | `Box` | Steering, gas, brake |
+| CarRacingDiscrete | `Discrete(5)` | Discretized controls |
 
 See <doc:Environments> to learn more about the included environments.
 
@@ -49,8 +50,7 @@ Interact with environments using the standard `reset()` and `step(_:)` methods:
 import Gymnazo
 import MLX
 
-// Reset the environment
-var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+var env = try await Gymnazo.make("CartPole")
 let reset = try env.reset()
 var observation = reset.obs
 var key = MLX.key(42)
@@ -59,8 +59,10 @@ var totalReward = 0.0
 var done = false
 
 while !done {
-    // Sample a random action
-    let action = env.actionSpace.sample(key: key)
+    // Sample a random action (returns MLXArray)
+    let (newKey, actionKey) = MLX.split(key: key)
+    key = newKey
+    let action = env.actionSpace.sample(key: actionKey)
 
     // Take a step
     let step = try env.step(action)
@@ -81,27 +83,31 @@ The easiest way is with `Gymnazo.makeVec(...)`:
 
 ```swift
 import Gymnazo
+import MLX
 
 // Create 4 CartPole environments using makeVec
-let vecEnv: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
+let vecEnv = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
 
 // Reset all environments at once
 let reset = try vecEnv.reset(seed: 42)
 // reset.observations.shape == [4, 4] for 4 envs with 4-dimensional observations
 
-// Step all environments with batched actions
-let result = try vecEnv.step([1, 0, 1, 0])
+// Step all environments with batched actions (MLXArray)
+let actions = MLXArray([1, 0, 1, 0])
+let result = try vecEnv.step(actions)
 ```
 
 For async execution, use `Gymnazo.makeVecAsync(...)`:
 
 ```swift
 import Gymnazo
+import MLX
 
-let asyncEnv: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
+let asyncEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
 
 // Use stepAsync for parallel execution
-let result = try await asyncEnv.stepAsync([1, 0, 1, 0])
+let actions = MLXArray([1, 0, 1, 0])
+let result = try await asyncEnv.stepAsync(actions)
 ```
 
 See <doc:Vector-Environments> for more details.
@@ -123,7 +129,7 @@ import Gymnazo
 var env = try await Gymnazo.make("CartPole")
 
 // Customize wrapper behavior
-var env = try await Gymnazo.make(
+env = try await Gymnazo.make(
     "CartPole",
     maxEpisodeSteps: 500,           // Override default time limit
     disableEnvChecker: true,        // Disable API validation
@@ -131,13 +137,13 @@ var env = try await Gymnazo.make(
 )
 
 // Use maxEpisodeSteps: -1 to disable TimeLimit entirely
-var env = try await Gymnazo.make("CartPole", maxEpisodeSteps: -1)
+env = try await Gymnazo.make("CartPole", maxEpisodeSteps: -1)
 ```
 
 You can also apply wrappers manually using chainable extensions:
 
 ```swift
-let env = try CartPole()
+var env: any Env = try CartPole()
     .validated()
     .recordingStatistics()
     .timeLimited(500)

@@ -43,9 +43,6 @@ import MLX
 /// - Termination: -cos(theta1) - cos(theta2 + theta1) > 1.0
 /// - Truncation: Episode length > 500
 public struct Acrobot: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = Int
-
     public let dt: Float = 0.2
     public let linkLength1: Float = 1.0
     public let linkLength2: Float = 1.0
@@ -66,8 +63,8 @@ public struct Acrobot: Env {
 
     public var state: [Float]? = nil
 
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
 
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -96,17 +93,22 @@ public struct Acrobot: Env {
             dtype: .float32
         )
     }
+    
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
 
-    public mutating func step(_ action: Int) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard let currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
 
-        guard action >= 0 && action < 3 else {
-            throw GymnazoError.invalidAction("Invalid action: \(action). Must be 0, 1, or 2.")
+        guard a >= 0 && a < 3 else {
+            throw GymnazoError.invalidAction("Invalid action: \(a). Must be 0, 1, or 2.")
         }
 
-        var torque = availableTorques[action]
+        var torque = availableTorques[a]
 
         if torqueNoiseMax > 0 {
             guard let key = _key else {
@@ -144,9 +146,7 @@ public struct Acrobot: Env {
         )
     }
 
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<
-        Observation
-    > {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {

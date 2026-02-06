@@ -64,7 +64,7 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
                 return FlattenExtractor(featuresDim: box.shape?.reduce(1, *) ?? 1)
             case .natureCNN(let featuresDim):
                 precondition(
-                    isImage, "NatureCNN requires a Box observation space with 3 dims [C,H,W].")
+                    isImage, "NatureCNN requires a Box observation space with 3 dims [H,W,C].")
                 return NatureCNN(
                     observationSpace: box,
                     featuresDim: featuresDim,

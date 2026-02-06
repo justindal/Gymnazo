@@ -13,56 +13,6 @@ import UIKit
 import PlaygroundSupport
 #endif
 
-/// Observation for the Blackjack environment.
-///
-/// Contains the player's current hand sum, the dealer's showing card value,
-/// and whether the player has a usable ace.
-public struct BlackjackObservation: Hashable, Sendable, Equatable {
-    /// The player's current hand sum (4-21 typically, but can go higher when busting).
-    public let playerSum: Int
-    
-    /// The dealer's face-up card value (1-10, where 1 is Ace).
-    public let dealerCard: Int
-    
-    /// Whether the player has a usable ace (0 or 1).
-    public let usableAce: Int
-    
-    public init(playerSum: Int, dealerCard: Int, usableAce: Int) {
-        self.playerSum = playerSum
-        self.dealerCard = dealerCard
-        self.usableAce = usableAce
-    }
-}
-
-/// The observation space for Blackjack, consisting of three discrete components.
-public struct BlackjackObservationSpace: Space {
-    public typealias T = BlackjackObservation
-    
-    public let playerSumSpace: Discrete
-    public let dealerCardSpace: Discrete
-    public let usableAceSpace: Discrete
-    
-    public init() {
-        self.playerSumSpace = Discrete(n: 32)
-        self.dealerCardSpace = Discrete(n: 11)
-        self.usableAceSpace = Discrete(n: 2)
-    }
-    
-    public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> BlackjackObservation {
-        let keys = MLX.split(key: key, into: 3)
-        let playerSum = playerSumSpace.sample(key: keys[0])
-        let dealerCard = dealerCardSpace.sample(key: keys[1])
-        let usableAce = usableAceSpace.sample(key: keys[2])
-        return BlackjackObservation(playerSum: playerSum, dealerCard: dealerCard, usableAce: usableAce)
-    }
-    
-    public func contains(_ x: BlackjackObservation) -> Bool {
-        playerSumSpace.contains(x.playerSum) &&
-        dealerCardSpace.contains(x.dealerCard) &&
-        usableAceSpace.contains(x.usableAce)
-    }
-}
-
 /// Blackjack is a card game where the goal is to beat the dealer by obtaining cards
 /// that sum to closer to 21 (without going over 21) than the dealer's cards.
 ///
@@ -97,10 +47,10 @@ public struct BlackjackObservationSpace: Space {
 ///
 /// ## Observation Space
 ///
-/// The observation is a ``BlackjackObservation`` containing:
-/// - `playerSum`: The player's current sum (4-21 typically).
-/// - `dealerCard`: The value of the dealer's showing card (1-10 where 1 is ace).
-/// - `usableAce`: Whether the player holds a usable ace (0 or 1).
+/// The observation is a `Tuple(Discrete(32), Discrete(11), Discrete(2))`:
+/// - Player's current sum (0-31).
+/// - Dealer's showing card (0-10, where 1 is ace).
+/// - Whether the player holds a usable ace (0 or 1).
 ///
 /// ## Starting State
 ///
@@ -140,11 +90,8 @@ public final class Blackjack: Env {
         ]
     }
     
-    public typealias Observation = BlackjackObservation
-    public typealias Action = Int
-    
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     public var spec: EnvSpec?
     public var renderMode: RenderMode?
     
@@ -167,6 +114,10 @@ public final class Blackjack: Env {
     private var lastRGBFrame: CGImage?
 #endif
     
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
+    
     public init(
         renderMode: RenderMode? = nil,
         natural: Bool = false,
@@ -177,7 +128,7 @@ public final class Blackjack: Env {
         self.sab = sab
         
         self.actionSpace = Discrete(n: 2)
-        self.observationSpace = BlackjackObservationSpace()
+        self.observationSpace = Tuple(Discrete(n: 32), Discrete(n: 11), Discrete(n: 2))
     }
     
     private static func drawCard(key: MLXArray) -> Int {
@@ -244,20 +195,16 @@ public final class Blackjack: Env {
         return (valueStr, suit, temp)
     }
     
-    private func getObs() -> BlackjackObservation {
+    private func getObs() -> MLXArray {
         let playerSum = Self.sumHand(player)
         let usableAce = Self.usableAce(player) ? 1 : 0
-        return BlackjackObservation(
-            playerSum: playerSum,
-            dealerCard: dealer[0],
-            usableAce: usableAce
-        )
+        return MLXArray([Int32(playerSum), Int32(dealer[0]), Int32(usableAce)])
     }
     
     public func reset(
         seed: UInt64? = nil,
         options: EnvOptions? = nil
-    ) throws -> Reset<Observation> {
+    ) throws -> Reset {
         if let seed {
             _key = MLX.key(seed)
             _renderKey = MLX.key(seed ^ 0x9E3779B97F4A7C15)
@@ -314,7 +261,8 @@ public final class Blackjack: Env {
         return Reset(obs: obs, info: [:])
     }
     
-    public func step(_ action: Action) throws -> Step<Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard var key = _key else {
             throw GymnazoError.stepBeforeReset
         }
@@ -322,7 +270,7 @@ public final class Blackjack: Env {
         var terminated = false
         var reward: Double = 0.0
         
-        if action == 1 {
+        if a == 1 {
             let (drawKey, nextKey) = MLX.split(key: key)
             key = nextKey
             let newCard = Self.drawCard(key: drawKey)
@@ -381,22 +329,14 @@ public final class Blackjack: Env {
         }
         
         switch mode {
-        case .human, .rgbArray:
+        case .human:
 #if canImport(SwiftUI)
-            let snapshot = currentSnapshot
-            let result = DispatchQueue.main.sync {
-                Blackjack.renderGUI(snapshot: snapshot, mode: mode)
-            }
-            if mode == .rgbArray {
-                lastRGBFrame = result
-            }
-            if let image = result {
-                return .rgbArray(image)
-            }
-            return nil
+            return .other(currentSnapshot)
 #else
             return nil
 #endif
+        case .rgbArray:
+            return nil
         case .ansi, .statePixels:
             print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
@@ -436,6 +376,13 @@ public final class Blackjack: Env {
     
     public var latestRGBFrame: CGImage? {
         lastRGBFrame
+    }
+
+    @MainActor
+    public func renderRGBArray() -> CGImage? {
+        let image = Self.renderGUI(snapshot: currentSnapshot, mode: .rgbArray)
+        lastRGBFrame = image
+        return image
     }
     
     public var currentSnapshot: BlackjackRenderSnapshot {

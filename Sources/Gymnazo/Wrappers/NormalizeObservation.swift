@@ -8,13 +8,13 @@ import MLX
 /// Normalizes observations to approximately mean 0 and variance 1.
 ///
 /// Uses Welford's online algorithm to maintain running statistics.
-public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observation == MLXArray {
-    public var env: BaseEnv
+public struct NormalizeObservation: Wrapper {
+    public var env: any Env
     public let epsilon: Float = 1e-8
     
     private let rms: RunningMeanStdMLX
     
-    public init(env: BaseEnv) throws {
+    public init(env: any Env) throws {
         self.env = env
         guard let shape = env.observationSpace.shape else {
             throw GymnazoError.invalidObservationSpace
@@ -22,7 +22,7 @@ public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observat
         self.rms = RunningMeanStdMLX(shape: shape)
     }
     
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
@@ -36,7 +36,7 @@ public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observat
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
@@ -44,4 +44,5 @@ public struct NormalizeObservation<BaseEnv: Env>: Wrapper where BaseEnv.Observat
         return Reset(obs: normalized_obs, info: result.info)
     }
 }
+
 

@@ -15,7 +15,7 @@ public enum RenderOutput {
     case rgbArray(CGImage)
     case statePixels(CGImage)
 #endif
-    case other(Any)
+    case other(any Sendable)
 }
 
 public extension Env {

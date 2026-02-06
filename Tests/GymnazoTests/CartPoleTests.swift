@@ -6,7 +6,7 @@ import MLX
 struct CartPoleTests {
     func makeCartPole(renderMode: RenderMode? = nil) async throws -> CartPole {
         let options: EnvOptions = renderMode.map { ["render_mode": $0.rawValue] } ?? [:]
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole", options: options)
+        let env = try await Gymnazo.make("CartPole", options: options)
         guard let cartPole = env.unwrapped as? CartPole else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "CartPole",
@@ -121,7 +121,7 @@ struct CartPoleTests {
         var env = try await makeCartPole()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
         
         #expect(result.obs.shape == [4])
         #expect(result.reward >= 0)
@@ -136,7 +136,7 @@ struct CartPoleTests {
         let initialX = env.state![0].item(Float.self)
         
         for _ in 0..<5 {
-            _ = try env.step(0)
+            _ = try env.step(MLXArray(Int32(0)))
         }
         
         let finalX = env.state![0].item(Float.self)
@@ -152,7 +152,7 @@ struct CartPoleTests {
         let initialX = env.state![0].item(Float.self)
         
         for _ in 0..<5 {
-            _ = try env.step(1)
+            _ = try env.step(MLXArray(Int32(1)))
         }
         
         let finalX = env.state![0].item(Float.self)
@@ -166,7 +166,7 @@ struct CartPoleTests {
         _ = try env.reset(seed: 42)
         
         for _ in 0..<10 {
-            let result = try env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             if !result.terminated {
                 #expect(result.reward == 1.0)
             }
@@ -180,7 +180,7 @@ struct CartPoleTests {
         
         var terminated = false
         for _ in 0..<500 {
-            let result = try env.step(0)
+            let result = try env.step(MLXArray(Int32(0)))
             if result.terminated {
                 terminated = true
                 break
@@ -197,7 +197,7 @@ struct CartPoleTests {
         
         var terminated = false
         for _ in 0..<1000 {
-            let result = try env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             if result.terminated {
                 terminated = true
                 break
@@ -255,7 +255,7 @@ struct CartPoleTests {
         _ = try env.reset(seed: 42)
         
         let snapshotBefore = env.currentSnapshot
-        _ = try env.step(1)
+        _ = try env.step(MLXArray(Int32(1)))
         let snapshotAfter = env.currentSnapshot
         
         #expect(snapshotBefore != snapshotAfter)
@@ -316,8 +316,8 @@ struct CartPoleTests {
         let actions = [1, 0, 1, 1, 0, 0, 1, 0]
         
         for action in actions {
-            let result1 = try env1.step(action)
-            let result2 = try env2.step(action)
+            let result1 = try env1.step(MLXArray(Int32(action)))
+            let result2 = try env2.step(MLXArray(Int32(action)))
             
             eval(result1.obs, result2.obs)
             

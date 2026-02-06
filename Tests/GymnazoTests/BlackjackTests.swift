@@ -1,4 +1,5 @@
 import Testing
+import MLX
 
 @testable import Gymnazo
 
@@ -12,7 +13,7 @@ struct BlackjackTests {
         if let sab {
             options["sab"] = sab
         }
-        let env: AnyEnv<BlackjackObservation, Int> = try await Gymnazo.make("Blackjack", options: options)
+        let env = try await Gymnazo.make("Blackjack", options: options)
         guard let blackjack = env.unwrapped as? Blackjack else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "Blackjack",
@@ -27,7 +28,7 @@ struct BlackjackTests {
         let env = try await makeBlackjack()
         let r1 = try env.reset(seed: 42)
         let r2 = try env.reset(seed: 42)
-        #expect(r1.obs == r2.obs)
+        #expect(MLX.arrayEqual(r1.obs, r2.obs).item(Bool.self))
     }
 
     @Test
@@ -35,21 +36,26 @@ struct BlackjackTests {
         let env = try await makeBlackjack()
         let result = try env.reset(seed: 123)
 
-        #expect(result.obs.playerSum >= 12)
-        #expect(result.obs.playerSum <= 21)
-        #expect(result.obs.dealerCard >= 1)
-        #expect(result.obs.dealerCard <= 10)
-        #expect(result.obs.usableAce == 0 || result.obs.usableAce == 1)
+        let playerSum = result.obs[0].item(Int.self)
+        let dealerCard = result.obs[1].item(Int.self)
+        let usableAce = result.obs[2].item(Int.self)
+
+        #expect(playerSum >= 12)
+        #expect(playerSum <= 21)
+        #expect(dealerCard >= 1)
+        #expect(dealerCard <= 10)
+        #expect(usableAce == 0 || usableAce == 1)
     }
 
     @Test
     func testHitAction() async throws {
         let env = try await makeBlackjack()
         _ = try env.reset(seed: 100)
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
 
-        #expect(result.obs.playerSum >= 3)
-        if result.obs.playerSum <= 21 {
+        let playerSum = result.obs[0].item(Int.self)
+        #expect(playerSum >= 3)
+        if playerSum <= 21 {
             #expect(result.terminated == false)
             #expect(result.reward == 0.0)
         } else {
@@ -62,7 +68,7 @@ struct BlackjackTests {
     func testStickAction() async throws {
         let env = try await makeBlackjack()
         _ = try env.reset(seed: 200)
-        let result = try env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
 
         #expect(result.terminated == true)
         #expect(result.reward == -1.0 || result.reward == 0.0 || result.reward == 1.0)
@@ -75,10 +81,10 @@ struct BlackjackTests {
             Issue.record("Action space is not Discrete")
             return
         }
-        #expect(actionSpace.contains(0) == true)
-        #expect(actionSpace.contains(1) == true)
-        #expect(actionSpace.contains(2) == false)
-        #expect(actionSpace.contains(-1) == false)
+        #expect(actionSpace.contains(MLXArray(Int32(0))) == true)
+        #expect(actionSpace.contains(MLXArray(Int32(1))) == true)
+        #expect(actionSpace.contains(MLXArray(Int32(2))) == false)
+        #expect(actionSpace.contains(MLXArray(Int32(-1))) == false)
     }
 
     @Test
@@ -88,10 +94,11 @@ struct BlackjackTests {
 
         var terminated = false
         for _ in 0..<20 {
-            let result = try env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             if result.terminated {
                 terminated = true
-                if result.obs.playerSum > 21 {
+                let playerSum = result.obs[0].item(Int.self)
+                if playerSum > 21 {
                     #expect(result.reward == -1.0)
                 }
                 break
@@ -108,8 +115,11 @@ struct BlackjackTests {
             _ = try env.reset(seed: seed)
             let obs = try env.reset(seed: seed).obs
 
-            if obs.playerSum == 21 && obs.usableAce == 1 {
-                let result = try env.step(0)
+            let playerSum = obs[0].item(Int.self)
+            let usableAce = obs[2].item(Int.self)
+
+            if playerSum == 21 && usableAce == 1 {
+                let result = try env.step(MLXArray(Int32(0)))
                 if result.reward > 1.0 {
                     #expect(result.reward == 1.5)
                     return
@@ -122,7 +132,7 @@ struct BlackjackTests {
     func testSABMode() async throws {
         let env = try await makeBlackjack(sab: true)
         _ = try env.reset(seed: 42)
-        let result = try env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
 
         #expect(result.terminated == true)
         #expect(result.reward >= -1.0 && result.reward <= 1.0)
@@ -131,17 +141,17 @@ struct BlackjackTests {
     @Test
     @MainActor
     func testGymnazoMakeBlackjack() async throws {
-        let env: AnyEnv<BlackjackObservation, Int> = try await Gymnazo.make("Blackjack")
+        let env = try await Gymnazo.make("Blackjack")
         let blackjack = env.unwrapped as! Blackjack
         _ = try blackjack.reset(seed: 123)
-        let result = try blackjack.step(0)
+        let result = try blackjack.step(MLXArray(Int32(0)))
         #expect(result.terminated == true)
     }
 
     @Test
     @MainActor
     func testGymnazoMakeBlackjackWithKwargs() async throws {
-        let env: AnyEnv<BlackjackObservation, Int> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "Blackjack",
             options: ["natural": true, "sab": false]
         )

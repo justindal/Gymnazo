@@ -11,8 +11,9 @@ struct TextSpaceTests {
         for _ in 0..<20 {
             let (k, _) = MLX.split(key: key)
             key = k
-            let s = space.sample(key: key)
-            #expect(space.contains(s))
+            let flat = space.sample(key: key)
+            #expect(space.contains(flat))
+            let s = space.sampleString(key: key)
             #expect(s.count <= 12)
         }
     }
@@ -20,18 +21,17 @@ struct TextSpaceTests {
     @Test
     func testContainsRejectsInvalidCharacters() async throws {
         let space = TextSpace(minLength: 1, maxLength: 5, charset: Array("ab".map { $0 }))
-        #expect(space.contains("ab"))
-        #expect(space.contains("aba"))
-        #expect(space.contains("abc") == false)
+        #expect(space.containsString("ab"))
+        #expect(space.containsString("aba"))
+        #expect(space.containsString("abc") == false)
     }
 
     @Test
     func testContainsRejectsInvalidLength() async throws {
         let space = TextSpace(minLength: 2, maxLength: 3, charset: Array("ab".map { $0 }))
-        #expect(space.contains("a") == false)
-        #expect(space.contains("ab"))
-        #expect(space.contains("aba"))
-        #expect(space.contains("abaa") == false)
+        #expect(space.containsString("a") == false)
+        #expect(space.containsString("ab"))
+        #expect(space.containsString("aba"))
+        #expect(space.containsString("abaa") == false)
     }
 }
-

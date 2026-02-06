@@ -6,9 +6,11 @@ The key building blocks in Gymnazo are **environments**, **spaces**, and **wrapp
 
 An environment conforms to ``Env`` and defines:
 
-- An `actionSpace` and `observationSpace`
+- An `actionSpace` and `observationSpace` (both `any Space`)
 - `reset(seed:options:)` → ``Reset`` (initial observation + info)
 - `step(_:)` → ``Step`` (next observation + reward + termination flags + info)
+
+All observations and actions are `MLXArray`.
 
 ```swift
 import Gymnazo
@@ -18,9 +20,12 @@ var env = try await Gymnazo.make("CartPole")
 
 let reset = try env.reset(seed: 42, options: nil)
 var done = false
+var key = MLX.key(0)
 
 while !done {
-    let action = env.actionSpace.sample(key: MLX.key(0))
+    let (newKey, sampleKey) = MLX.split(key: key)
+    key = newKey
+    let action = env.actionSpace.sample(key: sampleKey)
     let step = try env.step(action)
     done = step.terminated || step.truncated
 }
@@ -28,7 +33,7 @@ while !done {
 
 ## Spaces
 
-Spaces describe the set of valid actions/observations (and how to sample them). See <doc:Spaces>.
+Spaces describe the set of valid actions/observations. All space operations use `MLXArray`. See <doc:Spaces>.
 
 ## Wrappers
 

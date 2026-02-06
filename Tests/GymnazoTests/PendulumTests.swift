@@ -13,7 +13,7 @@ struct PendulumTests {
         if let g {
             options["g"] = g
         }
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("Pendulum", options: options)
+        let env = try await Gymnazo.make("Pendulum", options: options)
         guard let pendulum = env.unwrapped as? Pendulum else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "Pendulum",
@@ -270,7 +270,7 @@ struct PendulumTests {
     @Test
     @MainActor
     func testGymnazoRegistration() async throws {
-        var env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("Pendulum")
+        var env = try await Gymnazo.make("Pendulum")
         let result = try env.reset()
         let obs = result.obs
         #expect(obs.shape == [3])
@@ -279,14 +279,14 @@ struct PendulumTests {
     @Test
     @MainActor
     func testGymnazoMaxEpisodeSteps() async throws {
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("Pendulum")
+        let env = try await Gymnazo.make("Pendulum")
         #expect(env.spec?.maxEpisodeSteps == 200)
     }
 
     @Test
     @MainActor
     func testGymnazoCustomGravity() async throws {
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "Pendulum",
             options: ["g": 9.81]
         )

@@ -35,7 +35,7 @@ public struct EvaluationResult: Sendable {
     }
 }
 
-/// Evaluates a policy that takes MLXArray observations and returns MLXArray actions.
+/// Evaluates a policy on an environment.
 ///
 /// - Parameters:
 ///   - policy: The policy to evaluate.
@@ -44,13 +44,13 @@ public struct EvaluationResult: Sendable {
 ///   - deterministic: Whether to use deterministic actions.
 ///   - render: Whether to render the environment during evaluation.
 /// - Returns: Evaluation statistics.
-public func evaluatePolicy<E: Env>(
+public func evaluatePolicy(
     policy: some Policy,
-    env: inout E,
+    env: inout any Env,
     nEvalEpisodes: Int = 10,
     deterministic: Bool = true,
     render: Bool = false
-) throws -> EvaluationResult where E.Observation == MLXArray, E.Action == MLXArray {
+) throws -> EvaluationResult {
     var episodeRewards: [Double] = []
     var episodeLengths: [Int] = []
     var successes: [Bool] = []
@@ -66,78 +66,7 @@ public func evaluatePolicy<E: Env>(
 
         while !done {
             let action = policy.predict(observation: obs, deterministic: deterministic)
-            MLX.eval(action)
-
-            let step = try env.step(action)
-
-            episodeReward += step.reward
-            episodeLength += 1
-            done = step.terminated || step.truncated
-            obs = step.obs
-
-            if let success = step.info["is_success"]?.bool {
-                successes.append(success)
-            }
-
-            if render {
-                try env.render()
-            }
-        }
-
-        episodeRewards.append(episodeReward)
-        episodeLengths.append(episodeLength)
-    }
-
-    let rewardStats = computeStats(episodeRewards)
-    let lengthStats = computeStats(episodeLengths.map(Double.init))
-
-    let successRate: Double? =
-        successes.isEmpty ? nil : Double(successes.filter { $0 }.count) / Double(successes.count)
-
-    return EvaluationResult(
-        meanReward: rewardStats.mean,
-        stdReward: rewardStats.std,
-        meanEpisodeLength: lengthStats.mean,
-        stdEpisodeLength: lengthStats.std,
-        episodeRewards: episodeRewards,
-        episodeLengths: episodeLengths,
-        successRate: successRate
-    )
-}
-
-/// Evaluates a policy that takes MLXArray observations and returns Int actions.
-///
-/// - Parameters:
-///   - policy: The policy to evaluate.
-///   - env: The environment to evaluate on.
-///   - nEvalEpisodes: Number of episodes to run.
-///   - deterministic: Whether to use deterministic actions.
-///   - render: Whether to render the environment during evaluation.
-/// - Returns: Evaluation statistics.
-public func evaluatePolicy<E: Env>(
-    policy: some Policy,
-    env: inout E,
-    nEvalEpisodes: Int = 10,
-    deterministic: Bool = true,
-    render: Bool = false
-) throws -> EvaluationResult where E.Observation == MLXArray, E.Action == Int {
-    var episodeRewards: [Double] = []
-    var episodeLengths: [Int] = []
-    var successes: [Bool] = []
-
-    episodeRewards.reserveCapacity(nEvalEpisodes)
-    episodeLengths.reserveCapacity(nEvalEpisodes)
-
-    for _ in 0..<nEvalEpisodes {
-        var obs = try env.reset().obs
-        var done = false
-        var episodeReward: Double = 0
-        var episodeLength: Int = 0
-
-        while !done {
-            let actionArray = policy.predict(observation: obs, deterministic: deterministic)
-            MLX.eval(actionArray)
-            let action = Int(actionArray.item(Int32.self))
+            eval(action)
 
             let step = try env.step(action)
 

@@ -81,7 +81,6 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
 
             var y = extractor(x)
 
-            // Ensure [B, F] so concatenation along axis 1 is valid.
             if y.shape.count == 1 {
                 y = y.reshaped([1, y.shape[0]])
             } else if y.shape.count > 2 {

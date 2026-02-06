@@ -5,44 +5,42 @@
 import MLX
 
 public struct Discrete: Space {
-    public typealias T = Int
     public let n: Int
     public let start: Int
+    public var shape: [Int]? { [1] }
+    public var dtype: DType? { .int32 }
 
     public init(n: Int, start: Int = 0) {
         self.n = n
         self.start = start
     }
 
-    public func contains(_ x: Int) -> Bool {
-        return (self.start..<(self.start + self.n)).contains(x)
+    public func contains(_ x: MLXArray) -> Bool {
+        let val = Int(x.item(Int32.self))
+        return (self.start..<(self.start + self.n)).contains(val)
     }
 
     public func sample(
         key: MLXArray,
         mask: MLXArray? = nil,
         probability: MLXArray? = nil
-    ) -> Int {
+    ) -> MLXArray {
         if mask != nil && probability != nil {
             fatalError("only one of either mask or probability can be provided")
         }
 
         if let mask: MLXArray = mask {
-            // ensure float32 to avoid GPU float64 issues 
-            // could also run on CPU, will add option later with MLX device option
             let zero32: MLXArray = MLXArray(0.0 as Float)
             let negInf32: MLXArray = MLXArray(-Float.infinity)
             let logits: MLXArray = MLX.which(mask.asType(.bool), zero32, negInf32)
 
-            eval(logits)
-
             if logits.max().item() as Float == -Float.infinity {
-                return self.start
+                return MLXArray([Int32(self.start)])
             }
 
             let sampled: MLXArray = MLX.categorical(logits, key: key)
             let sampledItem: Int32 = sampled.item() as Int32
-            return self.start + Int(sampledItem)
+            return MLXArray([Int32(self.start) + sampledItem])
         }
 
         if let probability: MLXArray = probability {
@@ -51,10 +49,10 @@ public struct Discrete: Space {
 
             let sampledIndex: MLXArray = MLX.categorical(logits, key: key)
             let sampledItem: Int32 = sampledIndex.item() as Int32
-            return self.start + Int(sampledItem)
+            return MLXArray([Int32(self.start) + sampledItem])
         }
         let randomInt: MLXArray = MLX.randInt(low: 0, high: self.n, key: key)
         
-        return self.start + Int(randomInt.item() as Int32)
+        return MLXArray([Int32(self.start) + randomInt.item(Int32.self)])
     }
 }

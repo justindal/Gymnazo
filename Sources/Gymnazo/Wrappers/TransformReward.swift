@@ -1,6 +1,8 @@
+import MLX
+
 /// A reward wrapper that applies a function to every reward.
-public struct TransformReward<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+public struct TransformReward: Wrapper {
+    public var env: any Env
     public let transform: (Double) -> Double
 
     /// Creates the wrapper.
@@ -8,12 +10,12 @@ public struct TransformReward<BaseEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap.
     ///   - transform: A function applied to every reward.
-    public init(env: BaseEnv, transform: @escaping (Double) -> Double) {
+    public init(env: any Env, transform: @escaping (Double) -> Double) {
         self.env = env
         self.transform = transform
     }
 
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
             obs: result.obs,
@@ -24,7 +26,8 @@ public struct TransformReward<BaseEnv: Env>: Wrapper {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         try env.reset(seed: seed, options: options)
     }
 }
+

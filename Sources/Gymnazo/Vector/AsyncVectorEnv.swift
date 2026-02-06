@@ -45,42 +45,47 @@ public struct EnvResetResult: Sendable {
     }
 }
 
-public struct UnsafeEnvBox<Action>: @unchecked Sendable {
-    public var env: AnyEnv<MLXArray, Action>
-    public init(env: AnyEnv<MLXArray, Action>) { self.env = env }
+public struct UnsafeEnvBox: @unchecked Sendable {
+    public var env: any Env
+    public init(env: any Env) { self.env = env }
 }
 
-public struct UnsafeAction<Action>: @unchecked Sendable {
-    public let value: Action
-    public init(_ value: Action) { self.value = value }
+public struct UnsafeAction: @unchecked Sendable {
+    public let value: MLXArray
+    public init(_ value: MLXArray) { self.value = value }
 }
 
 /// Actor that wraps a single environment for isolated parallel execution.
-public actor EnvironmentActor<Action> {
+public actor EnvironmentActor {
     private var needsReset: Bool = true
     private let index: Int
     private let autoresetMode: AutoresetMode
-    private var env: AnyEnv<MLXArray, Action>
+    private var env: any Env
 
-    public init(index: Int, envBox: UnsafeEnvBox<Action>, autoresetMode: AutoresetMode) {
+    public init(index: Int, envBox: UnsafeEnvBox, autoresetMode: AutoresetMode) {
         self.index = index
         self.autoresetMode = autoresetMode
         self.env = envBox.env
     }
 
-    private func resetIfNeeded() throws {
-        guard needsReset else { return }
-
-        guard autoresetMode == .nextStep else {
-            throw GymnazoError.vectorEnvNeedsReset(index: index)
+    public func step(_ action: UnsafeAction) throws -> EnvStepResult {
+        if needsReset {
+            if autoresetMode == .nextStep {
+                let resetResult = try env.reset(seed: nil, options: nil)
+                needsReset = false
+                let obsArray: [Float] = resetResult.obs.asArray(Float.self)
+                return EnvStepResult(
+                    index: index,
+                    observation: obsArray,
+                    reward: 0.0,
+                    terminated: false,
+                    truncated: false,
+                    info: resetResult.info
+                )
+            } else {
+                throw GymnazoError.vectorEnvNeedsReset(index: index)
+            }
         }
-
-        _ = try env.reset(seed: nil, options: nil)
-        needsReset = false
-    }
-
-    public func step(_ action: UnsafeAction<Action>) throws -> EnvStepResult {
-        try resetIfNeeded()
 
         let result = try env.step(action.value)
         let done = result.terminated || result.truncated
@@ -163,7 +168,7 @@ public actor EnvironmentActor<Action> {
 /// // obs.shape == [4, 4] for 4 envs with 4-dimensional observations
 ///
 /// // Step all environments in parallel
-/// let result = await envs.stepAsync([1, 0, 1, 0])
+/// let result = await envs.stepAsync([action1, action2, action3, action4])
 /// // result.observations.shape == [4, 4]
 /// // result.rewards.shape == [4]
 /// ```
@@ -176,19 +181,19 @@ public actor EnvironmentActor<Action> {
 /// 2. The final info is stored in `infos["final_info"]`
 /// 3. On the next step, the sub-environment is automatically reset
 @MainActor
-public final class AsyncVectorEnv<Action>: VectorEnv {
+public final class AsyncVectorEnv: VectorEnv {
 
     public let numEnvs: Int
 
-    private let actors: [EnvironmentActor<Action>]
+    private let actors: [EnvironmentActor]
 
-    public let singleObservationSpace: any Space<MLXArray>
+    public let singleObservationSpace: any Space
 
-    public let singleActionSpace: any Space<Action>
+    public let singleActionSpace: any Space
 
-    public private(set) var observationSpace: any Space<MLXArray>
+    public private(set) var observationSpace: any Space
 
-    public private(set) var actionSpace: any Space<MLXArray>
+    public private(set) var actionSpace: any Space
 
     public var spec: EnvSpec?
 
@@ -216,7 +221,7 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
         guard !envFns.isEmpty else {
             throw GymnazoError.invalidNumEnvs(envFns.count)
         }
-        let wrappedEnvs = try envFns.map { try Self.wrapEnv($0()) }
+        let wrappedEnvs = envFns.map { $0() }
         let probeEnv = wrappedEnvs[0]
         self.numEnvs = envFns.count
         self.autoresetMode = autoresetMode
@@ -252,13 +257,12 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
         guard !envs.isEmpty else {
             throw GymnazoError.invalidNumEnvs(envs.count)
         }
-        let wrappedEnvs = try envs.map { try Self.wrapEnv($0) }
-        let probeEnv = wrappedEnvs[0]
+        let probeEnv = envs[0]
         self.numEnvs = envs.count
         self.autoresetMode = autoresetMode
         self.copyObservations = copyObservations
 
-        let actors = wrappedEnvs.enumerated().map { index, env in
+        let actors = envs.enumerated().map { index, env in
             EnvironmentActor(index: index, envBox: UnsafeEnvBox(env: env), autoresetMode: autoresetMode)
         }
         self.actors = actors
@@ -305,22 +309,12 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
         }
     }
 
-    private static func wrapEnv(_ env: any Env) throws -> AnyEnv<MLXArray, Action> {
-        guard let typed = env as? any Env<MLXArray, Action> else {
-            throw GymnazoError.invalidEnvironmentType(
-                expected: "Env<MLXArray, \(Action.self)>",
-                actual: String(describing: type(of: env))
-            )
-        }
-        return AnyEnv(typed)
-    }
-
     /// Takes an action for each environment serially.
     ///
     ///
     /// - Parameter actions: Array of actions, one for each sub-environment.
     /// - Returns: Batched results containing observations, rewards, terminations, truncations, and infos.
-    public func step(_ actions: [Action]) throws -> VectorStepResult {
+    public func step(_ actions: [MLXArray]) throws -> VectorStepResult {
         guard !closed else {
             throw GymnazoError.vectorEnvClosed
         }
@@ -371,7 +365,7 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
     ///
     /// - Parameter actions: Array of actions, one for each sub-environment.
     /// - Returns: Batched results containing observations, rewards, terminations, truncations, and infos.
-    public func stepAsync(_ actions: [Action]) async throws -> VectorStepResult {
+    public func stepAsync(_ actions: [MLXArray]) async throws -> VectorStepResult {
         guard !closed else {
             throw GymnazoError.vectorEnvClosed
         }
@@ -416,8 +410,8 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
     }
 
     nonisolated private static func stepActorsParallel(
-        actors: [EnvironmentActor<Action>],
-        actions: [UnsafeAction<Action>]
+        actors: [EnvironmentActor],
+        actions: [UnsafeAction]
     ) async throws -> [EnvStepResult] {
         try await withThrowingTaskGroup(of: EnvStepResult.self) { group in
             for (i, actor) in actors.enumerated() {
@@ -496,7 +490,7 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
     }
 
     nonisolated private static func resetActorsParallel(
-        actors: [EnvironmentActor<Action>],
+        actors: [EnvironmentActor],
         seed: UInt64?,
         options: EnvOptions?
     )
@@ -525,7 +519,7 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
         return MLXArray(flat).reshaped(batchedShape)
     }
 
-    nonisolated private static func closeActors(actors: [EnvironmentActor<Action>]) async {
+    nonisolated private static func closeActors(actors: [EnvironmentActor]) async {
         await withTaskGroup(of: Void.self) { group in
             for actor in actors {
                 group.addTask {
@@ -547,9 +541,9 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
     }
 
     private static func createBatchedObservationSpace(
-        singleSpace: any Space<MLXArray>,
+        singleSpace: any Space,
         numEnvs: Int
-    ) -> any Space<MLXArray> {
+    ) -> any Space {
         if let boxSpace = singleSpace as? Box {
             return batchedBox(space: boxSpace, numEnvs: numEnvs)
         }
@@ -557,18 +551,15 @@ public final class AsyncVectorEnv<Action>: VectorEnv {
     }
 
     private static func createBatchedActionSpace(
-        singleSpace: any Space<Action>,
+        singleSpace: any Space,
         numEnvs: Int
-    ) -> any Space<MLXArray> {
+    ) -> any Space {
         if let discreteSpace = singleSpace as? Discrete {
             return MultiDiscrete(Array(repeating: discreteSpace.n, count: numEnvs))
         } else if let boxSpace = singleSpace as? Box {
             return batchedBox(space: boxSpace, numEnvs: numEnvs)
         }
-        if let space = singleSpace as? any Space<MLXArray> {
-            return space
-        }
-        fatalError("Unsupported action space for vectorization")
+        return singleSpace
     }
 }
 
@@ -592,3 +583,4 @@ private func sendableValue<Observation>(_ value: Observation) -> InfoValue? {
         return nil
     }
 }
+

@@ -28,7 +28,7 @@ struct LunarLanderTests {
         if let turbulencePower {
             options["turbulence_power"] = turbulencePower
         }
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("LunarLander", options: options)
+        let env = try await Gymnazo.make("LunarLander", options: options)
         guard let lander = env.unwrapped as? LunarLander else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "LunarLander",
@@ -73,11 +73,11 @@ struct LunarLanderTests {
 
         #expect(actionSpace.n == 4)
         #expect(actionSpace.start == 0)
-        #expect(actionSpace.contains(0))
-        #expect(actionSpace.contains(1))
-        #expect(actionSpace.contains(2))
-        #expect(actionSpace.contains(3))
-        #expect(!actionSpace.contains(4))
+        #expect(actionSpace.contains(MLXArray(Int32(0))))
+        #expect(actionSpace.contains(MLXArray(Int32(1))))
+        #expect(actionSpace.contains(MLXArray(Int32(2))))
+        #expect(actionSpace.contains(MLXArray(Int32(3))))
+        #expect(!actionSpace.contains(MLXArray(Int32(4))))
     }
 
     @Test
@@ -156,7 +156,7 @@ struct LunarLanderTests {
         var env = try await makeLunarLander()
         _ = try env.reset(seed: 42)
 
-        let result = try env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
         let obs = result.obs
         let truncated = result.truncated
 
@@ -173,7 +173,7 @@ struct LunarLanderTests {
             var testEnv = try await makeLunarLander()
             _ = try testEnv.reset(seed: 42)
 
-            let obs = try testEnv.step(action).obs
+            let obs = try testEnv.step(MLXArray(Int32(action))).obs
             #expect(obs.shape == [8])
         }
     }
@@ -183,10 +183,10 @@ struct LunarLanderTests {
         var env = try await makeLunarLander()
         _ = try env.reset(seed: 42)
 
-        let obsNoAction = try env.step(0).obs
+        let obsNoAction = try env.step(MLXArray(Int32(0))).obs
 
         _ = try env.reset(seed: 42)
-        let obsMainEngine = try env.step(2).obs
+        let obsMainEngine = try env.step(MLXArray(Int32(2))).obs
 
         eval(obsNoAction, obsMainEngine)
 
@@ -204,8 +204,8 @@ struct LunarLanderTests {
         _ = try envLeft.reset(seed: 42)
         _ = try envRight.reset(seed: 42)
 
-        let obsLeft = try envLeft.step(1).obs
-        let obsRight = try envRight.step(3).obs
+        let obsLeft = try envLeft.step(MLXArray(Int32(1))).obs
+        let obsRight = try envRight.step(MLXArray(Int32(3))).obs
 
         eval(obsLeft, obsRight)
 
@@ -222,7 +222,7 @@ struct LunarLanderTests {
 
         var obs = obsInit
         for _ in 0..<10 {
-            let result = try env.step(0)
+            let result = try env.step(MLXArray(Int32(0)))
             obs = result.obs
         }
 
@@ -242,7 +242,7 @@ struct LunarLanderTests {
         var terminated = false
         var reward: Double = 0
         for _ in 0..<400 {
-            let step = try env.step(0)
+            let step = try env.step(MLXArray(Int32(0)))
             terminated = step.terminated
             reward = step.reward
             if terminated { break }
@@ -261,12 +261,12 @@ struct LunarLanderTests {
         _ = try envMainEngine.reset(seed: 42)
 
         for _ in 0..<5 {
-            _ = try envNoAction.step(0)
-            _ = try envMainEngine.step(2)
+            _ = try envNoAction.step(MLXArray(Int32(0)))
+            _ = try envMainEngine.step(MLXArray(Int32(2)))
         }
 
-        let rewardNoAction = try envNoAction.step(0).reward
-        let rewardMainEngine = try envMainEngine.step(2).reward
+        let rewardNoAction = try envNoAction.step(MLXArray(Int32(0))).reward
+        let rewardMainEngine = try envMainEngine.step(MLXArray(Int32(2))).reward
 
         _ = rewardNoAction
         _ = rewardMainEngine
@@ -352,7 +352,7 @@ struct LunarLanderContinuousTests {
         if let turbulencePower {
             options["turbulence_power"] = turbulencePower
         }
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "LunarLanderContinuous",
             options: options
         )
@@ -552,7 +552,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeDiscreteEnvironment() async throws {
-        var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("LunarLander")
+        var env = try await Gymnazo.make("LunarLander")
         let obs = try env.reset(seed: 42).obs
 
         eval(obs)
@@ -562,7 +562,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeContinuousEnvironment() async throws {
-        var env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("LunarLanderContinuous")
+        var env = try await Gymnazo.make("LunarLanderContinuous")
         let obs = try env.reset(seed: 42).obs
 
         eval(obs)
@@ -572,7 +572,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeWithCustomGravity() async throws {
-        var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make(
+        var env = try await Gymnazo.make(
             "LunarLander",
             options: ["gravity": -5.0]
         )
@@ -585,7 +585,7 @@ struct LunarLanderRegistrationTests {
     @Test
     @MainActor
     func testMakeWithWind() async throws {
-        var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make(
+        var env = try await Gymnazo.make(
             "LunarLander",
             options: [
                 "enable_wind": true,

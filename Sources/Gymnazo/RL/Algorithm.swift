@@ -6,7 +6,6 @@
 /// Learning rate schedule evaluated with progress remaining in [0, 1].
 public protocol LearningRateSchedule {
     func value(at progressRemaining: Double) -> Double
-    // https://www.hackingwithswift.com/swift/5.2/callasfunction im not sure if this is appropriate here but TODO
 }
 
 /// Constant learning rate schedule.
@@ -22,13 +21,33 @@ public struct ConstantLearningRate: LearningRateSchedule {
     }
 }
 
-/// Base algorithm protocol
-public protocol Algorithm<PolicyType, EnvType> {
+/// Callbacks for the learn() method to enable UI updates and control flow.
+public struct LearnCallbacks: Sendable {
+    public typealias OnStepCallback = @Sendable (Int, Int, Double) -> Bool
+    public typealias OnEpisodeEndCallback = @Sendable (Double, Int) -> Void
+    public typealias OnSnapshotCallback = @Sendable (any Sendable) -> Void
+
+    public var onStep: OnStepCallback?
+    public var onEpisodeEnd: OnEpisodeEndCallback?
+    public var onSnapshot: OnSnapshotCallback?
+
+    public init(
+        onStep: OnStepCallback? = nil,
+        onEpisodeEnd: OnEpisodeEndCallback? = nil,
+        onSnapshot: OnSnapshotCallback? = nil
+    ) {
+        self.onStep = onStep
+        self.onEpisodeEnd = onEpisodeEnd
+        self.onSnapshot = onSnapshot
+    }
+}
+
+/// Base protocol for reinforcement learning algorithms.
+public protocol Algorithm: AnyObject {
     associatedtype PolicyType: Policy
-    associatedtype EnvType: Env
 
     var policy: PolicyType { get }
-    var env: EnvType? { get set }
+    var env: (any Env)? { get set }
 
     var learningRate: any LearningRateSchedule { get }
     var currentProgressRemaining: Double { get set }
@@ -37,13 +56,16 @@ public protocol Algorithm<PolicyType, EnvType> {
     var totalTimesteps: Int { get set }
 
     @discardableResult
-    mutating func learn(totalTimesteps: Int) throws -> Self
+    func learn(totalTimesteps: Int) throws -> Self
+
+    @discardableResult
+    func learn(totalTimesteps: Int, callbacks: LearnCallbacks?) throws -> Self
 }
 
 extension Algorithm {
     public var unwrappedEnv: (any Env)? { env?.unwrapped }
 
-    public mutating func updateProgressRemaining(numTimesteps: Int, totalTimesteps: Int) {
+    public func updateProgressRemaining(numTimesteps: Int, totalTimesteps: Int) {
         currentProgressRemaining = 1.0 - Double(numTimesteps) / Double(totalTimesteps)
     }
 
