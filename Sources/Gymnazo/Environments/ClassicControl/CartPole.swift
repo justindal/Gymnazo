@@ -76,9 +76,6 @@ import SpriteKit
 /// - [Cart-pole equations](https://coneural.org/florian/papers/05_cart_pole.pdf)
 /// - [Original implementation](https://perma.cc/C9ZM-652R)
 public struct CartPole: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = Int
-
     public let gravity: Float = 9.8
     public let masscart: Float = 1.0
     public let masspole: Float = 0.1
@@ -95,8 +92,8 @@ public struct CartPole: Env {
     public var state: MLXArray? = nil
     public var steps_beyond_terminated: Int? = nil
 
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
 
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -124,6 +121,10 @@ public struct CartPole: Env {
             dtype: .float32
         )
     }
+    
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
 
     /// Takes a step in the environment using the given action.
     ///
@@ -136,7 +137,8 @@ public struct CartPole: Env {
     ///   - `terminated`: `true` if cart or pole exceeded thresholds
     ///   - `truncated`: Always `false` (truncation handled by wrappers)
     ///   - `info`: Empty dictionary
-    public mutating func step(_ action: Int) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard let currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
@@ -146,7 +148,7 @@ public struct CartPole: Env {
         let theta = currentState[2].item(Float.self)
         let theta_dot = currentState[3].item(Float.self)
 
-        let force = action == 1 ? force_mag : -force_mag
+        let force = a == 1 ? force_mag : -force_mag
         let costheta = cos(theta)
         let sintheta = sin(theta)
 
@@ -215,9 +217,7 @@ public struct CartPole: Env {
     /// - Returns: A tuple containing:
     ///   - `obs`: The initial observation `[x, x_dot, theta, theta_dot]`
     ///   - `info`: Empty dictionary
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<
-        Observation
-    > {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {

@@ -31,11 +31,8 @@ public struct CarRacingSnapshot: Equatable, Sendable {
 /// A top-down racing environment where the agent controls a car using continuous
 /// steering, gas, and brake inputs. The observation is a 96x96 RGB image.
 public struct CarRacing: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = MLXArray
-    
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -153,7 +150,7 @@ public struct CarRacing: Env {
         }
     }
     
-    public mutating func step(_ action: Action) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         guard var car = car, let worldId = worldId, let trackData = trackData else {
             throw GymnazoError.stepBeforeReset
         }
@@ -274,7 +271,7 @@ public struct CarRacing: Env {
         self.car = car
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {

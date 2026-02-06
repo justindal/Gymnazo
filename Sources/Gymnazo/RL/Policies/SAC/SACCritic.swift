@@ -11,8 +11,8 @@ import MLXNN
 /// Takes observations and scaled actions (in [-1, 1]) and outputs Q-values
 /// from multiple critic networks for clipped double Q-learning.
 public final class SACCritic: Module, ContinuousCritic {
-    public let observationSpace: any Space<MLXArray>
-    private let _actionSpace: any Space<MLXArray>
+    public let observationSpace: any Space
+    private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }
     public let normalizeImages: Bool
     public let netArch: [Int]
@@ -33,8 +33,8 @@ public final class SACCritic: Module, ContinuousCritic {
     @ModuleInfo public var qNetworks: [Sequential]
 
     public init(
-        observationSpace: any Space<MLXArray>,
-        actionSpace: any Space<MLXArray>,
+        observationSpace: any Space,
+        actionSpace: any Space,
         normalizeImages: Bool = true,
         netArch: [Int] = [256, 256],
         featuresExtractor: (any FeaturesExtractor)? = nil,

@@ -4,20 +4,17 @@ import MLX
 ///
 /// This wrapper only supports environments whose observation space flattens to a ``Box`` via
 ///   ``flatten_space(_:)``. In particular, ``SequenceSpace`` and ``Graph`` preserve structure under `flatten_space`.
-public struct FlattenObservation<BaseEnv: Env>: TransformingWrapper {
-    public typealias Observation = MLXArray
-    public typealias Action = BaseEnv.Action
+public struct FlattenObservation: Wrapper {
+    public var env: any Env
+    public let observationSpace: any Space
+    public var actionSpace: any Space { env.actionSpace }
 
-    public var env: BaseEnv
-    public let observationSpace: any Space<Observation>
-    public var actionSpace: any Space<BaseEnv.Action> { env.actionSpace }
-
-    private let baseSpace: any Space<BaseEnv.Observation>
+    private let baseSpace: any Space
 
     /// Creates the wrapper and computes the flattened observation space.
-    public init(env: BaseEnv) throws {
+    public init(env: any Env) throws {
         self.env = env
-        let s: any Space<BaseEnv.Observation> = env.observationSpace
+        let s = env.observationSpace
         self.baseSpace = s
         guard let box = flattenSpaceToBox(s) else {
             throw GymnazoError.invalidObservationSpace
@@ -25,7 +22,7 @@ public struct FlattenObservation<BaseEnv: Env>: TransformingWrapper {
         self.observationSpace = box
     }
 
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         let flattened = flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
@@ -37,7 +34,7 @@ public struct FlattenObservation<BaseEnv: Env>: TransformingWrapper {
         return Reset(obs: flatObs, info: result.info)
     }
 
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<MLXArray> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         let flattened = flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
@@ -55,3 +52,4 @@ public struct FlattenObservation<BaseEnv: Env>: TransformingWrapper {
         )
     }
 }
+

@@ -11,10 +11,10 @@ private let logStdMin: Float = -20.0
 
 /// Actor (Policy) Network for SAC
 public final class SACActor: Module, Policy {
-    public let observationSpace: any Space<MLXArray>
-    private let _actionSpace: any Space<MLXArray>
+    public let observationSpace: any Space
+    private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }
-    public var continuousActionSpace: any Space<MLXArray> { _actionSpace }
+    public var continuousActionSpace: any Space { _actionSpace }
     public let netArch: NetArch
 
     public let featuresExtractor: any FeaturesExtractor
@@ -34,8 +34,8 @@ public final class SACActor: Module, Policy {
     private var sdeDist: StateDependentNoiseDistribution
 
     public init(
-        observationSpace: any Space<MLXArray>,
-        actionSpace: any Space<MLXArray>,
+        observationSpace: any Space,
+        actionSpace: any Space,
         netArch: NetArch = .shared([256, 256]),
         featuresExtractor: (any FeaturesExtractor)? = nil,
         normalizeImages: Bool = true,
@@ -101,8 +101,8 @@ public final class SACActor: Module, Policy {
     }
 
     public convenience init(
-        observationSpace: any Space<MLXArray>,
-        actionSpace: any Space<MLXArray>,
+        observationSpace: any Space,
+        actionSpace: any Space,
         config: SACActorConfig = SACActorConfig()
     ) {
         let extractor = config.featuresExtractor.make(

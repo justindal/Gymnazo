@@ -6,13 +6,12 @@
 import MLX
 
 public protocol TabularTDAlgorithm: AnyObject {
-    associatedtype Environment: Env where Environment.Observation == Int, Environment.Action == Int
-    
     var config: TabularTDConfig { get }
-    var env: Environment? { get set }
+    var env: (any Env)? { get set }
+    var nStates: Int { get }
     var nActions: Int { get }
     var actionSpace: Discrete { get }
-    var qTable: [Int: [Double]] { get set }
+    var qTable: MLXArray { get set }
     var explorationRate: Double { get set }
     var randomKey: MLXArray { get set }
     var numTimesteps: Int { get set }
@@ -20,7 +19,7 @@ public protocol TabularTDAlgorithm: AnyObject {
     
     var requiresNextAction: Bool { get }
     
-    func computeNextQ(nextState: Int, nextAction: Int?) -> Double
+    func nextQ(nextState: MLXArray, nextAction: MLXArray?) -> MLXArray
 }
 
 public struct TabularTDConfig: Sendable {
@@ -31,11 +30,11 @@ public struct TabularTDConfig: Sendable {
     public let explorationFinalEps: Double
 
     public init(
-        learningRate: Double = 0.1,
-        gamma: Double = 0.99,
-        explorationFraction: Double = 0.1,
+        learningRate: Double = 0.5,
+        gamma: Double = 0.95,
+        explorationFraction: Double = 0.5,
         explorationInitialEps: Double = 1.0,
-        explorationFinalEps: Double = 0.05
+        explorationFinalEps: Double = 0.1
     ) {
         self.learningRate = learningRate
         self.gamma = gamma
@@ -73,7 +72,7 @@ extension TabularTDAlgorithm {
             let terminated = stepResult.terminated
             let truncated = stepResult.truncated
 
-            let nextAction: Int?
+            let nextAction: MLXArray?
             if requiresNextAction && !terminated && !truncated {
                 nextAction = selectAction(state: nextState, forExploration: true)
             } else {
@@ -118,7 +117,7 @@ extension TabularTDAlgorithm {
             + fraction * (config.explorationFinalEps - config.explorationInitialEps)
     }
 
-    public func selectAction(state: Int, forExploration: Bool) -> Int {
+    public func selectAction(state: MLXArray, forExploration: Bool) -> MLXArray {
         if forExploration {
             let (exploreKey, nextKey) = MLX.split(key: randomKey)
             randomKey = nextKey
@@ -134,64 +133,71 @@ extension TabularTDAlgorithm {
 
     public func shouldExplore(key: MLXArray) -> Bool {
         let random = MLX.uniform(0.0..<1.0, key: key)
-        MLX.eval(random)
+        eval(random)
         let value: Float = random.item()
         return Double(value) < explorationRate
     }
 
-    public func selectBestAction(state: Int) -> Int {
+    public func selectBestAction(state: MLXArray) -> MLXArray {
         let qValues = getQValues(for: state)
-        return qValues.enumerated().max(by: { $0.element < $1.element })?.offset ?? 0
+        return MLX.argMax(qValues).asType(.int32)
     }
 
     public func updateQValue(
-        state: Int,
-        action: Int,
+        state: MLXArray,
+        action: MLXArray,
         reward: Double,
-        nextState: Int,
-        nextAction: Int?,
+        nextState: MLXArray,
+        nextAction: MLXArray?,
         terminated: Bool
     ) {
         let currentQ = getQValue(state: state, action: action)
 
-        let nextQ: Double
+        let nextQ: MLXArray
         if terminated {
-            nextQ = 0.0
+            nextQ = MLXArray(0.0)
         } else {
-            nextQ = computeNextQ(nextState: nextState, nextAction: nextAction)
+            nextQ = self.nextQ(nextState: nextState, nextAction: nextAction)
         }
 
-        let tdTarget = reward + config.gamma * nextQ
-        let newQ = currentQ + config.learningRate * (tdTarget - currentQ)
+        let rewardArray = MLXArray(reward)
+        let gamma = MLXArray(config.gamma)
+        let alpha = MLXArray(config.learningRate)
+        
+        let tdTarget = rewardArray + gamma * nextQ
+        let newQ = currentQ + alpha * (tdTarget - currentQ)
+        eval(newQ)
 
         setQValue(state: state, action: action, value: newQ)
     }
 
-    public func getQValues(for state: Int) -> [Double] {
-        if let values = qTable[state] {
-            return values
-        }
-        let zeros = [Double](repeating: 0.0, count: nActions)
-        qTable[state] = zeros
-        return zeros
+    public func getQValues(for state: MLXArray) -> MLXArray {
+        let stateIdx = Int(state.asType(.int32).item(Int32.self))
+        return qTable[stateIdx]
     }
 
-    public func getQValue(state: Int, action: Int) -> Double {
-        getQValues(for: state)[action]
+    public func getQValue(state: MLXArray, action: MLXArray) -> MLXArray {
+        let stateIdx = Int(state.asType(.int32).item(Int32.self))
+        let actionIdx = Int(action.asType(.int32).item(Int32.self))
+        return qTable[stateIdx, actionIdx]
     }
 
-    public func setQValue(state: Int, action: Int, value: Double) {
-        if qTable[state] == nil {
-            qTable[state] = [Double](repeating: 0.0, count: nActions)
-        }
-        qTable[state]![action] = value
+    public func setQValue(state: MLXArray, action: MLXArray, value: MLXArray) {
+        let stateIdx = Int(state.asType(.int32).item(Int32.self))
+        let actionIdx = Int(action.asType(.int32).item(Int32.self))
+        
+        var tableData = qTable.asArray(Float.self)
+        let flatIdx = stateIdx * nActions + actionIdx
+        tableData[flatIdx] = value.item(Float.self)
+        qTable = MLXArray(tableData).reshaped([nStates, nActions])
+        eval(qTable)
     }
 
     public var currentExplorationRate: Double {
         explorationRate
     }
 
-    public func predict(state: Int, deterministic: Bool = true) -> Int {
+    public func predict(observation: MLXArray, deterministic: Bool = true) -> MLXArray {
         if !deterministic {
             let (exploreKey, nextKey) = MLX.split(key: randomKey)
             randomKey = nextKey
@@ -202,14 +208,14 @@ extension TabularTDAlgorithm {
                 return actionSpace.sample(key: sampleKey)
             }
         }
-        return selectBestAction(state: state)
+        return selectBestAction(state: observation)
     }
 
-    public func qValues(for state: Int) -> [Double] {
+    public func qValues(for state: MLXArray) -> MLXArray {
         getQValues(for: state)
     }
 
-    public var table: [Int: [Double]] {
+    public var table: MLXArray {
         qTable
     }
 }

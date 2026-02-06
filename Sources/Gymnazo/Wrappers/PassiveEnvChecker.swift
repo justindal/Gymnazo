@@ -2,10 +2,12 @@
 // PassiveEnvChecker.swift
 //
 
+import MLX
+
 /// Wrapper that runs passive validation on the first reset/step/render call to ensure
 /// the environment conforms to Gymnazo's API expectations.
-public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+public final class PassiveEnvChecker: Wrapper {
+    public var env: any Env
 
     private var cachedSpec: EnvSpec?
     private var checkedReset = false
@@ -13,12 +15,12 @@ public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
     private var checkedRender = false
     private var closeCalled = false
 
-    public required init(env: BaseEnv) {
+    public required init(env: any Env) {
         self.env = env
         PassiveEnvChecks.ensureSpacesExist(for: env)
     }
 
-    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
         if !checkedStep {
             checkedStep = true
             return try PassiveEnvChecks.step(env: &env, action: action)
@@ -26,7 +28,7 @@ public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
         return try env.step(action)
     }
 
-    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         if !checkedReset {
             checkedReset = true
             cachedSpec = nil
@@ -73,3 +75,4 @@ public final class PassiveEnvChecker<BaseEnv: Env>: Wrapper {
         }
     }
 }
+

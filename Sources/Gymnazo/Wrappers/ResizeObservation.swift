@@ -36,18 +36,12 @@ import MLX
 /// ### Configuration
 /// - ``targetHeight``
 /// - ``targetWidth``
-public struct ResizeObservation<BaseEnv: Env>: Env
-    where BaseEnv.Observation == MLXArray
-{
-    public typealias Observation = MLXArray
-    public typealias Action = BaseEnv.Action
-
-    public var env: BaseEnv
+public struct ResizeObservation: Wrapper {
+    public var env: any Env
     public let targetHeight: Int
     public let targetWidth: Int
-    public let observationSpace: any Space<Observation>
+    public let observationSpace: any Space
     
-    public var actionSpace: any Space<BaseEnv.Action> { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
@@ -62,7 +56,7 @@ public struct ResizeObservation<BaseEnv: Env>: Env
     /// - Parameters:
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, ...])
     ///   - shape: Target (height, width) for the resized observations
-    public init(env: BaseEnv, shape: (Int, Int)) throws {
+    public init(env: any Env, shape: (Int, Int)) throws {
         self.env = env
         self.targetHeight = shape.0
         self.targetWidth = shape.1
@@ -86,7 +80,7 @@ public struct ResizeObservation<BaseEnv: Env>: Env
         )
     }
     
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<MLXArray> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
             obs: resize(result.obs),
@@ -97,17 +91,10 @@ public struct ResizeObservation<BaseEnv: Env>: Env
         )
     }
     
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         return Reset(obs: resize(result.obs), info: result.info)
     }
-    
-    public var unwrapped: any Env { env.unwrapped }
-    
-    @discardableResult
-    public func render() throws -> RenderOutput? { try env.render() }
-    
-    public mutating func close() { env.close() }
     
     private func resize(_ obs: MLXArray) -> MLXArray {
         let originalShape = obs.shape
@@ -153,3 +140,4 @@ public struct ResizeObservation<BaseEnv: Env>: Env
         return resized.asType(observationSpace.dtype ?? .uint8)
     }
 }
+

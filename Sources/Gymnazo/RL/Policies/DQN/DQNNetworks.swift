@@ -34,7 +34,7 @@ public struct DQNNetworks {
     ///   - nActions: Number of discrete actions.
     ///   - config: Configuration for the Q-network.
     public init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         nActions: Int,
         config: DQNPolicyConfig = DQNPolicyConfig()
     ) {
@@ -60,7 +60,7 @@ public struct DQNNetworks {
     ///   - actionSpace: The discrete action space.
     ///   - config: Configuration for the Q-network.
     public init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         actionSpace: Discrete,
         config: DQNPolicyConfig = DQNPolicyConfig()
     ) {

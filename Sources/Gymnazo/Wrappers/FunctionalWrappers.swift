@@ -2,24 +2,26 @@
 // FunctionalWrappers.swift
 //
 
-open class ObservationWrapper<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+import MLX
 
-    public required init(env: BaseEnv) {
+open class ObservationWrapper: Wrapper {
+    public var env: any Env
+
+    public required init(env: any Env) {
         self.env = env
     }
 
     /// Override to transform observations returned from the inner environment.
-    open func observation(_ observation: BaseEnv.Observation) -> BaseEnv.Observation {
+    open func observation(_ observation: MLXArray) -> MLXArray {
         observation
     }
 
-    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         return Reset(obs: observation(result.obs), info: result.info)
     }
 
-    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
             obs: observation(result.obs),
@@ -31,10 +33,10 @@ open class ObservationWrapper<BaseEnv: Env>: Wrapper {
     }
 }
 
-open class RewardWrapper<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+open class RewardWrapper: Wrapper {
+    public var env: any Env
 
-    public required init(env: BaseEnv) {
+    public required init(env: any Env) {
         self.env = env
     }
 
@@ -43,7 +45,7 @@ open class RewardWrapper<BaseEnv: Env>: Wrapper {
         reward
     }
 
-    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
             obs: result.obs,
@@ -55,19 +57,20 @@ open class RewardWrapper<BaseEnv: Env>: Wrapper {
     }
 }
 
-open class ActionWrapper<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+open class ActionWrapper: Wrapper {
+    public var env: any Env
 
-    public required init(env: BaseEnv) {
+    public required init(env: any Env) {
         self.env = env
     }
 
     /// override to transform the incoming action before delegating to the inner environment.
-    open func action(_ action: BaseEnv.Action) -> BaseEnv.Action {
+    open func action(_ action: MLXArray) -> MLXArray {
         action
     }
 
-    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
         try env.step(self.action(action))
     }
 }
+

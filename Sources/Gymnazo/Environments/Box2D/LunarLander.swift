@@ -149,8 +149,6 @@ public struct LunarLanderSnapshot: Equatable, Sendable {
 ///
 /// - v3: Swift port using Box2D physics engine.
 public struct LunarLander: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = Int
     
     private static let fps: Float = 50.0
     private static let scale: Float = 30.0
@@ -202,8 +200,8 @@ public struct LunarLander: Env {
     private var lastMainPower: Float = 0
     private var lastSidePower: Float = 0
     
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -261,13 +259,18 @@ public struct LunarLander: Env {
         self.observationSpace = Box(low: low, high: high, dtype: .float32)
     }
     
-    public mutating func step(_ action: Action) throws -> Step<Observation> {
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
+    
+    public mutating func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
         guard let worldId = worldId, let landerId = landerId else {
             throw GymnazoError.stepBeforeReset
         }
 
-        guard actionSpace.contains(action) else {
-            throw GymnazoError.invalidAction("Invalid action: \(action)")
+        guard actionSpace.contains(MLXArray([Int32(a)])) else {
+            throw GymnazoError.invalidAction("Invalid action: \(a)")
         }
         
         if enableWind && !leftLegContact && !rightLegContact {
@@ -295,7 +298,7 @@ public struct LunarLander: Env {
         let dispersion1 = MLX.uniform(low: -1.0, high: 1.0, [1], key: k2)[0].item(Float.self) / Self.scale
         
         var mPower: Float = 0.0
-        if action == 2 {
+        if a == 2 {
             mPower = 1.0
             
             let ox = tip.0 * (Self.mainEngineYLocation / Self.scale + 2 * dispersion0) + side.0 * dispersion1
@@ -311,8 +314,8 @@ public struct LunarLander: Env {
         lastMainPower = mPower
         
         var sPower: Float = 0.0
-        if action == 1 || action == 3 {
-            let direction: Float = Float(action - 2)
+        if a == 1 || a == 3 {
+            let direction: Float = Float(a - 2)
             sPower = 1.0
             
             let ox = tip.0 * dispersion0 + side.0 * (3 * dispersion1 + direction * Self.sideEngineAway / Self.scale)
@@ -326,7 +329,7 @@ public struct LunarLander: Env {
             let impulsePointY = pos.y + oy + tip.1 * Self.sideEngineHeight / Self.scale
             b2Body_ApplyLinearImpulse(landerId, b2Vec2(x: impulseX, y: impulseY), b2Vec2(x: impulsePointX, y: impulsePointY), true)
         }
-        lastSidePower = (action == 1 ? -1.0 : (action == 3 ? 1.0 : 0.0)) * sPower
+        lastSidePower = (a == 1 ? -1.0 : (a == 3 ? 1.0 : 0.0)) * sPower
         
         b2World_Step(worldId, 1.0 / Self.fps, 8)
         
@@ -379,7 +382,7 @@ public struct LunarLander: Env {
         )
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {

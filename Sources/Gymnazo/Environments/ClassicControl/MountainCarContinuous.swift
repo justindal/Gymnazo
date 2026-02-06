@@ -70,9 +70,6 @@ import SwiftUI
 ///
 /// - v0: Initial version release
 public struct MountainCarContinuous: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = MLXArray
-    
     public let minPosition: Float = -1.2
     public let maxPosition: Float = 0.6
     public let maxSpeed: Float = 0.07
@@ -84,8 +81,8 @@ public struct MountainCarContinuous: Env {
     
     public var state: MLXArray? = nil
     
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -123,7 +120,7 @@ public struct MountainCarContinuous: Env {
     ///
     /// - Parameter action: An `MLXArray` with shape `(1,)` representing the force to apply (clipped to `[-1, 1]`).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
-    public mutating func step(_ action: MLXArray) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         guard let currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
@@ -169,7 +166,7 @@ public struct MountainCarContinuous: Env {
     ///   - seed: Optional random seed for reproducibility.
     ///   - options: Optional dictionary for custom reset bounds.
     /// - Returns: A tuple containing the initial observation and info dictionary.
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
             self._key = MLX.key(seed)
         } else if self._key == nil {

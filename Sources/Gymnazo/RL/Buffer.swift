@@ -15,7 +15,7 @@ import MLX
 ///     - numEnvs: Number of parallel environments.
 public protocol Buffer {
     var bufferSize: Int { get }
-    var observationSpace: any Space<MLXArray> { get }
+    var observationSpace: any Space { get }
     var actionSpace: any Space { get }
     var numEnvs: Int { get }
     var count: Int { get }

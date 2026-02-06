@@ -69,9 +69,6 @@ public struct PendulumSnapshot: Equatable, Sendable {
 /// - `render_mode`: The render mode for visualization. Supported: `"human"`, `"rgb_array"`, or `nil`.
 /// - `g`: Gravitational acceleration. Default is `10.0`.
 public struct Pendulum: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = MLXArray
-    
     public let maxSpeed: Float = 8.0
     public let maxTorque: Float = 2.0
     public let dt: Float = 0.05
@@ -81,8 +78,8 @@ public struct Pendulum: Env {
     
     public private(set) var state: (theta: Float, thetaDot: Float)? = nil
     
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -115,7 +112,7 @@ public struct Pendulum: Env {
         )
     }
     
-    public mutating func step(_ action: Action) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         guard let currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
@@ -149,7 +146,7 @@ public struct Pendulum: Env {
         )
     }
     
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<Observation> {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {

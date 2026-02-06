@@ -6,14 +6,11 @@
 import MLX
 import MLXNN
 
-/// Protocol for Off-Policy Algorithms like SAC or TD3.
-///
-/// - Parameters:
-///     - config: Hyperparameters that define the off-policy learning loop.
+/// Protocol for off-policy algorithms like DQN, SAC, or TD3.
 public protocol OffPolicyAlgorithm: Algorithm {
     var config: OffPolicyConfig { get }
 
-    mutating func train(gradientSteps: Int, batchSize: Int)
+    func train(gradientSteps: Int, batchSize: Int)
 }
 
 /// Units for training frequency.

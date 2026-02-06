@@ -72,22 +72,21 @@ public struct VectorResetResult {
 /// Vector environments provide a linear speed-up in steps taken per second by
 /// sampling multiple sub-environments at the same time.
 @MainActor
-public protocol VectorEnv<Action>: AnyObject {
-    associatedtype Action
+public protocol VectorEnv: AnyObject {
     /// The number of sub-environments in the vector environment.
     var numEnvs: Int { get }
     
     /// The observation space of a single sub-environment.
-    var singleObservationSpace: any Space<MLXArray> { get }
+    var singleObservationSpace: any Space { get }
     
     /// The action space of a single sub-environment.
-    var singleActionSpace: any Space<Action> { get }
+    var singleActionSpace: any Space { get }
     
     /// The batched observation space for all sub-environments.
-    var observationSpace: any Space<MLXArray> { get }
+    var observationSpace: any Space { get }
     
     /// The batched action space for all sub-environments.
-    var actionSpace: any Space<MLXArray> { get }
+    var actionSpace: any Space { get }
     
     /// The environment specification, if available.
     var spec: EnvSpec? { get set }
@@ -105,7 +104,7 @@ public protocol VectorEnv<Action>: AnyObject {
     ///
     /// - Parameter actions: Array of actions, one for each sub-environment.
     /// - Returns: Batched results containing observations, rewards, terminations, truncations, and infos.
-    func step(_ actions: [Action]) throws -> VectorStepResult
+    func step(_ actions: [MLXArray]) throws -> VectorStepResult
     
     /// Reset all parallel environments and return a batch of initial observations and info.
     ///

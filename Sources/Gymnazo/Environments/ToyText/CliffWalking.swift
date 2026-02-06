@@ -91,6 +91,14 @@ public final class CliffWalking: Env {
         (0, -1)
     ]
     
+    private func toInt(_ action: MLXArray) -> Int {
+        Int(action.item(Int32.self))
+    }
+    
+    private func toMLX(_ state: Int) -> MLXArray {
+        MLXArray([Int32(state)])
+    }
+    
     public static var metadata: [String: Any] {
         [
             "render_modes": ["human", "ansi", "rgb_array"],
@@ -98,11 +106,8 @@ public final class CliffWalking: Env {
         ]
     }
     
-    public typealias Observation = Int
-    public typealias Action = Int
-    
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
     public var spec: EnvSpec?
     public var renderMode: RenderMode?
     
@@ -208,17 +213,18 @@ public final class CliffWalking: Env {
     public func reset(
         seed: UInt64? = nil,
         options: EnvOptions? = nil
-    ) throws -> Reset<Observation> {
+    ) throws -> Reset {
         _ = try prepareKey(with: seed)
         
         s = Self.startState
         lastAction = nil
         
-        return Reset(obs: s, info: ["prob": 1.0])
+        return Reset(obs: toMLX(s), info: ["prob": 1.0])
     }
     
-    public func step(_ action: Action) throws -> Step<Observation> {
-        guard let transitions = P[s][action], !transitions.isEmpty else {
+    public func step(_ action: MLXArray) throws -> Step {
+        let a = toInt(action)
+        guard let transitions = P[s][a], !transitions.isEmpty else {
             throw GymnazoError.invalidState("Invalid state or action")
         }
         
@@ -236,10 +242,10 @@ public final class CliffWalking: Env {
         let (p, newState, reward, terminated) = transitions[i]
         
         s = newState
-        lastAction = action
+        lastAction = a
         
         return Step(
-            obs: s,
+            obs: toMLX(s),
             reward: reward,
             terminated: terminated,
             truncated: false,
@@ -263,22 +269,14 @@ public final class CliffWalking: Env {
         switch mode {
         case .ansi:
             return .ansi(_renderText())
-        case .human, .rgbArray:
+        case .human:
 #if canImport(SwiftUI)
-            let snapshot = currentSnapshot
-            let result = DispatchQueue.main.sync {
-                CliffWalking.renderGUI(snapshot: snapshot, mode: mode)
-            }
-            if mode == .rgbArray {
-                lastRGBFrame = result
-            }
-            if let image = result {
-                return .rgbArray(image)
-            }
-            return nil
+            return .other(currentSnapshot)
 #else
             return nil
 #endif
+        case .rgbArray:
+            return nil
         case .statePixels:
             print("[Gymnazo] Unsupported renderMode \(mode.rawValue).")
             return nil
@@ -350,6 +348,13 @@ public final class CliffWalking: Env {
     
     public var latestRGBFrame: CGImage? {
         lastRGBFrame
+    }
+
+    @MainActor
+    public func renderRGBArray() -> CGImage? {
+        let image = Self.renderGUI(snapshot: currentSnapshot, mode: .rgbArray)
+        lastRGBFrame = image
+        return image
     }
     
     public var currentSnapshot: CliffWalkingRenderSnapshot {

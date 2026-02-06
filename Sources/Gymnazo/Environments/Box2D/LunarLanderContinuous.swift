@@ -87,8 +87,6 @@ import MLX
 /// - Note: For the discrete variant, use ``LunarLander`` directly or create via
 ///   `await Gymnazo.make("LunarLander")`.
 public struct LunarLanderContinuous: Env {
-    public typealias Observation = MLXArray
-    public typealias Action = MLXArray
 
     private static let fps: Float = 50.0
     private static let scale: Float = 30.0
@@ -140,8 +138,8 @@ public struct LunarLanderContinuous: Env {
     private var lastMainPower: Float = 0
     private var lastSidePower: Float = 0
 
-    public let actionSpace: any Space<Action>
-    public let observationSpace: any Space<Observation>
+    public let actionSpace: any Space
+    public let observationSpace: any Space
 
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
@@ -199,7 +197,7 @@ public struct LunarLanderContinuous: Env {
         self.observationSpace = Box(low: low, high: high, dtype: .float32)
     }
 
-    public mutating func step(_ action: Action) throws -> Step<Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         guard let worldId = worldId, let landerId = landerId else {
             throw GymnazoError.stepBeforeReset
         }
@@ -335,9 +333,7 @@ public struct LunarLanderContinuous: Env {
         )
     }
 
-    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset<
-        Observation
-    > {
+    public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {

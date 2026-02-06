@@ -214,10 +214,10 @@ private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
     }
 
     if let discrete = space as? Discrete {
-        guard let x = sample as? Int else {
-            fatalError("Expected Int sample for Discrete")
+        guard let x = sample as? MLXArray else {
+            fatalError("Expected MLXArray sample for Discrete")
         }
-        let idx = x - discrete.start
+        let idx = Int(x.item(Int32.self)) - discrete.start
         var onehot = [Float](repeating: 0, count: discrete.n)
         if idx >= 0 && idx < discrete.n {
             onehot[idx] = 1
@@ -253,22 +253,11 @@ private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
         return x.reshaped([-1]).asType(.float32)
     }
 
-    if let text = space as? TextSpace {
-        guard let s = sample as? String else {
-            fatalError("Expected String sample for TextSpace")
+    if space is TextSpace {
+        guard let x = sample as? MLXArray else {
+            fatalError("Expected MLXArray sample for TextSpace")
         }
-        let charset = text.charset
-        let index = Dictionary(uniqueKeysWithValues: charset.enumerated().map { ($0.element, $0.offset) })
-        var out = [Float](repeating: -1, count: text.maxLength)
-        var i = 0
-        for ch in s {
-            if i >= text.maxLength { break }
-            if let idx = index[ch] {
-                out[i] = Float(idx)
-            }
-            i += 1
-        }
-        return MLXArray(out).asType(.float32)
+        return x.reshaped([-1]).asType(.float32)
     }
 
     if let tuple = space as? Tuple {
@@ -327,7 +316,7 @@ private func unflattenFromBox(space: any Space, flat: MLXArray) -> Any {
                 best = i
             }
         }
-        return discrete.start + best
+        return MLXArray(Int32(discrete.start + best))
     }
 
     if let multiDiscrete = space as? MultiDiscrete {
@@ -361,16 +350,15 @@ private func unflattenFromBox(space: any Space, flat: MLXArray) -> Any {
 
     if let text = space as? TextSpace {
         let vals = flat.asType(.float32).reshaped([-1]).asArray(Float.self)
-        var chars: [Character] = []
-        chars.reserveCapacity(text.maxLength)
+        var indices = [Int32](repeating: -1, count: text.maxLength)
         for i in 0..<min(vals.count, text.maxLength) {
             let v = Int(vals[i].rounded())
             if v < 0 { break }
             if v >= 0 && v < text.charset.count {
-                chars.append(text.charset[v])
+                indices[i] = Int32(v)
             }
         }
-        return String(chars)
+        return MLXArray(indices)
     }
 
     if let tuple = space as? Tuple {

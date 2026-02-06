@@ -313,7 +313,7 @@ public struct CarRacingRenderer {
         return fullImage.scaled(to: CGSize(width: 96, height: 96))
     }
     
-    /// Render the snapshot to an MLXArray observation (96x96x3 uint8).
+    /// Render the snapshot to an MLXArray observation in HWC format `[96, 96, 3]` uint8.
     @MainActor
     public static func renderObservation(snapshot: CarRacingSnapshot) -> MLXArray? {
         guard let stateImage = renderStatePixels(snapshot: snapshot) else {

@@ -3,11 +3,12 @@
 //
 
 import Foundation
+import MLX
 
 /// Tracks cumulative rewards, episode lengths, and elapsed time, attaching an "episode"
 /// entry to the `info` dictionary when an episode terminates or truncates.
-public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+public final class RecordEpisodeStatistics: Wrapper {
+    public var env: any Env
 
     public private(set) var episodeCount: Int = 0
     public private(set) var timeQueue: [Double] = []
@@ -21,11 +22,11 @@ public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
     private var episodeReturns: Double = 0.0
     private var episodeLengths: Int = 0
 
-    public convenience init(env: BaseEnv) throws {
+    public convenience init(env: any Env) throws {
         try self.init(env: env, bufferLength: 100, statsKey: "episode")
     }
 
-    public init(env: BaseEnv, bufferLength: Int = 100, statsKey: String = "episode") throws {
+    public init(env: any Env, bufferLength: Int = 100, statsKey: String = "episode") throws {
         guard bufferLength > 0 else {
             throw GymnazoError.invalidRecordBufferLength(bufferLength)
         }
@@ -34,7 +35,7 @@ public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
         self.statsKey = statsKey
     }
 
-    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<BaseEnv.Observation> {
+    public func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         episodeStartTime = RecordEpisodeStatistics.now()
         episodeReturns = 0.0
@@ -42,7 +43,7 @@ public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
         return result
     }
 
-    public func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
 
         episodeReturns += result.reward
@@ -97,3 +98,4 @@ public final class RecordEpisodeStatistics<BaseEnv: Env>: Wrapper {
         return (value * precision).rounded() / precision
     }
 }
+

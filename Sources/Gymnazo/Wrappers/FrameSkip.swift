@@ -25,8 +25,8 @@ import MLX
 /// var env = FrameSkip(env: CarRacing(), skip: 2)
 /// // Each step now executes the action twice, summing rewards
 /// ```
-public struct FrameSkip<BaseEnv: Env>: Wrapper {
-    public var env: BaseEnv
+public struct FrameSkip: Wrapper {
+    public var env: any Env
     
     /// Number of frames to skip (repeat the action for).
     public let skip: Int
@@ -36,7 +36,7 @@ public struct FrameSkip<BaseEnv: Env>: Wrapper {
     /// - Parameters:
     ///   - env: The environment to wrap
     ///   - skip: Number of times to repeat each action (must be >= 1)
-    public init(env: BaseEnv, skip: Int = 2) throws {
+    public init(env: any Env, skip: Int = 2) throws {
         guard skip >= 1 else {
             throw GymnazoError.invalidFrameSkip(skip)
         }
@@ -44,13 +44,13 @@ public struct FrameSkip<BaseEnv: Env>: Wrapper {
         self.skip = skip
     }
     
-    public init(env: BaseEnv) throws {
+    public init(env: any Env) throws {
         try self.init(env: env, skip: 2)
     }
     
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<BaseEnv.Observation> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         var totalReward: Double = 0
-        var lastResult: Step<BaseEnv.Observation>!
+        var lastResult: Step!
         
         for _ in 0..<skip {
             lastResult = try env.step(action)
@@ -70,4 +70,5 @@ public struct FrameSkip<BaseEnv: Env>: Wrapper {
         )
     }
 }
+
 

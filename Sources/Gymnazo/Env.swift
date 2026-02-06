@@ -2,25 +2,22 @@
 //  Env.swift
 //
 
-public protocol Env<Observation, Action> {
-    associatedtype Observation
-    associatedtype Action
+import MLX
 
-    var actionSpace: any Space<Action> { get }
-    var observationSpace: any Space<Observation> { get }
+public protocol Env {
+    var actionSpace: any Space { get }
+    var observationSpace: any Space { get }
     var spec: EnvSpec? { get set }
     var renderMode: RenderMode? { get set }
 
     var unwrapped: any Env { get }
 
-    mutating func step(_ action: Action) throws -> Step<Observation>
+    mutating func step(_ action: MLXArray) throws -> Step
 
-    /// resets the environment to an initial state, returning an initial observation and info.
-    /// this generates a new starting state, often with some randomness controlled by the optional seed parameter.
     mutating func reset(
         seed: UInt64?,
         options: EnvOptions?
-    ) throws -> Reset<Observation>
+    ) throws -> Reset
 
     @discardableResult
     func render() throws -> RenderOutput?
@@ -28,15 +25,15 @@ public protocol Env<Observation, Action> {
     mutating func close()
 }
 
-public struct Step<Observation> {
-    public var obs: Observation
+public struct Step {
+    public var obs: MLXArray
     public var reward: Double
     public var terminated: Bool
     public var truncated: Bool
     public var info: Info
 
     public init(
-        obs: Observation,
+        obs: MLXArray,
         reward: Double,
         terminated: Bool,
         truncated: Bool,
@@ -50,26 +47,26 @@ public struct Step<Observation> {
     }
 }
 
-public struct Reset<Observation> {
-    public var obs: Observation
+public struct Reset {
+    public var obs: MLXArray
     public var info: Info
 
-    public init(obs: Observation, info: Info = Info()) {
+    public init(obs: MLXArray, info: Info = Info()) {
         self.obs = obs
         self.info = info
     }
 }
 
 extension Env {
-    public mutating func reset(seed: UInt64) throws -> Reset<Observation> {
+    public mutating func reset(seed: UInt64) throws -> Reset {
         try self.reset(seed: seed, options: nil)
     }
 
-    public mutating func reset() throws -> Reset<Observation> {
+    public mutating func reset() throws -> Reset {
         try self.reset(seed: nil, options: nil)
     }
 
-    public mutating func reset(options: EnvOptions?) throws -> Reset<Observation> {
+    public mutating func reset(options: EnvOptions?) throws -> Reset {
         try self.reset(seed: nil, options: options)
     }
 

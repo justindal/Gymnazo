@@ -50,22 +50,17 @@ public enum FrameStackPadding {
 /// ### Configuration
 /// - ``stackSize``
 /// - ``paddingType``
-public struct FrameStackObservation<BaseEnv: Env>: Env
-where BaseEnv.Observation == MLXArray {
-    public typealias Observation = MLXArray
-    public typealias Action = BaseEnv.Action
-
-    public var env: BaseEnv
+public struct FrameStackObservation: Wrapper {
+    public var env: any Env
     public let stackSize: Int
     public let paddingType: FrameStackPadding
-    public let observationSpace: any Space<Observation>
+    public let observationSpace: any Space
 
     /// Circular buffer of stacked frames
     private var frameBuffer: [MLXArray]
     private var bufferIndex: Int = 0
     private var frameShape: [Int]
 
-    public var actionSpace: any Space<BaseEnv.Action> { env.actionSpace }
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
@@ -81,7 +76,7 @@ where BaseEnv.Observation == MLXArray {
     ///   - env: The environment to wrap
     ///   - stackSize: Number of frames to stack (typically 4)
     ///   - paddingType: How to pad initial frames: `.reset` or `.zero`
-    public init(env: BaseEnv, stackSize: Int, paddingType: FrameStackPadding = .reset) throws {
+    public init(env: any Env, stackSize: Int, paddingType: FrameStackPadding = .reset) throws {
         guard stackSize >= 1 else {
             throw GymnazoError.invalidStackSize(stackSize)
         }
@@ -109,7 +104,7 @@ where BaseEnv.Observation == MLXArray {
         self.frameBuffer = []
     }
 
-    public mutating func step(_ action: BaseEnv.Action) throws -> Step<MLXArray> {
+    public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
 
         addFrame(result.obs)
@@ -123,7 +118,7 @@ where BaseEnv.Observation == MLXArray {
         )
     }
 
-    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset<MLXArray> {
+    public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
 
         frameBuffer = []
@@ -148,13 +143,6 @@ where BaseEnv.Observation == MLXArray {
 
         return Reset(obs: getStackedObservation(), info: result.info)
     }
-
-    public var unwrapped: any Env { env.unwrapped }
-
-    @discardableResult
-    public func render() throws -> RenderOutput? { try env.render() }
-
-    public mutating func close() { env.close() }
 
     private mutating func addFrame(_ frame: MLXArray) {
         if frameBuffer.count < stackSize {
@@ -181,3 +169,4 @@ where BaseEnv.Observation == MLXArray {
         return stacked.asType(observationSpace.dtype ?? .uint8)
     }
 }
+

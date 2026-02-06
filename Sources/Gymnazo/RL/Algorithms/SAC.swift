@@ -7,10 +7,8 @@ import MLX
 import MLXNN
 import MLXOptimizers
 
-public final class SAC<Environment: Env>: OffPolicyAlgorithm
-where Environment.Observation == MLXArray, Environment.Action == MLXArray {
+public final class SAC: OffPolicyAlgorithm, @unchecked Sendable {
     public typealias PolicyType = SACActor
-    public typealias EnvType = Environment
 
     public var config: OffPolicyConfig
     public var replayBuffer: ReplayBuffer<MLXArray>?
@@ -18,7 +16,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     public let policy: SACActor
     public let critic: SACCritic
     public let criticTarget: SACCritic
-    public var env: Environment?
+    public var env: (any Env)?
 
     public var learningRate: any LearningRateSchedule
     public var currentProgressRemaining: Double
@@ -39,6 +37,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
     private let shareFeaturesExtractor: Bool
     private var randomKey: MLXArray
+    private let seed: UInt64?
 
     public var actor: SACActor { policy }
 
@@ -52,19 +51,11 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         entCoef: EntropyCoef = .auto(),
         targetEntropy: Float? = nil,
         seed: UInt64? = nil
-    ) throws where Environment == AnyEnv<MLXArray, MLXArray> {
-        guard let typed = env as? any Env<MLXArray, MLXArray> else {
-            throw GymnazoError.invalidEnvironmentType(
-                expected: "Env<MLXArray, MLXArray>",
-                actual: String(describing: type(of: env))
-            )
-        }
-        let wrapped = AnyEnv(typed)
-
+    ) {
         self.init(
-            observationSpace: wrapped.observationSpace,
-            actionSpace: wrapped.actionSpace,
-            env: wrapped,
+            observationSpace: env.observationSpace,
+            actionSpace: env.actionSpace,
+            env: env,
             learningRate: learningRate,
             networksConfig: networksConfig,
             config: config,
@@ -77,7 +68,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
     public init(
         networks: SACNetworks,
-        env: Environment? = nil,
+        env: (any Env)? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
         config: OffPolicyConfig = OffPolicyConfig(),
         optimizerConfig: SACOptimizerConfig = SACOptimizerConfig(),
@@ -96,6 +87,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         self.numTimesteps = 0
         self.totalTimesteps = 0
         self.shareFeaturesExtractor = networks.critic.shareFeaturesExtractor
+        self.seed = seed
 
         let lr = Float(learningRate.value(at: 1.0))
         self.actorOptimizer = optimizerConfig.actor.make(learningRate: lr)
@@ -111,7 +103,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
     public convenience init(
         policy: SACActor,
-        env: Environment? = nil,
+        env: (any Env)? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
         criticConfig: SACCriticConfig = SACCriticConfig(),
         config: OffPolicyConfig = OffPolicyConfig(),
@@ -134,9 +126,9 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     }
 
     public init(
-        observationSpace: any Space<MLXArray>,
-        actionSpace: any Space<MLXArray>,
-        env: Environment? = nil,
+        observationSpace: any Space,
+        actionSpace: any Space,
+        env: (any Env)? = nil,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
         networksConfig: SACNetworksConfig = SACNetworksConfig(),
         config: OffPolicyConfig = OffPolicyConfig(),
@@ -161,6 +153,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         self.numTimesteps = 0
         self.totalTimesteps = 0
         self.shareFeaturesExtractor = networks.critic.shareFeaturesExtractor
+        self.seed = seed
 
         let lr = Float(learningRate.value(at: 1.0))
         self.actorOptimizer = optimizerConfig.actor.make(learningRate: lr)
@@ -179,7 +172,8 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         let bufferConfig = ReplayBuffer<MLXArray>.Configuration(
             bufferSize: config.bufferSize,
             optimizeMemoryUsage: config.optimizeMemoryUsage,
-            handleTimeoutTermination: config.handleTimeoutTermination
+            handleTimeoutTermination: config.handleTimeoutTermination,
+            seed: seed
         )
         replayBuffer = ReplayBuffer(
             observationSpace: policy.observationSpace,
@@ -191,6 +185,11 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
     @discardableResult
     public func learn(totalTimesteps: Int) throws -> Self {
+        try learn(totalTimesteps: totalTimesteps, callbacks: nil)
+    }
+
+    @discardableResult
+    public func learn(totalTimesteps: Int, callbacks: LearnCallbacks?) throws -> Self {
         self.totalTimesteps = totalTimesteps
         self.numTimesteps = 0
 
@@ -206,6 +205,8 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         var numCollectedSteps = 0
         var numCollectedEpisodes = 0
         var stepsSinceLastTrain = 0
+        var episodeReward: Double = 0
+        var episodeLength: Int = 0
 
         if config.sdeSupported && actor.useSDE {
             let (noiseKey, nextKey) = MLX.split(key: randomKey)
@@ -240,7 +241,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
 
                 let (actionKey, nextKey) = MLX.split(key: randomKey)
                 randomKey = nextKey
-                bufferAction = selectAction(observation: lastObs, key: actionKey)
+                bufferAction = selectAction(obs: lastObs, key: actionKey)
                 envAction = actor.unscaleAction(bufferAction)
             }
 
@@ -248,6 +249,9 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
             let reward = Float(stepResult.reward)
             let terminated = stepResult.terminated
             let truncated = stepResult.truncated
+
+            episodeReward += Double(reward)
+            episodeLength += 1
 
             let bufferNextObs = stepResult.info["final_observation"]?.cast(MLXArray.self) ?? stepResult.obs
 
@@ -260,7 +264,13 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
                 truncated: truncated
             )
 
+            eval(bufferAction, bufferNextObs)
+
             if terminated || truncated {
+                callbacks?.onEpisodeEnd?(episodeReward, episodeLength)
+                episodeReward = 0
+                episodeLength = 0
+
                 lastObs = try nextObsAfterEpisodeEnd(
                     stepResult: stepResult, environment: &environment)
                 numCollectedEpisodes += 1
@@ -279,6 +289,20 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
                 stepsSinceLastTrain += 1
             }
             currentProgressRemaining = 1.0 - Double(numTimesteps) / Double(totalTimesteps)
+
+            if let onStep = callbacks?.onStep {
+                let shouldContinue = onStep(numTimesteps, totalTimesteps, 0.0)
+                if !shouldContinue {
+                    break
+                }
+            }
+            if let onSnapshot = callbacks?.onSnapshot {
+                if let output = try? environment.render() {
+                    if case .other(let snapshot) = output {
+                        onSnapshot(snapshot)
+                    }
+                }
+            }
 
             let shouldTrain: Bool
             switch config.trainFrequency.unit {
@@ -307,9 +331,10 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         return self
     }
 
-    private func selectAction(observation: MLXArray, key: MLXArray? = nil) -> MLXArray {
+    private func selectAction(obs: MLXArray, key: MLXArray? = nil) -> MLXArray {
         actor.setTrainingMode(false)
-        let (action, _) = actor.actionLogProb(obs: observation, key: key)
+        let (action, _) = actor.actionLogProb(obs: obs, key: key)
+        eval(action)
         return action
     }
 
@@ -332,8 +357,8 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     }
 
     private func nextObsAfterEpisodeEnd(
-        stepResult: Step<MLXArray>,
-        environment: inout Environment
+        stepResult: Step,
+        environment: inout any Env
     ) throws -> MLXArray {
         return try environment.reset().obs
     }
@@ -357,7 +382,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
     }
 
     public func train(gradientSteps: Int, batchSize: Int) {
-        guard let buffer = replayBuffer, buffer.count >= batchSize else { return }
+        guard var buffer = replayBuffer, buffer.count >= batchSize else { return }
 
         let lr = Float(learningRate.value(at: currentProgressRemaining))
         actorOptimizer.learningRate = lr
@@ -371,56 +396,84 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
             let batch = buffer.sample(batchSize, key: sampleKey)
             trainStep(batch: batch, actionKey: actionKey)
         }
+        replayBuffer = buffer
     }
 
     private func trainStep(batch: ReplayBuffer<MLXArray>.Sample, actionKey: MLXArray) {
-        actor.setTrainingMode(true)
-        critic.setTrainingMode(true)
-        criticTarget.setTrainingMode(false)
-
         let gamma = Float(config.gamma)
         let entCoef = entCoefTensor
-
         let (targetKey, actorKey) = MLX.split(key: actionKey)
+
+        actor.setTrainingMode(false)
+        criticTarget.setTrainingMode(false)
+
         let (nextActions, nextLogProb) = actor.actionLogProb(obs: batch.nextObs, key: targetKey)
-        let targetQValues = MLX.stopGradient(
-            computeTargetQ(
-                nextObs: batch.nextObs,
-                nextActions: MLX.stopGradient(nextActions),
-                nextLogProb: MLX.stopGradient(nextLogProb),
-                rewards: batch.rewards,
-                dones: batch.dones,
-                entCoef: entCoef,
-                gamma: gamma
-            ))
+
+        let targetFeatures = criticTarget.extractFeatures(
+            obs: batch.nextObs, featuresExtractor: criticTarget.extractor)
+        let targetQInput = MLX.concatenated(
+            [targetFeatures, MLX.stopGradient(nextActions)], axis: -1)
+
+        var minQ: MLXArray? = nil
+        for qNet in criticTarget.qNetworks {
+            let q = qNet(targetQInput)
+            minQ = minQ.map { MLX.minimum($0, q) } ?? q
+        }
+
+        let nextQ = minQ!
+            - entCoef * MLX.stopGradient(nextLogProb).expandedDimensions(axis: -1)
+        let targetQ = batch.rewards.expandedDimensions(axis: -1)
+            + (1.0 - batch.dones.expandedDimensions(axis: -1)) * gamma * nextQ
+
+        eval(targetQ)
+        let detachedTargetQ = MLX.stopGradient(targetQ)
+
+        critic.setTrainingMode(true)
 
         typealias CriticArgs = (obs: MLXArray, actions: MLXArray, targetQ: MLXArray)
         let criticVG = valueAndGrad(model: critic) {
             (model: SACCritic, args: CriticArgs) -> [MLXArray] in
             [self.criticLoss(model, obs: args.obs, actions: args.actions, targetQ: args.targetQ)]
         }
-        let (_, criticGrads) = criticVG(critic, (batch.obs, batch.actions, targetQValues))
+        let (_, criticGrads) = criticVG(critic, (batch.obs, batch.actions, detachedTargetQ))
         criticOptimizer.update(model: critic, gradients: criticGrads)
+        eval(critic.parameters())
 
-        MLX.eval(critic.parameters())
+        critic.setTrainingMode(false)
+        let criticFeatures = MLX.stopGradient(
+            critic.extractFeatures(obs: batch.obs, featuresExtractor: critic.extractor))
+        eval(criticFeatures)
+
+        actor.setTrainingMode(true)
 
         let (actorLossKey, entCoefKey) = MLX.split(key: actorKey)
-        typealias ActorArgs = (obs: MLXArray, entCoef: MLXArray, key: MLXArray)
+        typealias ActorArgs = (
+            obs: MLXArray, entCoef: MLXArray, key: MLXArray, criticFeatures: MLXArray
+        )
         let actorVG = valueAndGrad(model: actor) {
             (model: SACActor, args: ActorArgs) -> [MLXArray] in
-            [self.actorLoss(model, obs: args.obs, entCoef: args.entCoef, key: args.key)]
+            [self.actorLoss(
+                model,
+                obs: args.obs,
+                entCoef: args.entCoef,
+                key: args.key,
+                criticFeatures: args.criticFeatures
+            )]
         }
-        var (_, actorGrads) = actorVG(actor, (batch.obs, entCoef, actorLossKey))
+        var (_, actorGrads) = actorVG(
+            actor, (batch.obs, entCoef, actorLossKey, criticFeatures))
 
         if shareFeaturesExtractor {
             actorGrads = zeroExtractorGradients(actorGrads)
         }
         actorOptimizer.update(model: actor, gradients: actorGrads)
-        MLX.eval(actor.parameters())
+        eval(actor.parameters())
 
         if entCoefConfig.isAuto, let entOpt = entropyOptimizer {
+            actor.setTrainingMode(false)
             let (_, newLogProb) = actor.actionLogProb(obs: batch.obs, key: entCoefKey)
             let detachedLogProb = MLX.stopGradient(newLogProb)
+            eval(detachedLogProb)
 
             let entVG = valueAndGrad(model: logEntCoefModule) {
                 (model: LogEntropyCoefModule, _: Int) -> [MLXArray] in
@@ -428,39 +481,13 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
             }
             let (_, entGrads) = entVG(logEntCoefModule, 0)
             entOpt.update(model: logEntCoefModule, gradients: entGrads)
-            MLX.eval(logEntCoefModule.parameters())
+            eval(logEntCoefModule.parameters())
         }
 
         numGradientSteps += 1
         if numGradientSteps % config.targetUpdateInterval == 0 {
             softUpdateTarget()
         }
-    }
-
-    private func computeTargetQ(
-        nextObs: MLXArray,
-        nextActions: MLXArray,
-        nextLogProb: MLXArray,
-        rewards: MLXArray,
-        dones: MLXArray,
-        entCoef: MLXArray,
-        gamma: Float
-    ) -> MLXArray {
-        let features = criticTarget.extractFeatures(
-            obs: nextObs,
-            featuresExtractor: criticTarget.extractor
-        )
-        let qInput = MLX.concatenated([features, nextActions], axis: -1)
-
-        var minQ: MLXArray? = nil
-        for qNet in criticTarget.qNetworks {
-            let q = qNet(qInput)
-            minQ = minQ.map { MLX.minimum($0, q) } ?? q
-        }
-
-        let nextQ = minQ! - entCoef * nextLogProb.expandedDimensions(axis: -1)
-        return rewards.expandedDimensions(axis: -1) + (1.0 - dones.expandedDimensions(axis: -1))
-            * gamma * nextQ
     }
 
     private func criticLoss(
@@ -482,12 +509,11 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         _ actor: SACActor,
         obs: MLXArray,
         entCoef: MLXArray,
-        key: MLXArray
+        key: MLXArray,
+        criticFeatures: MLXArray
     ) -> MLXArray {
         let (actions, logProb) = actor.actionLogProb(obs: obs, key: key)
-        let features = critic.extractFeatures(
-            obs: obs, featuresExtractor: critic.extractor)
-        let qInput = MLX.concatenated([features, actions], axis: -1)
+        let qInput = MLX.concatenated([criticFeatures, actions], axis: -1)
 
         var minQ: MLXArray? = nil
         for qNet in critic.qNetworks {
@@ -509,7 +535,7 @@ where Environment.Observation == MLXArray, Environment.Action == MLXArray {
         let updated = polyakUpdate(target: targetParams, source: criticParams, tau: tau)
         _ = try? criticTarget.update(parameters: updated, verify: .noUnusedKeys)
         criticTarget.setTrainingMode(false)
-        MLX.eval(criticTarget.parameters())
+        eval(criticTarget.parameters())
     }
 
     private func zeroExtractorGradients(_ gradients: ModuleParameters) -> ModuleParameters {

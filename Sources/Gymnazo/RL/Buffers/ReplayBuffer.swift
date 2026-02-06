@@ -27,16 +27,19 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         public let bufferSize: Int
         public let optimizeMemoryUsage: Bool
         public let handleTimeoutTermination: Bool
+        public let seed: UInt64?
 
         public init(
             bufferSize: Int,
             optimizeMemoryUsage: Bool = false,
-            handleTimeoutTermination: Bool = true
+            handleTimeoutTermination: Bool = true,
+            seed: UInt64? = nil
         ) {
             precondition(bufferSize > 0, "bufferSize must be positive, got \(bufferSize)")
             self.bufferSize = bufferSize
             self.optimizeMemoryUsage = optimizeMemoryUsage
             self.handleTimeoutTermination = handleTimeoutTermination
+            self.seed = seed
         }
     }
 
@@ -52,7 +55,7 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
     public let config: Configuration
 
     public var bufferSize: Int { config.bufferSize }
-    public let observationSpace: any Space<MLXArray>
+    public let observationSpace: any Space
     public let actionSpace: any Space
     public let numEnvs: Int
 
@@ -65,11 +68,13 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
 
     private var position: Int = 0
     private var isBufferFull: Bool = false
+    private var seededRng: SplitMix64?
+    private var systemRng = SystemRandomNumberGenerator()
 
     public var count: Int { isBufferFull ? bufferSize : position }
 
     public init(
-        observationSpace: any Space<MLXArray>,
+        observationSpace: any Space,
         actionSpace: any Space,
         config: Configuration,
         numEnvs: Int = 1
@@ -99,6 +104,9 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         self.rewards = Array(repeating: nil, count: n)
         self.dones = Array(repeating: nil, count: n)
         self.timeouts = Array(repeating: nil, count: n)
+        if let seed = config.seed {
+            self.seededRng = SplitMix64(state: seed)
+        }
     }
 
     public mutating func reset() {
@@ -141,11 +149,11 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         if position == 0 { isBufferFull = true }
     }
 
-    public func sample(_ batchSize: Int, key: MLXArray) -> Sample {
+    public mutating func sample(_ batchSize: Int, key: MLXArray) -> Sample {
         precondition(batchSize > 0, "batchSize must be positive, got \(batchSize)")
         precondition(count >= batchSize, "Not enough samples")
 
-        let indices = sampleIndices(batchSize: batchSize, key: key)
+        let indices = sampleIndices(batchSize: batchSize)
 
         var batchObs: [Obs] = []
         var batchActions: [MLXArray] = []
@@ -196,6 +204,10 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
             }
         }
 
+        let obsBatch = Obs.stack(batchObs)
+        let actionsBatch = MLXArray.stack(batchActions)
+        let rewardsBatch = MLXArray.stack(batchRewards)
+        let nextObsBatch = Obs.stack(batchNextObs)
         var donesBatch = MLXArray.stack(batchDones)
         let timeoutsBatch = MLXArray.stack(batchTimeouts)
         if config.handleTimeoutTermination {
@@ -203,49 +215,54 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         }
 
         return Sample(
-            obs: Obs.stack(batchObs),
-            actions: MLXArray.stack(batchActions),
-            rewards: MLXArray.stack(batchRewards),
-            nextObs: Obs.stack(batchNextObs),
+            obs: obsBatch,
+            actions: actionsBatch,
+            rewards: rewardsBatch,
+            nextObs: nextObsBatch,
             dones: donesBatch,
             timeouts: timeoutsBatch
         )
     }
 
-    private func sampleIndices(batchSize: Int, key: MLXArray) -> [Int] {
-        if !config.optimizeMemoryUsage {
-            let indices = MLX.randInt(
-                low: MLXArray(0),
-                high: MLXArray(Int32(count)),
-                [batchSize],
-                key: key
-            )
-            MLX.eval(indices)
-            return (0..<batchSize).map { i in indices[i].item(Int.self) }
+    private mutating func sampleIndices(batchSize: Int) -> [Int] {
+        var indices: [Int] = []
+        indices.reserveCapacity(batchSize)
+
+        if !config.optimizeMemoryUsage || !isBufferFull {
+            let upper = count
+            for _ in 0..<batchSize {
+                indices.append(nextIndex(upperBound: upper))
+            }
+            return indices
         }
 
-        if !isBufferFull {
-            let indices = MLX.randInt(
-                low: MLXArray(0),
-                high: MLXArray(Int32(count)),
-                [batchSize],
-                key: key
-            )
-            MLX.eval(indices)
-            return (0..<batchSize).map { i in indices[i].item(Int.self) }
-        }
-
-        let indices = MLX.randInt(
-            low: MLXArray(0),
-            high: MLXArray(Int32(bufferSize - 1)),
-            [batchSize],
-            key: key
-        )
-        MLX.eval(indices)
-        return (0..<batchSize).map { i in
-            var idx = indices[i].item(Int.self)
+        let upper = bufferSize - 1
+        for _ in 0..<batchSize {
+            var idx = nextIndex(upperBound: upper)
             if idx >= position { idx += 1 }
-            return idx
+            indices.append(idx)
         }
+        return indices
+    }
+
+    private mutating func nextIndex(upperBound: Int) -> Int {
+        if var rng = seededRng {
+            let value = rng.next()
+            seededRng = rng
+            return Int(value % UInt64(upperBound))
+        }
+        return Int(systemRng.next() % UInt64(upperBound))
+    }
+}
+
+private struct SplitMix64: RandomNumberGenerator {
+    var state: UInt64
+
+    mutating func next() -> UInt64 {
+        state &+= 0x9E3779B97F4A7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
+        return z ^ (z >> 31)
     }
 }

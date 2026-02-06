@@ -1,19 +1,13 @@
 import Foundation
 import MLX
 
-/// protocol used to define observation and action spaces.
-public protocol Space<T> {
-    associatedtype T
-
+public protocol Space {
     var shape: [Int]? { get }
     var dtype: DType? { get }
 
-    /// randomly sample an element of this space using the given RNG key
-    /// optionally provide either a mask or a probability distribution.
-    func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> T
+    func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray
 
-    /// check if `x` is a valid member of this Space
-    func contains(_ x: T) -> Bool
+    func contains(_ x: MLXArray) -> Bool
 }
 
 extension Space {
@@ -24,34 +18,26 @@ extension Space {
         key: MLXArray,
         mask: MLXArray? = nil,
         probability: MLXArray? = nil
-    ) -> T {
+    ) -> MLXArray {
         fatalError("Not implemented")
     }
 
-    public func sample(key: MLXArray) -> T {
+    public func sample(key: MLXArray) -> MLXArray {
         sample(key: key, mask: nil, probability: nil)
     }
 
-    public func sample(key: MLXArray, mask: MLXArray) -> T {
+    public func sample(key: MLXArray, mask: MLXArray) -> MLXArray {
         sample(key: key, mask: mask, probability: nil)
     }
 
-    public func sample(key: MLXArray, probability: MLXArray) -> T {
+    public func sample(key: MLXArray, probability: MLXArray) -> MLXArray {
         sample(key: key, mask: nil, probability: probability)
     }
-}
-
-/// Attempts to recover a concrete `Box` from a possibly type-erased space.
-@inlinable
-public func boxSpace<T>(from space: any Space<T>) -> Box? {
-    if let box = space as? Box { return box }
-    if let erased = space as? AnySpace<T>, let box = erased.base as? Box { return box }
-    return nil
 }
 
 @inlinable
 public func boxSpace(from space: any Space) -> Box? {
     if let box = space as? Box { return box }
-    if let erased = space as? AnySpace<MLXArray>, let box = erased.base as? Box { return box }
+    if let erased = space as? AnySpace, let box = erased.base as? Box { return box }
     return nil
 }
