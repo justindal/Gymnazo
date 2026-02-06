@@ -17,11 +17,13 @@ Two discrete actions:
 
 ## Observation Space
 
-The observation is a ``BlackjackObservation``:
+`Tuple(Discrete(32), Discrete(11), Discrete(2))`
 
-- `playerSum`: the player’s current hand sum
-- `dealerCard`: the dealer’s showing card (1–10, where 1 is Ace)
-- `usableAce`: 0/1 indicating if the player has a usable Ace
+| Index | Space | Value |
+|------:|-------|-------|
+| 0     | `Discrete(32)` | Player's current hand sum |
+| 1     | `Discrete(11)` | Dealer's showing card (1-10, where 1 is Ace) |
+| 2     | `Discrete(2)` | 0/1 indicating if the player has a usable Ace |
 
 ## Rewards
 
@@ -50,11 +52,3 @@ let env = try await Gymnazo.make("Blackjack", options: [
 - `render_mode` (String, optional): `"human"` or `"rgb_array"`.
 - `natural` (Bool, default `false`): whether to pay out additional reward for a natural blackjack.
 - `sab` (Bool, default `false`): Sutton & Barto rules; if `true`, `natural` is ignored.
-
-## Topics
-
-### Supporting Types
-
-- ``BlackjackObservation``
-
-

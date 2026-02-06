@@ -1,6 +1,6 @@
 # CliffWalking
 
-A grid-world task where stepping into the “cliff” yields a large penalty (ToyText).
+A grid-world task where stepping into the "cliff" yields a large penalty (ToyText).
 
 ## Overview
 
@@ -19,7 +19,7 @@ Four discrete actions:
 
 ## Observation Space
 
-The observation is an `Int` representing the agent’s current state index in the grid.
+The observation is an `MLXArray` (scalar) representing the agent's current state index in the grid. Use `.item(Int.self)` to extract the integer value.
 
 ## Rewards
 
@@ -47,5 +47,3 @@ let env = try await Gymnazo.make("CliffWalking", options: [
 ```
 
 - `render_mode` (String, optional): `"ansi"`, `"human"`, or `"rgb_array"`.
-
- 

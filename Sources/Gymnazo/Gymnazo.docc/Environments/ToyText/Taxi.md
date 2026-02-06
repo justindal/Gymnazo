@@ -21,7 +21,7 @@ Six discrete actions:
 
 ## Observation Space
 
-The observation is an `Int` encoding the full state (Taxi position, passenger, destination).
+The observation is an `MLXArray` (scalar) encoding the full state (taxi position, passenger, destination). Use `.item(Int.self)` to extract the integer value.
 
 ## Rewards
 
@@ -48,5 +48,3 @@ let env = try await Gymnazo.make("Taxi", options: [
 ```
 
 - `render_mode` (String, optional): `"ansi"`, `"human"`, or `"rgb_array"`.
-
- 

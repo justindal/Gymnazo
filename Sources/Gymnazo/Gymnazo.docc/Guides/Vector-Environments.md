@@ -19,17 +19,17 @@ The simplest way to create vector environments is with `Gymnazo.makeVec(...)` an
 import Gymnazo
 
 // Synchronous vector environment with 4 CartPoles
-let syncEnv: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
+let syncEnv = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
 
 // Asynchronous vector environment with 4 CartPoles
-let asyncEnv: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
+let asyncEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
 ```
 
 You can also use the `vectorizationMode` parameter:
 
 ```swift
 // Equivalent to makeVecAsync
-let asyncEnv: any VectorEnv<Int> = try await Gymnazo.makeVec(
+let asyncEnv = try await Gymnazo.makeVec(
     "CartPole",
     numEnvs: 4,
     vectorizationMode: .async
@@ -46,7 +46,7 @@ For more control, create vector environments with factory closures:
 import Gymnazo
 
 // Synchronous vector environment
-let syncEnv: SyncVectorEnv<Int> = try SyncVectorEnv(envFns: [
+let syncEnv = try SyncVectorEnv(envFns: [
     { CartPole() },
     { CartPole() },
     { CartPole() },
@@ -54,7 +54,7 @@ let syncEnv: SyncVectorEnv<Int> = try SyncVectorEnv(envFns: [
 ])
 
 // Asynchronous vector environment
-let asyncEnv: AsyncVectorEnv<Int> = try AsyncVectorEnv(envFns: [
+let asyncEnv = try AsyncVectorEnv(envFns: [
     { CartPole() },
     { CartPole() },
     { CartPole() },
@@ -89,17 +89,19 @@ let infos = reset.infos
 
 ### Step
 
-Step takes an array of actions (one per environment) and returns batched results:
+Step takes an `MLXArray` of actions (one per environment) and returns batched results:
 
 ```swift
-let actions = [1, 0, 1, 0]  // One action per environment
+import MLX
+
+let actions = MLXArray([1, 0, 1, 0])  // One action per environment
 let result = try syncEnv.step(actions)
 
 // Access results
-result.observations  // [numEnvs, obsDim]
-result.rewards       // [numEnvs]
-result.terminations  // [numEnvs] - Bool array
-result.truncations   // [numEnvs] - Bool array
+result.observations  // MLXArray [numEnvs, obsDim]
+result.rewards       // MLXArray [numEnvs]
+result.terminations  // [Bool] array
+result.truncations   // [Bool] array
 result.infos         // [Info] with additional info
 ```
 
@@ -155,15 +157,17 @@ let env = try SyncVectorEnv(
 `AsyncVectorEnv` uses Swift's actor system to run environments in parallel. It provides both synchronous and asynchronous APIs:
 
 ```swift
-let asyncEnv: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
+import MLX
+
+let asyncEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
 
 // Synchronous API (runs parallel internally but blocks)
 let reset = try asyncEnv.reset(seed: 42)
-let result = try asyncEnv.step([1, 0, 1, 0])
+let result = try asyncEnv.step(MLXArray([1, 0, 1, 0]))
 
 // Asynchronous API (truly non-blocking)
-let reset = try await asyncEnv.resetAsync(seed: 42)
-let result = try await asyncEnv.stepAsync([1, 0, 1, 0])
+let resetAsync = try await asyncEnv.resetAsync(seed: 42)
+let resultAsync = try await asyncEnv.stepAsync(MLXArray([1, 0, 1, 0]))
 ```
 
 ### When to Use Async
@@ -201,7 +205,7 @@ func trainWithVectorEnv() async throws {
     let numEnvs = 8
 
     // Use makeVec for the simplest setup
-    let env: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: numEnvs)
+    let env = try await Gymnazo.makeVec("CartPole", numEnvs: numEnvs)
 
     var observations = try env.reset(seed: 42).observations
     var key = MLX.key(0)
@@ -209,15 +213,18 @@ func trainWithVectorEnv() async throws {
 
     for step in 0..<10000 {
         // Sample random actions for all environments
-        var actions: [Int] = []
+        var actions: [MLXArray] = []
         for _ in 0..<numEnvs {
-            let action = actionSpace.sample(key: key)
-            actions.append(action)
-            key = MLX.split(key: key).0
+            let (newKey, sampleKey) = MLX.split(key: key)
+            key = newKey
+            actions.append(actionSpace.sample(key: sampleKey))
         }
+        
+        // Stack actions into single MLXArray
+        let batchedActions = MLX.stacked(actions)
 
         // Step all environments
-        let result = try env.step(actions)
+        let result = try env.step(batchedActions)
         observations = result.observations
 
         // Process rewards, check terminations, etc.
