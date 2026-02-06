@@ -1,3 +1,5 @@
+import MLX
+
 public struct Info: Sendable, ExpressibleByDictionaryLiteral {
     public var storage: [String: InfoValue]
 
@@ -21,6 +23,11 @@ public struct Info: Sendable, ExpressibleByDictionaryLiteral {
 
     public var isEmpty: Bool { storage.isEmpty }
     public var count: Int { storage.count }
+}
+
+public struct MLXArrayBox: @unchecked Sendable {
+    public let array: MLXArray
+    public init(array: MLXArray) { self.array = array }
 }
 
 public enum InfoValue: Sendable {
@@ -90,7 +97,13 @@ public extension InfoValue {
         case let .object(v):
             return v as? T
         case let .sendable(v):
-            return v as? T
+            if let result = v as? T {
+                return result
+            }
+            if let box = v as? MLXArrayBox, T.self == MLXArray.self {
+                return box.array as? T
+            }
+            return nil
         }
     }
 }

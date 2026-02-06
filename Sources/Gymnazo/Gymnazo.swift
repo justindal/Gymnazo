@@ -141,8 +141,10 @@ public enum Gymnazo {
     ///   - disableRenderOrderEnforcing: Disable render order enforcement.
     ///   - recordEpisodeStatistics: Whether to record episode statistics.
     ///   - recordBufferLength: Buffer length for statistics recording.
-    /// Creates a typed environment instance from the registry.
-    public static func make<Observation, Action>(
+    ///   - recordStatsKey: Key for statistics in the info dict.
+    ///   - options: Additional options passed to the environment.
+    /// - Returns: The created environment instance.
+    public static func make(
         _ id: String,
         maxEpisodeSteps: Int? = nil,
         disableEnvChecker: Bool? = nil,
@@ -151,8 +153,8 @@ public enum Gymnazo {
         recordBufferLength: Int = 100,
         recordStatsKey: String = "episode",
         options: EnvOptions = [:]
-    ) async throws -> AnyEnv<Observation, Action> {
-        let env = try await GymnazoRegistry.shared.make(
+    ) async throws -> any Env {
+        try await GymnazoRegistry.shared.make(
             id,
             maxEpisodeSteps: maxEpisodeSteps,
             disableEnvChecker: disableEnvChecker,
@@ -162,13 +164,6 @@ public enum Gymnazo {
             recordStatsKey: recordStatsKey,
             options: options
         )
-        guard let typed = env as? any Env<Observation, Action> else {
-            throw GymnazoError.invalidEnvironmentType(
-                expected: "Env<\(Observation.self), \(Action.self)>",
-                actual: String(describing: type(of: env))
-            )
-        }
-        return AnyEnv(typed)
     }
 
     /// Creates an environment instance from an EnvSpec.
@@ -180,8 +175,10 @@ public enum Gymnazo {
     ///   - disableRenderOrderEnforcing: Disable render order enforcement.
     ///   - recordEpisodeStatistics: Whether to record episode statistics.
     ///   - recordBufferLength: Buffer length for statistics recording.
-    /// Creates a typed environment instance from an EnvSpec.
-    public static func make<Observation, Action>(
+    ///   - recordStatsKey: Key for statistics in the info dict.
+    ///   - options: Additional options passed to the environment.
+    /// - Returns: The created environment instance.
+    public static func make(
         _ spec: EnvSpec,
         maxEpisodeSteps: Int? = nil,
         disableEnvChecker: Bool? = nil,
@@ -190,8 +187,8 @@ public enum Gymnazo {
         recordBufferLength: Int = 100,
         recordStatsKey: String = "episode",
         options: EnvOptions = [:]
-    ) async throws -> AnyEnv<Observation, Action> {
-        let env = try await GymnazoRegistry.shared.make(
+    ) async throws -> any Env {
+        try await GymnazoRegistry.shared.make(
             spec,
             maxEpisodeSteps: maxEpisodeSteps,
             disableEnvChecker: disableEnvChecker,
@@ -201,13 +198,6 @@ public enum Gymnazo {
             recordStatsKey: recordStatsKey,
             options: options
         )
-        guard let typed = env as? any Env<Observation, Action> else {
-            throw GymnazoError.invalidEnvironmentType(
-                expected: "Env<\(Observation.self), \(Action.self)>",
-                actual: String(describing: type(of: env))
-            )
-        }
-        return AnyEnv(typed)
     }
 
     /// Creates a vectorized environment with multiple sub-environments.
@@ -228,7 +218,7 @@ public enum Gymnazo {
     ///   - options: Additional options passed to each environment.
     /// - Returns: A `SyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public static func makeVec<Action>(
+    public static func makeVec(
         _ id: String,
         numEnvs: Int,
         maxEpisodeSteps: Int? = nil,
@@ -239,7 +229,7 @@ public enum Gymnazo {
         recordStatsKey: String = "episode",
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
-    ) async throws -> SyncVectorEnv<Action> {
+    ) async throws -> SyncVectorEnv {
         try await GymnazoRegistry.shared.makeVec(
             id,
             numEnvs: numEnvs,
@@ -264,10 +254,10 @@ public enum Gymnazo {
     ///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
     /// - Returns: A `SyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public static func makeVec<Action>(
+    public static func makeVec(
         envFns: [() -> any Env],
         autoresetMode: AutoresetMode = .nextStep
-    ) async throws -> SyncVectorEnv<Action> {
+    ) async throws -> SyncVectorEnv {
         try await GymnazoRegistry.shared.makeVec(
             envFns: envFns,
             autoresetMode: autoresetMode
@@ -293,7 +283,7 @@ public enum Gymnazo {
     ///   - options: Additional options passed to each environment.
     /// - Returns: A `VectorEnv` managing the created sub-environments.
     @MainActor
-    public static func makeVec<Action>(
+    public static func makeVec(
         _ id: String,
         numEnvs: Int,
         vectorizationMode: VectorizationMode = .sync,
@@ -305,7 +295,7 @@ public enum Gymnazo {
         recordStatsKey: String = "episode",
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
-    ) async throws -> any VectorEnv<Action> {
+    ) async throws -> any VectorEnv {
         try await GymnazoRegistry.shared.makeVec(
             id,
             numEnvs: numEnvs,
@@ -339,7 +329,7 @@ public enum Gymnazo {
     ///   - options: Additional options passed to each environment.
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public static func makeVecAsync<Action>(
+    public static func makeVecAsync(
         _ id: String,
         numEnvs: Int,
         maxEpisodeSteps: Int? = nil,
@@ -350,7 +340,7 @@ public enum Gymnazo {
         recordStatsKey: String = "episode",
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
-    ) async throws -> AsyncVectorEnv<Action> {
+    ) async throws -> AsyncVectorEnv {
         try await GymnazoRegistry.shared.makeVecAsync(
             id,
             numEnvs: numEnvs,
@@ -375,10 +365,10 @@ public enum Gymnazo {
     ///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public static func makeVecAsync<Action>(
+    public static func makeVecAsync(
         envFns: [@Sendable () -> any Env],
         autoresetMode: AutoresetMode = .nextStep
-    ) async throws -> AsyncVectorEnv<Action> {
+    ) async throws -> AsyncVectorEnv {
         try await GymnazoRegistry.shared.makeVecAsync(
             envFns: envFns,
             autoresetMode: autoresetMode
@@ -486,7 +476,7 @@ extension GymnazoRegistry {
     ///   - options: Additional options passed to each environment.
     /// - Returns: A `SyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public func makeVec<Action>(
+    public func makeVec(
         _ id: String,
         numEnvs: Int,
         maxEpisodeSteps: Int? = nil,
@@ -497,7 +487,7 @@ extension GymnazoRegistry {
         recordStatsKey: String = "episode",
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
-    ) async throws -> SyncVectorEnv<Action> {
+    ) async throws -> SyncVectorEnv {
         guard numEnvs > 0 else {
             throw GymnazoError.invalidNumEnvs(numEnvs)
         }
@@ -519,7 +509,7 @@ extension GymnazoRegistry {
             )
         }
 
-        let vectorEnv = try SyncVectorEnv<Action>(
+        let vectorEnv = try SyncVectorEnv(
             envs: envs,
             copyObservations: true,
             autoresetMode: autoresetMode
@@ -540,10 +530,10 @@ extension GymnazoRegistry {
     ///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
     /// - Returns: A `SyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public func makeVec<Action>(
+    public func makeVec(
         envFns: [() -> any Env],
         autoresetMode: AutoresetMode = .nextStep
-    ) async throws -> SyncVectorEnv<Action> {
+    ) async throws -> SyncVectorEnv {
         try SyncVectorEnv(
             envFns: envFns,
             copyObservations: true,
@@ -570,7 +560,7 @@ extension GymnazoRegistry {
     ///   - options: Additional options passed to each environment.
     /// - Returns: A `VectorEnv` managing the created sub-environments.
     @MainActor
-    public func makeVec<Action>(
+    public func makeVec(
         _ id: String,
         numEnvs: Int,
         vectorizationMode: VectorizationMode = .sync,
@@ -582,7 +572,7 @@ extension GymnazoRegistry {
         recordStatsKey: String = "episode",
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
-    ) async throws -> any VectorEnv<Action> {
+    ) async throws -> any VectorEnv {
         switch vectorizationMode {
         case .sync:
             return try await makeVec(
@@ -631,7 +621,7 @@ extension GymnazoRegistry {
     ///   - options: Additional options passed to each environment.
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public func makeVecAsync<Action>(
+    public func makeVecAsync(
         _ id: String,
         numEnvs: Int,
         maxEpisodeSteps: Int? = nil,
@@ -642,7 +632,7 @@ extension GymnazoRegistry {
         recordStatsKey: String = "episode",
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
-    ) async throws -> AsyncVectorEnv<Action> {
+    ) async throws -> AsyncVectorEnv {
         guard numEnvs > 0 else {
             throw GymnazoError.invalidNumEnvs(numEnvs)
         }
@@ -664,7 +654,7 @@ extension GymnazoRegistry {
             )
         }
 
-        let vectorEnv = try AsyncVectorEnv<Action>(
+        let vectorEnv = try AsyncVectorEnv(
             envs: envs,
             copyObservations: true,
             autoresetMode: autoresetMode
@@ -685,10 +675,10 @@ extension GymnazoRegistry {
     ///   - autoresetMode: The autoreset mode for the vector environment. Default is `.nextStep`.
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
-    public func makeVecAsync<Action>(
+    public func makeVecAsync(
         envFns: [@Sendable () -> any Env],
         autoresetMode: AutoresetMode = .nextStep
-    ) async throws -> AsyncVectorEnv<Action> {
+    ) async throws -> AsyncVectorEnv {
         try AsyncVectorEnv(
             envFns: envFns,
             copyObservations: true,

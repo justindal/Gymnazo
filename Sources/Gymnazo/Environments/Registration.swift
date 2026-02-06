@@ -390,13 +390,15 @@ private struct RegistrationSupport {
         let renderMode = renderMode(from: options)
         let mapName = options["map_name"] as? String ?? defaultMap
         let isSlippery = options["is_slippery"] as? Bool ?? true
+        let successRate = floatValue(from: options["success_rate"], default: 1.0 / 3.0)
         let desc = options["desc"] as? [String]
 
         return FrozenLake(
             renderMode: renderMode,
             desc: desc,
             map_name: mapName,
-            isSlippery: isSlippery
+            isSlippery: isSlippery,
+            successRate: successRate
         )
     }
 
