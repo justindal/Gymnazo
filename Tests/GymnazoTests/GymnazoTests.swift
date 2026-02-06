@@ -1,4 +1,5 @@
 import Testing
+import MLX
 
 @testable import Gymnazo
 
@@ -9,7 +10,7 @@ struct GymnazoTests {
         if let renderMode {
             options["render_mode"] = renderMode.rawValue
         }
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make("FrozenLake", options: options)
+        let env = try await Gymnazo.make("FrozenLake", options: options)
         guard let frozenLake = env.unwrapped as? FrozenLake else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "FrozenLake",
@@ -26,7 +27,7 @@ struct GymnazoTests {
         var recorder = try RecordEpisodeStatistics(
             env: timeLimited, bufferLength: 10, statsKey: "episode")
         _ = try recorder.reset(seed: 42)
-        let result = try recorder.step(1)
+        let result = try recorder.step(MLXArray(Int32(1)))
         #expect(result.truncated == true)
         #expect(result.terminated == false)
         #expect(result.info["episode"] != nil)

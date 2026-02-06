@@ -6,7 +6,7 @@ struct GymnazoRegistrationTests {
     @Test
     @MainActor
     func testMakeRegistersEnvironments() async throws {
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "FrozenLake",
             options: ["is_slippery": false]
         )
@@ -17,4 +17,3 @@ struct GymnazoRegistrationTests {
         #expect(contains)
     }
 }
-

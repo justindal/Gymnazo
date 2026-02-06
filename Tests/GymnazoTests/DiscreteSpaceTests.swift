@@ -8,16 +8,16 @@ struct DiscreteSpaceTests {
     @Test
     func testContains() async throws {
         let space = Discrete(n: 5, start: 0)
-        #expect(space.contains(0))
-        #expect(space.contains(4))
-        #expect(space.contains(-1) == false)
-        #expect(space.contains(5) == false)
+        #expect(space.contains(MLXArray(Int32(0))))
+        #expect(space.contains(MLXArray(Int32(4))))
+        #expect(space.contains(MLXArray(Int32(-1))) == false)
+        #expect(space.contains(MLXArray(Int32(5))) == false)
         
         let shifted = Discrete(n: 3, start: 2)
-        #expect(shifted.contains(1) == false)
-        #expect(shifted.contains(2))
-        #expect(shifted.contains(4))
-        #expect(shifted.contains(5) == false)
+        #expect(shifted.contains(MLXArray(Int32(1))) == false)
+        #expect(shifted.contains(MLXArray(Int32(2))))
+        #expect(shifted.contains(MLXArray(Int32(4))))
+        #expect(shifted.contains(MLXArray(Int32(5))) == false)
     }
     
     @Test
@@ -30,7 +30,7 @@ struct DiscreteSpaceTests {
             let (k, _) = MLX.split(key: key)
             key = k
             let v = space.sample(key: key, mask: mask)
-            #expect(v == 3)
+            #expect(v.item(Int.self) == 3)
         }
     }
     
@@ -43,8 +43,7 @@ struct DiscreteSpaceTests {
             let (k, _) = MLX.split(key: key)
             key = k
             let v = space.sample(key: key, probability: prob)
-            #expect(v == 2)
+            #expect(v.item(Int.self) == 2)
         }
     }
 }
-

@@ -14,7 +14,7 @@ struct MountainCarTests {
         if let goalVelocity {
             options["goal_velocity"] = goalVelocity
         }
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("MountainCar", options: options)
+        let env = try await Gymnazo.make("MountainCar", options: options)
         guard let mountainCar = env.unwrapped as? MountainCar else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "MountainCar",
@@ -116,7 +116,7 @@ struct MountainCarTests {
         var env = try await makeMountainCar()
         _ = try env.reset()
 
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
 
         #expect(result.obs.shape == [2])
         #expect(result.reward == -1.0)
@@ -129,7 +129,7 @@ struct MountainCarTests {
 
         for action in 0..<3 {
             _ = try env.reset()
-            let result = try env.step(action)
+            let result = try env.step(MLXArray(Int32(action)))
             #expect(result.obs.shape == [2], "Action \(action) should return valid observation")
         }
     }
@@ -142,7 +142,7 @@ struct MountainCarTests {
         let initialVel = env.state![1].item(Float.self)
 
         for _ in 0..<10 {
-            _ = try env.step(2)
+            _ = try env.step(MLXArray(Int32(2)))
         }
 
         let finalVel = env.state![1].item(Float.self)
@@ -158,7 +158,7 @@ struct MountainCarTests {
         let initialVel = env.state![1].item(Float.self)
 
         for _ in 0..<10 {
-            _ = try env.step(0)
+            _ = try env.step(MLXArray(Int32(0)))
         }
 
         let finalVel = env.state![1].item(Float.self)
@@ -172,7 +172,7 @@ struct MountainCarTests {
         _ = try env.reset()
 
         for _ in 0..<500 {
-            let result = try env.step(0)
+            let result = try env.step(MLXArray(Int32(0)))
             let position = result.obs[0].item(Float.self)
 
             #expect(position >= env.minPosition, "Position should not go below min")
@@ -188,7 +188,7 @@ struct MountainCarTests {
         _ = try env.reset()
 
         for _ in 0..<500 {
-            let result = try env.step(2)
+            let result = try env.step(MLXArray(Int32(2)))
             let velocity = result.obs[1].item(Float.self)
 
             #expect(velocity >= -env.maxSpeed, "Velocity should not go below -maxSpeed")
@@ -207,7 +207,7 @@ struct MountainCarTests {
 
         var hitBoundary = false
         for _ in 0..<100 {
-            let result = try env.step(0)
+            let result = try env.step(MLXArray(Int32(0)))
             let position = result.obs[0].item(Float.self)
             let velocity = result.obs[1].item(Float.self)
 
@@ -230,7 +230,7 @@ struct MountainCarTests {
 
         env.state = MLXArray([env.goalPosition + 0.01, 0.01])
 
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
 
         #expect(
             result.terminated == true,
@@ -243,11 +243,11 @@ struct MountainCarTests {
         _ = try env.reset()
 
         env.state = MLXArray([env.goalPosition + 0.01, 0.01] as [Float32])
-        let slow = try env.step(1)
+        let slow = try env.step(MLXArray(Int32(1)))
         #expect(slow.terminated == false)
 
         env.state = MLXArray([env.goalPosition + 0.01, 0.05] as [Float32])
-        let fast = try env.step(1)
+        let fast = try env.step(MLXArray(Int32(1)))
         #expect(fast.terminated == true)
     }
 
@@ -258,7 +258,7 @@ struct MountainCarTests {
 
         env.state = MLXArray([env.goalPosition - 0.1, 0.0])
 
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
 
         #expect(result.terminated == false, "Should not terminate before reaching goal")
     }
@@ -324,7 +324,7 @@ struct MountainCarTests {
 
     @Test @MainActor
     func testGymnazoRegistration() async throws {
-        var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("MountainCar")
+        var env = try await Gymnazo.make("MountainCar")
         let result = try env.reset()
         let obs = result.obs
         #expect(obs.shape == [2])
@@ -332,7 +332,7 @@ struct MountainCarTests {
 
     @Test @MainActor
     func testGymnazoMaxEpisodeSteps() async throws {
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("MountainCar")
+        let env = try await Gymnazo.make("MountainCar")
         #expect(env.spec?.maxEpisodeSteps == 200)
     }
 }

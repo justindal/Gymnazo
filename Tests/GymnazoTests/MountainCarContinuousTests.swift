@@ -6,7 +6,7 @@ import MLX
 struct MountainCarContinuousTests {
     func makeMountainCarContinuous(goalVelocity: Float? = nil) async throws -> MountainCarContinuous {
         let options: EnvOptions = goalVelocity.map { ["goal_velocity": $0] } ?? [:]
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "MountainCarContinuous",
             options: options
         )
@@ -36,7 +36,7 @@ struct MountainCarContinuousTests {
     @Test
     @MainActor
     func testGymnazoMakeMountainCarContinuousWithKwargs() async throws {
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "MountainCarContinuous",
             options: ["goal_velocity": Float(0.04)]
         )

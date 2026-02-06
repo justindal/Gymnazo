@@ -1,4 +1,5 @@
 import Testing
+import MLX
 @testable import Gymnazo
 
 @Suite("CliffWalking Environment Tests")
@@ -11,7 +12,7 @@ struct CliffWalkingTests {
         if let renderMode {
             options["render_mode"] = renderMode.rawValue
         }
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make("CliffWalking", options: options)
+        let env = try await Gymnazo.make("CliffWalking", options: options)
         guard let cliffWalking = env.unwrapped as? CliffWalking else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "CliffWalking",
@@ -27,7 +28,7 @@ struct CliffWalkingTests {
         
         for seed in [42, 123, 999, 0, 12345] as [UInt64] {
             let obs = try! env.reset(seed: seed).obs
-            #expect(obs == CliffWalking.startState)
+            #expect(obs.item(Int.self) == CliffWalking.startState)
         }
     }
     
@@ -67,10 +68,10 @@ struct CliffWalkingTests {
 
         #expect(actionSpace.n == 4)
         for action in 0..<4 {
-            #expect(actionSpace.contains(action))
+            #expect(actionSpace.contains(MLXArray(Int32(action))))
         }
-        #expect(!actionSpace.contains(-1))
-        #expect(!actionSpace.contains(4))
+        #expect(!actionSpace.contains(MLXArray(Int32(-1))))
+        #expect(!actionSpace.contains(MLXArray(Int32(4))))
     }
     
     @Test("Observation space contains valid states")
@@ -84,10 +85,10 @@ struct CliffWalkingTests {
 
         #expect(observationSpace.n == 48)
         for state in 0..<48 {
-            #expect(observationSpace.contains(state))
+            #expect(observationSpace.contains(MLXArray(Int32(state))))
         }
-        #expect(!observationSpace.contains(-1))
-        #expect(!observationSpace.contains(48))
+        #expect(!observationSpace.contains(MLXArray(Int32(-1))))
+        #expect(!observationSpace.contains(MLXArray(Int32(48))))
     }
     
     @Test("Moving up from start goes to row 2")
@@ -95,13 +96,13 @@ struct CliffWalkingTests {
         let env = try await makeCliffWalking()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
         let obs = result.obs
         let reward = result.reward
         let terminated = result.terminated
         
         let expectedState = CliffWalking.positionToState(row: 2, col: 0)
-        #expect(obs == expectedState)
+        #expect(obs.item(Int.self) == expectedState)
         #expect(reward == -1.0)
         #expect(!terminated)
     }
@@ -111,12 +112,12 @@ struct CliffWalkingTests {
         let env = try await makeCliffWalking()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(3)
+        let result = try env.step(MLXArray(Int32(3)))
         let obs = result.obs
         let reward = result.reward
         let terminated = result.terminated
         
-        #expect(obs == CliffWalking.startState)
+        #expect(obs.item(Int.self) == CliffWalking.startState)
         #expect(reward == -1.0)
         #expect(!terminated)
     }
@@ -126,12 +127,12 @@ struct CliffWalkingTests {
         let env = try await makeCliffWalking()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
         let obs = result.obs
         let reward = result.reward
         let terminated = result.terminated
         
-        #expect(obs == CliffWalking.startState)
+        #expect(obs.item(Int.self) == CliffWalking.startState)
         #expect(reward == -100.0)
         #expect(!terminated)
     }
@@ -142,10 +143,10 @@ struct CliffWalkingTests {
         
         for _ in 0..<5 {
             _ = try env.reset(seed: 42)
-            let result = try env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             let obs = result.obs
             let reward = result.reward
-            #expect(obs == CliffWalking.startState)
+            #expect(obs.item(Int.self) == CliffWalking.startState)
             #expect(reward == -100.0)
         }
     }
@@ -155,18 +156,18 @@ struct CliffWalkingTests {
         let env = try await makeCliffWalking()
         _ = try env.reset(seed: 42)
         
-        _ = try env.step(0)
+        _ = try env.step(MLXArray(Int32(0)))
         
         for _ in 0..<11 {
-            let result = try env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             if result.terminated { break }
         }
         
-        let result = try env.step(2)
+        let result = try env.step(MLXArray(Int32(2)))
         let obs = result.obs
         let terminated = result.terminated
         
-        #expect(obs == CliffWalking.goalState)
+        #expect(obs.item(Int.self) == CliffWalking.goalState)
         #expect(terminated)
     }
     
@@ -189,9 +190,9 @@ struct CliffWalkingTests {
         var outcomes: Set<Int> = []
         for seed in 0..<100 as Range<UInt64> {
             _ = try env.reset(seed: seed)
-            _ = try env.step(0)
-            let obs = try env.step(0).obs
-            outcomes.insert(obs)
+            _ = try env.step(MLXArray(Int32(0)))
+            let obs = try env.step(MLXArray(Int32(0))).obs
+            outcomes.insert(obs.item(Int.self))
         }
         
         #expect(outcomes.count > 1)
@@ -204,7 +205,7 @@ struct CliffWalkingTests {
         var outcomes: [Int] = []
         for seed in 0..<10 as Range<UInt64> {
             _ = try env.reset(seed: seed)
-            outcomes.append(try env.step(0).obs)
+            outcomes.append(try env.step(MLXArray(Int32(0))).obs.item(Int.self))
         }
         
         let expected = CliffWalking.positionToState(row: 2, col: 0)
@@ -218,14 +219,14 @@ struct CliffWalkingTests {
         let env = try await makeCliffWalking()
         _ = try env.reset(seed: 42)
         
-        _ = try env.step(0)
-        _ = try env.step(0)
-        let obs1 = try env.step(0).obs
+        _ = try env.step(MLXArray(Int32(0)))
+        _ = try env.step(MLXArray(Int32(0)))
+        let obs1 = try env.step(MLXArray(Int32(0))).obs
         
-        #expect(obs1 == CliffWalking.positionToState(row: 0, col: 0))
+        #expect(obs1.item(Int.self) == CliffWalking.positionToState(row: 0, col: 0))
         
-        let obs2 = try env.step(0).obs
-        #expect(obs2 == CliffWalking.positionToState(row: 0, col: 0))
+        let obs2 = try env.step(MLXArray(Int32(0))).obs
+        #expect(obs2.item(Int.self) == CliffWalking.positionToState(row: 0, col: 0))
     }
     
     @Test("Wall collision on right edge")
@@ -233,35 +234,35 @@ struct CliffWalkingTests {
         let env = try await makeCliffWalking()
         _ = try env.reset(seed: 42)
         
-        _ = try env.step(0)
+        _ = try env.step(MLXArray(Int32(0)))
         
         for _ in 0..<12 {
-            _ = try env.step(1)
+            _ = try env.step(MLXArray(Int32(1)))
         }
         
-        let obs = try env.step(1).obs
-        #expect(obs == CliffWalking.positionToState(row: 2, col: 11))
+        let obs = try env.step(MLXArray(Int32(1))).obs
+        #expect(obs.item(Int.self) == CliffWalking.positionToState(row: 2, col: 11))
     }
     
     @Test
     @MainActor
     func testGymnazoMakeCliffWalking() async throws {
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make("CliffWalking")
+        let env = try await Gymnazo.make("CliffWalking")
         let cliffWalking = env.unwrapped as! CliffWalking
         let obs = try cliffWalking.reset(seed: 123).obs
-        #expect(obs == CliffWalking.startState)
+        #expect(obs.item(Int.self) == CliffWalking.startState)
     }
     
     @Test
     @MainActor
     func testGymnazoMakeCliffWalkingWithKwargs() async throws {
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             "CliffWalking",
             options: ["render_mode": "ansi"]
         )
         let cliffWalking = env.unwrapped as! CliffWalking
         let obs = try cliffWalking.reset(seed: 42).obs
-        #expect(obs == CliffWalking.startState)
+        #expect(obs.item(Int.self) == CliffWalking.startState)
     }
 }
 

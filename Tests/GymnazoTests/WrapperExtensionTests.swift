@@ -6,7 +6,7 @@ import MLX
 @Suite("Wrapper Extension Tests")
 struct WrapperExtensionTests {
     func makeCartPole() async throws -> CartPole {
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
+        let env = try await Gymnazo.make("CartPole")
         guard let cartPole = env.unwrapped as? CartPole else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "CartPole",
@@ -17,7 +17,7 @@ struct WrapperExtensionTests {
     }
 
     func makePendulum() async throws -> Pendulum {
-        let env: AnyEnv<MLXArray, MLXArray> = try await Gymnazo.make("Pendulum")
+        let env = try await Gymnazo.make("Pendulum")
         guard let pendulum = env.unwrapped as? Pendulum else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "Pendulum",
@@ -30,17 +30,17 @@ struct WrapperExtensionTests {
     @Test("orderEnforced creates OrderEnforcing wrapper")
     func testOrderEnforced() async throws {
         let baseEnv = try await makeCartPole()
-        let env = try baseEnv.orderEnforced()
+        let env = baseEnv.orderEnforced()
         
-        #expect(env is OrderEnforcing<CartPole>)
+        #expect(env is OrderEnforcing)
     }
     
     @Test("passiveChecked creates PassiveEnvChecker wrapper")
     func testPassiveChecked() async throws {
         let baseEnv = try await makeCartPole()
-        let env = try baseEnv.passiveChecked()
+        let env = baseEnv.passiveChecked()
         
-        #expect(env is PassiveEnvChecker<CartPole>)
+        #expect(env is PassiveEnvChecker)
     }
     
     @Test("recordingStatistics creates RecordEpisodeStatistics wrapper")
@@ -48,7 +48,7 @@ struct WrapperExtensionTests {
         let baseEnv = try await makeCartPole()
         let env = try baseEnv.recordingStatistics()
         
-        #expect(env is RecordEpisodeStatistics<CartPole>)
+        #expect(env is RecordEpisodeStatistics)
     }
     
     @Test("recordingStatistics with custom parameters")
@@ -56,7 +56,7 @@ struct WrapperExtensionTests {
         let baseEnv = try await makeCartPole()
         let env = try baseEnv.recordingStatistics(bufferLength: 50, statsKey: "ep")
         
-        #expect(env is RecordEpisodeStatistics<CartPole>)
+        #expect(env is RecordEpisodeStatistics)
     }
     
     @Test("timeLimited creates TimeLimit wrapper")
@@ -64,7 +64,7 @@ struct WrapperExtensionTests {
         let baseEnv = try await makeCartPole()
         let env = try baseEnv.timeLimited(100)
         
-        #expect(env is TimeLimit<CartPole>)
+        #expect(env is TimeLimit)
     }
     
     @Test("observationsNormalized creates NormalizeObservation wrapper")
@@ -72,49 +72,49 @@ struct WrapperExtensionTests {
         let baseEnv = try await makeCartPole()
         let env = try baseEnv.observationsNormalized()
         
-        #expect(env is NormalizeObservation<CartPole>)
+        #expect(env is NormalizeObservation)
     }
     
     @Test("observationsTransformed creates TransformObservation wrapper")
     func testObservationsTransformed() async throws {
         let baseEnv = try await makeCartPole()
-        let env = try baseEnv.observationsTransformed { obs in
+        let env = baseEnv.observationsTransformed { obs in
             obs * 2
         }
         
-        #expect(env is TransformObservation<CartPole>)
+        #expect(env is TransformObservation)
     }
     
     @Test("actionsClipped creates ClipAction wrapper")
     func testActionsClipped() async throws {
         let baseEnv = try await makePendulum()
-        let env = try baseEnv.actionsClipped()
+        let env = baseEnv.actionsClipped()
         
-        #expect(env is ClipAction<Pendulum>)
+        #expect(env is ClipAction)
     }
     
     @Test("actionsRescaled creates RescaleAction wrapper")
     func testActionsRescaled() async throws {
         let baseEnv = try await makePendulum()
-        let env = try baseEnv.actionsRescaled()
+        let env = baseEnv.actionsRescaled()
         
-        #expect(env is RescaleAction<Pendulum>)
+        #expect(env is RescaleAction)
     }
     
     @Test("actionsRescaled with custom range")
     func testActionsRescaledCustom() async throws {
         let baseEnv = try await makePendulum()
-        let env = try baseEnv.actionsRescaled(from: (low: 0.0, high: 1.0))
+        let env = baseEnv.actionsRescaled(from: (low: 0.0, high: 1.0))
         
-        #expect(env is RescaleAction<Pendulum>)
+        #expect(env is RescaleAction)
     }
     
     @Test("validated creates standard validation stack")
     func testValidated() async throws {
         let baseEnv = try await makeCartPole()
-        let env = try baseEnv.validated()
+        let env = baseEnv.validated()
         
-        #expect(env is OrderEnforcing<PassiveEnvChecker<CartPole>>)
+        #expect(env is OrderEnforcing)
     }
     
     @Test("validated with time limit")
@@ -122,7 +122,7 @@ struct WrapperExtensionTests {
         let baseEnv = try await makeCartPole()
         let env = try baseEnv.validated(maxSteps: 200)
         
-        #expect(env is TimeLimit<OrderEnforcing<PassiveEnvChecker<CartPole>>>)
+        #expect(env is TimeLimit)
     }
     
     @Test("Chaining multiple wrappers")
@@ -132,34 +132,34 @@ struct WrapperExtensionTests {
             .recordingStatistics()
             .timeLimited(500)
         
-        #expect(env is TimeLimit<RecordEpisodeStatistics<OrderEnforcing<CartPole>>>)
+        #expect(env is TimeLimit)
     }
     
     @Test("Chained environment works correctly")
     func testChainedEnvironmentWorks() async throws {
-        var env = try await makeCartPole()
+        let env = try await makeCartPole()
             .orderEnforced()
             .timeLimited(10)
         
-        let obs = try! env.reset(seed: 42, options: nil).obs
+        let obs = try env.reset(seed: 42, options: nil).obs
         #expect(obs.shape == [4])
         
-        let result = try! env.step(0)
+        let result = try env.step(MLXArray(Int32(0)))
         #expect(result.obs.shape == [4])
         #expect(result.reward == 1.0)
     }
     
     @Test("Time limit wrapper truncates at limit")
     func testTimeLimitTruncates() async throws {
-        var env = try await makeCartPole()
+        let env = try await makeCartPole()
             .orderEnforced()
             .timeLimited(5)
         
-        _ = try! env.reset(seed: 42, options: nil)
+        _ = try env.reset(seed: 42, options: nil)
         
         var truncated = false
         for _ in 0..<10 {
-            let result = try! env.step(0)
+            let result = try env.step(MLXArray(Int32(0)))
             if result.truncated {
                 truncated = true
                 break
@@ -171,16 +171,16 @@ struct WrapperExtensionTests {
     
     @Test("Recording statistics tracks data")
     func testRecordingStatisticsTracksData() async throws {
-        var env = try await makeCartPole()
+        let env = try await makeCartPole()
             .orderEnforced()
             .recordingStatistics()
             .timeLimited(5)
         
-        _ = try! env.reset(seed: 42, options: nil)
+        _ = try env.reset(seed: 42, options: nil)
         
         var foundEpisodeInfo = false
         for _ in 0..<10 {
-            let result = try! env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             if result.info["episode"] != nil {
                 foundEpisodeInfo = true
                 break
@@ -197,20 +197,20 @@ struct WrapperExtensionTests {
             try! env.orderEnforced().timeLimited(100)
         }
         
-        #expect(env is TimeLimit<OrderEnforcing<CartPole>>)
+        #expect(env is TimeLimit)
     }
     
     @Test("Observation transform applies correctly")
     func testObservationTransformApplies() async throws {
         let baseEnv = try await makeCartPole()
-        var env = try baseEnv.observationsTransformed { obs in
+        var env = baseEnv.observationsTransformed { obs in
             obs * 2
         }
         
-        let obs = try! env.reset(seed: 42, options: nil).obs
+        let obs = try env.reset(seed: 42, options: nil).obs
         
         var comparisonEnv = try await makeCartPole()
-        let baseObs = try! comparisonEnv.reset(seed: 42, options: nil).obs
+        let baseObs = try comparisonEnv.reset(seed: 42, options: nil).obs
         
         let obsValues: [Float] = obs.asArray(Float.self)
         let baseValues: [Float] = baseObs.asArray(Float.self)
@@ -225,10 +225,10 @@ struct WrapperExtensionTests {
         let baseEnv = try await makeCartPole()
         var env = try baseEnv.observationsNormalized()
         
-        _ = try! env.reset(seed: 42, options: nil)
+        _ = try env.reset(seed: 42, options: nil)
         
         for _ in 0..<100 {
-            let result = try! env.step(Int.random(in: 0..<2))
+            let result = try env.step(MLXArray(Int32.random(in: 0..<2)))
             let values: [Float] = result.obs.asArray(Float.self)
             
             for value in values {
@@ -236,9 +236,8 @@ struct WrapperExtensionTests {
             }
             
             if result.terminated || result.truncated {
-                _ = try! env.reset(seed: nil, options: nil)
+                _ = try env.reset(seed: nil, options: nil)
             }
         }
     }
 }
-

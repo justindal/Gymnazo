@@ -14,8 +14,9 @@ struct GraphSpaceTests {
         for _ in 0..<10 {
             let (k, _) = MLX.split(key: key)
             key = k
-            let sample = space.sample(key: key)
-            #expect(space.contains(sample))
+            let flat = space.sample(key: key)
+            #expect(space.contains(flat))
+            let sample = space.sampleGraph(key: key, mask: nil, probability: nil)
             #expect(sample.nodes.shape == [4, 3])
             #expect(sample.edges.shape == [6, 2])
             #expect(sample.edgeLinks.shape == [6, 2])
@@ -29,7 +30,7 @@ struct GraphSpaceTests {
         let nodeSpace = MultiBinary(n: 2)
         let edgeSpace = MultiBinary(n: 1)
         let space = Graph(nodeSpace: nodeSpace, edgeSpace: edgeSpace, maxNodes: 3, maxEdges: 5)
-        let sample = space.sample(key: MLX.key(1))
+        let sample = space.sampleGraph(key: MLX.key(1), mask: nil, probability: nil)
 
         let edgeMask = sample.edgeMask.asType(.bool).asArray(Bool.self)
         var edgePrefix = 0
@@ -44,4 +45,3 @@ struct GraphSpaceTests {
         }
     }
 }
-

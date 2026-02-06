@@ -1,28 +1,25 @@
 import Testing
+import MLX
 @testable import Gymnazo
 
-/// wrapper specialized to FrozenLake that injects a flag into info to verify that
-/// additionalWrappers are applied by Gymnazo.make(spec:).
 final class FrozenLakeInfoTagWrapper: Wrapper {
-    typealias InnerEnv = FrozenLake
-    
-    var env: FrozenLake
+    var env: any Env
     let tagKey: String
     let tagValue: InfoValue
     
-    required init(env: FrozenLake) {
+    init(env: any Env) {
         self.env = env
         self.tagKey = "wrapped"
         self.tagValue = .bool(true)
     }
     
-    init(env: FrozenLake, tagKey: String, tagValue: InfoValue) {
+    init(env: any Env, tagKey: String, tagValue: InfoValue) {
         self.env = env
         self.tagKey = tagKey
         self.tagValue = tagValue
     }
     
-    func step(_ action: Int) throws -> Step<Observation> {
+    func step(_ action: MLXArray) throws -> Step {
         let r = try env.step(action)
         var info = r.info
         info[tagKey] = tagValue
@@ -35,7 +32,7 @@ struct AdditionalWrappersTests {
     @Test
     @MainActor
     func testAdditionalWrapperApplied() async throws {
-        let _: AnyEnv<Int, Int> = try await Gymnazo.make(
+        let _ = try await Gymnazo.make(
             "FrozenLake",
             options: ["is_slippery": false]
         )
@@ -49,7 +46,6 @@ struct AdditionalWrappersTests {
         let wrapperSpec = WrapperSpec(
             id: "info-tag",
             entryPoint: { env, kwargs in
-                guard let fl = env as? FrozenLake else { return env }
                 let key = (kwargs["key"] as? String) ?? "wrapped"
                 let rawValue = kwargs["value"]
                 let value: InfoValue
@@ -66,14 +62,14 @@ struct AdditionalWrappersTests {
                 } else {
                     value = .bool(true)
                 }
-                return FrozenLakeInfoTagWrapper(env: fl, tagKey: key, tagValue: value)
+                return FrozenLakeInfoTagWrapper(env: env, tagKey: key, tagValue: value)
             },
             options: ["key": "extra", "value": "ok"]
         )
         
         baseSpec.additionalWrappers = [wrapperSpec]
         
-        let env: AnyEnv<Int, Int> = try await Gymnazo.make(
+        let env = try await Gymnazo.make(
             baseSpec,
             recordEpisodeStatistics: false,
             options: ["is_slippery": false]
@@ -83,4 +79,3 @@ struct AdditionalWrappersTests {
         #expect(hasWrapper)
     }
 }
-

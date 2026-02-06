@@ -5,13 +5,13 @@ import MLX
 @Suite("Vector Environment Tests")
 struct VectorEnvTests {
     @MainActor
-    func makeCartPoleEnv() async throws -> AnyEnv<MLXArray, Int> {
+    func makeCartPoleEnv() async throws -> any Env {
         try await Gymnazo.make("CartPole")
     }
 
     @MainActor
     func makeCartPoleEnvFns(count: Int) async throws -> [() -> any Env] {
-        var envs: [AnyEnv<MLXArray, Int>] = []
+        var envs: [any Env] = []
         envs.reserveCapacity(count)
         for _ in 0..<count {
             envs.append(try await makeCartPoleEnv())
@@ -24,7 +24,7 @@ struct VectorEnvTests {
         count: Int,
         copyObservations: Bool = true,
         autoresetMode: AutoresetMode = .nextStep
-    ) async throws -> SyncVectorEnv<Int> {
+    ) async throws -> SyncVectorEnv {
         let envFns = try await makeCartPoleEnvFns(count: count)
         return try SyncVectorEnv(
             envFns: envFns,
@@ -47,7 +47,7 @@ struct VectorEnvTests {
     @MainActor
     func testSyncVectorEnvFromEnvFns() async throws {
         let envFns = try await makeCartPoleEnvFns(count: 2)
-        let envs: SyncVectorEnv<Int> = try SyncVectorEnv(envFns: envFns)
+        let envs: SyncVectorEnv = try SyncVectorEnv(envFns: envFns)
         
         #expect(envs.numEnvs == 2)
     }
@@ -55,7 +55,7 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testMakeVecFunction() async throws {
-        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 3)
+        let envs: SyncVectorEnv = try await Gymnazo.makeVec("CartPole", numEnvs: 3)
         
         #expect(envs.numEnvs == 3)
         #expect(envs.spec?.name == "CartPole")
@@ -65,7 +65,7 @@ struct VectorEnvTests {
     @MainActor
     func testMakeVecWithEnvFns() async throws {
         let envFns = try await makeCartPoleEnvFns(count: 2)
-        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec(envFns: envFns)
+        let envs: SyncVectorEnv = try await Gymnazo.makeVec(envFns: envFns)
         
         #expect(envs.numEnvs == 2)
     }
@@ -138,7 +138,7 @@ struct VectorEnvTests {
         let envs = try await makeSyncVectorEnv(count: numEnvs)
         _ = try envs.reset(seed: 42)
         
-        let actions = [1, 0, 1]
+        let actions = [MLXArray(Int32(1)), MLXArray(Int32(0)), MLXArray(Int32(1))]
         let result = try envs.step(actions)
         
         #expect(result.observations.shape == [numEnvs, 4])
@@ -153,7 +153,7 @@ struct VectorEnvTests {
         let envs = try await makeSyncVectorEnv(count: 2)
         _ = try envs.reset(seed: 42)
         
-        let result = try envs.step([1, 0])
+        let result = try envs.step([MLXArray(Int32(1)), MLXArray(Int32(0))])
         
         eval(result.observations, result.rewards)
         
@@ -171,7 +171,7 @@ struct VectorEnvTests {
         _ = try envs1.reset(seed: 42)
         _ = try envs2.reset(seed: 42)
         
-        let actions = [1, 0]
+        let actions = [MLXArray(Int32(1)), MLXArray(Int32(0))]
         let result1 = try envs1.step(actions)
         let result2 = try envs2.step(actions)
         
@@ -191,7 +191,7 @@ struct VectorEnvTests {
         _ = try envs.reset(seed: 42)
         
         for _ in 0..<10 {
-            let result = try envs.step([1, 0])
+            let result = try envs.step([MLXArray(Int32(1)), MLXArray(Int32(0))])
             #expect(result.observations.shape == [2, 4])
         }
     }
@@ -206,7 +206,7 @@ struct VectorEnvTests {
         var finalInfoStored = false
         
         for _ in 0..<500 {
-            let result = try envs.step([0])
+            let result = try envs.step([MLXArray(Int32(0))])
             
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
@@ -234,7 +234,7 @@ struct VectorEnvTests {
         var checked = false
         
         for _ in 0..<500 {
-            let result = try envs.step([0])
+            let result = try envs.step([MLXArray(Int32(0))])
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
             
@@ -263,7 +263,7 @@ struct VectorEnvTests {
         
         var stepsUntilTermination = 0
         for i in 0..<500 {
-            let result = try envs.step([0])
+            let result = try envs.step([MLXArray(Int32(0))])
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
             if term {
@@ -272,14 +272,14 @@ struct VectorEnvTests {
             }
         }
         
-        let resultAfterReset = try envs.step([1])
+        let resultAfterReset = try envs.step([MLXArray(Int32(1))])
         eval(resultAfterReset.observations)
         
         #expect(resultAfterReset.observations.shape == [1, 4])
         
         let obs = resultAfterReset.observations[0]
         eval(obs)
-        let maxVal = abs(obs).max().item(Float.self)
+        _ = abs(obs).max().item(Float.self)
     }
     
     @Test
@@ -291,7 +291,7 @@ struct VectorEnvTests {
         var terminatedIndices: Set<Int> = []
         
         for _ in 0..<500 {
-            let result = try envs.step([0, 1])
+            let result = try envs.step([MLXArray(Int32(0)), MLXArray(Int32(1))])
             eval(result.terminations)
             
             for (idx, info) in result.infos.enumerated() {
@@ -363,7 +363,7 @@ struct VectorEnvTests {
         let result = try envs.reset(seed: 42)
         #expect(result.observations.shape == [1, 4])
         
-        let stepResult = try envs.step([1])
+        let stepResult = try envs.step([MLXArray(Int32(1))])
         #expect(stepResult.observations.shape == [1, 4])
     }
     
@@ -371,14 +371,14 @@ struct VectorEnvTests {
     @MainActor
     func testManyEnvironments() async throws {
         let numEnvs = 10
-        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: numEnvs)
+        let envs: SyncVectorEnv = try await Gymnazo.makeVec("CartPole", numEnvs: numEnvs)
         
         #expect(envs.numEnvs == numEnvs)
         
         let result = try envs.reset(seed: 0)
         #expect(result.observations.shape == [numEnvs, 4])
         
-        let actions = Array(repeating: 1, count: numEnvs)
+        let actions = Array(repeating: MLXArray(Int32(1)), count: numEnvs)
         let stepResult = try envs.step(actions)
         #expect(stepResult.observations.shape == [numEnvs, 4])
     }
@@ -386,15 +386,15 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testFullEpisode() async throws {
-        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 2)
-        var result = try envs.reset(seed: 42)
+        let envs: SyncVectorEnv = try await Gymnazo.makeVec("CartPole", numEnvs: 2)
+        _ = try envs.reset(seed: 42)
         
         var totalRewards: [Float] = [0, 0]
         var steps = 0
         let maxSteps = 1000
         
         while steps < maxSteps {
-            let actions = [Int.random(in: 0...1), Int.random(in: 0...1)]
+            let actions = [MLXArray(Int32(Int.random(in: 0...1))), MLXArray(Int32(Int.random(in: 0...1)))]
             let stepResult = try envs.step(actions)
             
             eval(stepResult.rewards, stepResult.terminations, stepResult.truncations)
@@ -415,13 +415,13 @@ struct VectorEnvTests {
     @Test
     @MainActor
     func testWithMountainCar() async throws {
-        let envs: SyncVectorEnv<Int> = try await Gymnazo.makeVec("MountainCar", numEnvs: 2)
+        let envs: SyncVectorEnv = try await Gymnazo.makeVec("MountainCar", numEnvs: 2)
         
         let result = try envs.reset(seed: 42)
         
         #expect(result.observations.shape == [2, 2])
         
-        let stepResult = try envs.step([0, 2])
+        let stepResult = try envs.step([MLXArray(Int32(0)), MLXArray(Int32(2))])
         #expect(stepResult.observations.shape == [2, 2])
         
         envs.close()

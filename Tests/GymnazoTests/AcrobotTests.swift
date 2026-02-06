@@ -7,7 +7,7 @@ import MLX
 struct AcrobotTests {
     func makeAcrobot(renderMode: RenderMode? = nil) async throws -> Acrobot {
         let options: EnvOptions = renderMode.map { ["render_mode": $0.rawValue] } ?? [:]
-        let env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("Acrobot", options: options)
+        let env = try await Gymnazo.make("Acrobot", options: options)
         guard let acrobot = env.unwrapped as? Acrobot else {
             throw GymnazoError.invalidEnvironmentType(
                 expected: "Acrobot",
@@ -166,7 +166,7 @@ struct AcrobotTests {
         var env = try await makeAcrobot()
         _ = try env.reset(seed: 42)
         
-        let result = try env.step(1)
+        let result = try env.step(MLXArray(Int32(1)))
         
         eval(result.obs)
         
@@ -181,7 +181,7 @@ struct AcrobotTests {
         _ = try env.reset(seed: 42)
         
         for _ in 0..<10 {
-            let result = try env.step(1)
+            let result = try env.step(MLXArray(Int32(1)))
             if !result.terminated {
                 #expect(result.reward == -1.0)
             } else {
@@ -196,7 +196,7 @@ struct AcrobotTests {
         _ = try env.reset(seed: 42)
         
         for _ in 0..<50 {
-            let result = try env.step(Int.random(in: 0..<3))
+            let result = try env.step(MLXArray(Int32.random(in: 0..<3)))
             eval(result.obs)
             
             let cosTheta1 = result.obs[0].item(Float.self)
@@ -226,7 +226,7 @@ struct AcrobotTests {
         _ = try env.reset(seed: 42)
         
         for _ in 0..<100 {
-            let result = try env.step(Int.random(in: 0..<3))
+            let result = try env.step(MLXArray(Int32.random(in: 0..<3)))
             
             guard let state = env.state else {
                 continue
@@ -249,7 +249,7 @@ struct AcrobotTests {
         var terminated = false
         for _ in 0..<500 {
             let action = Int.random(in: 0..<3)
-            let result = try env.step(action)
+            let result = try env.step(MLXArray(Int32(action)))
             
             if result.terminated {
                 terminated = true
@@ -279,8 +279,8 @@ struct AcrobotTests {
         let actions = [0, 1, 2, 0, 1, 2, 1, 0]
         
         for action in actions {
-            let result1 = try env1.step(action)
-            let result2 = try env2.step(action)
+            let result1 = try env1.step(MLXArray(Int32(action)))
+            let result2 = try env2.step(MLXArray(Int32(action)))
             
             eval(result1.obs, result2.obs)
             
@@ -370,7 +370,7 @@ struct AcrobotTests {
         _ = try env.reset(seed: 42)
         
         let snapshotBefore = env.currentSnapshot
-        _ = try env.step(2)
+        _ = try env.step(MLXArray(Int32(2)))
         let snapshotAfter = env.currentSnapshot
         
         #expect(snapshotBefore != snapshotAfter)

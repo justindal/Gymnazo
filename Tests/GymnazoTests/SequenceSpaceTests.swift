@@ -12,8 +12,9 @@ struct SequenceSpaceTests {
         for _ in 0..<10 {
             let (k, _) = MLX.split(key: key)
             key = k
-            let sample = space.sample(key: key)
-            #expect(space.contains(sample))
+            let flat = space.sample(key: key)
+            #expect(space.contains(flat))
+            let sample = space.sampleSequence(key: key, mask: nil, probability: nil)
             #expect(sample.values.shape == [5, 2])
             #expect(sample.mask.shape == [5])
         }
@@ -26,7 +27,6 @@ struct SequenceSpaceTests {
         let values = inner.sampleBatch(key: MLX.key(0), count: 4)
         let badMask = MLXArray([Int32](arrayLiteral: 1, 0, 1, 0)).asType(.bool)
         let sample = SequenceSample(values: values, mask: badMask)
-        #expect(space.contains(sample) == false)
+        #expect(space.containsSequence(sample) == false)
     }
 }
-

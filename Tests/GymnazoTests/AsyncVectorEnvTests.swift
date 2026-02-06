@@ -5,7 +5,7 @@ import MLX
 @MainActor
 @Suite("Async Vector Environment Tests")
 struct AsyncVectorEnvTests {
-    func makeCartPoleEnv() async throws -> AnyEnv<MLXArray, Int> {
+    func makeCartPoleEnv() async throws -> any Env {
         try await Gymnazo.make("CartPole")
     }
 
@@ -13,8 +13,8 @@ struct AsyncVectorEnvTests {
         count: Int,
         copyObservations: Bool = true,
         autoresetMode: AutoresetMode = .nextStep
-    ) async throws -> AsyncVectorEnv<Int> {
-        var envs: [AnyEnv<MLXArray, Int>] = []
+    ) async throws -> AsyncVectorEnv {
+        var envs: [any Env] = []
         envs.reserveCapacity(count)
         for _ in 0..<count {
             envs.append(try await makeCartPoleEnv())
@@ -27,7 +27,7 @@ struct AsyncVectorEnvTests {
     }
 
     func makeSendableCartPoleEnvFns(count: Int) async throws -> [@Sendable () -> any Env] {
-        var boxes: [UnsafeEnvBox<Int>] = []
+        var boxes: [UnsafeEnvBox] = []
         boxes.reserveCapacity(count)
         for _ in 0..<count {
             let env = try await makeCartPoleEnv()
@@ -36,8 +36,8 @@ struct AsyncVectorEnvTests {
         return boxes.map { box in { box.env } }
     }
 
-    func makeSyncVectorEnv(count: Int) async throws -> SyncVectorEnv<Int> {
-        var envs: [AnyEnv<MLXArray, Int>] = []
+    func makeSyncVectorEnv(count: Int) async throws -> SyncVectorEnv {
+        var envs: [any Env] = []
         envs.reserveCapacity(count)
         for _ in 0..<count {
             envs.append(try await makeCartPoleEnv())
@@ -114,7 +114,7 @@ struct AsyncVectorEnvTests {
         let envs = try await makeAsyncVectorEnv(count: 3)
         
         _ = try envs.reset(seed: 42)
-        let result = try envs.step([0, 1, 0])
+        let result = try envs.step([MLXArray(Int32(0)), MLXArray(Int32(1)), MLXArray(Int32(0))])
         
         #expect(result.observations.shape == [3, 4])
         #expect(result.rewards.shape == [3])
@@ -127,7 +127,7 @@ struct AsyncVectorEnvTests {
         let envs = try await makeAsyncVectorEnv(count: 4)
         
         _ = try await envs.resetAsync(seed: 42)
-        let result = try await envs.stepAsync([0, 1, 0, 1])
+        let result = try await envs.stepAsync([MLXArray(Int32(0)), MLXArray(Int32(1)), MLXArray(Int32(0)), MLXArray(Int32(1))])
         
         #expect(result.observations.shape == [4, 4])
         #expect(result.rewards.shape == [4])
@@ -140,7 +140,7 @@ struct AsyncVectorEnvTests {
         let envs = try await makeAsyncVectorEnv(count: 2)
         
         _ = try envs.reset(seed: 42)
-        let result = try envs.step([1, 0])
+        let result = try envs.step([MLXArray(Int32(1)), MLXArray(Int32(0))])
         
         let rewardsArray: [Float] = result.rewards.asArray(Float.self)
         #expect(rewardsArray.count == 2)
@@ -155,7 +155,7 @@ struct AsyncVectorEnvTests {
         _ = try envs.reset(seed: 42)
         
         for _ in 0..<10 {
-            let result = try envs.step([0, 1])
+            let result = try envs.step([MLXArray(Int32(0)), MLXArray(Int32(1))])
             #expect(result.observations.shape == [2, 4])
         }
     }
@@ -167,7 +167,7 @@ struct AsyncVectorEnvTests {
         _ = try await envs.resetAsync(seed: 42)
         
         for _ in 0..<10 {
-            let result = try await envs.stepAsync([0, 1])
+            let result = try await envs.stepAsync([MLXArray(Int32(0)), MLXArray(Int32(1))])
             #expect(result.observations.shape == [2, 4])
         }
     }
@@ -180,7 +180,7 @@ struct AsyncVectorEnvTests {
         
         var foundFinalInfo = false
         for _ in 0..<1000 {
-            let result = try envs.step([1])
+            let result = try envs.step([MLXArray(Int32(1))])
             
             if result.infos[0]["final_info"] != nil {
                 foundFinalInfo = true
@@ -201,7 +201,7 @@ struct AsyncVectorEnvTests {
         var checked = false
         
         for _ in 0..<500 {
-            let result = try await envs.stepAsync([0])
+            let result = try await envs.stepAsync([MLXArray(Int32(0))])
             eval(result.terminations)
             let term = result.terminations[0].item(Bool.self)
             
@@ -229,7 +229,7 @@ struct AsyncVectorEnvTests {
         _ = try envs.reset(seed: 42)
         
         for _ in 0..<1000 {
-            let result = try envs.step([1, 1])
+            let result = try envs.step([MLXArray(Int32(1)), MLXArray(Int32(1))])
             
             let indices = result.infos.enumerated().compactMap { index, info in
                 info["final_info"] == nil ? nil : index
@@ -305,7 +305,7 @@ struct AsyncVectorEnvTests {
         let resetResult = try envs.reset(seed: 42)
         #expect(resetResult.observations.shape == [1, 4])
         
-        let stepResult = try envs.step([0])
+        let stepResult = try envs.step([MLXArray(Int32(0))])
         #expect(stepResult.observations.shape == [1, 4])
     }
     
@@ -318,13 +318,13 @@ struct AsyncVectorEnvTests {
         let resetResult = try envs.reset(seed: 42)
         #expect(resetResult.observations.shape == [10, 4])
         
-        let stepResult = try envs.step(Array(repeating: 0, count: 10))
+        let stepResult = try envs.step(Array(repeating: MLXArray(Int32(0)), count: 10))
         #expect(stepResult.observations.shape == [10, 4])
     }
     
     @Test("makeVecAsync function works")
     func testMakeVecAsyncFunction() async throws {
-        let envs: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 3)
+        let envs: AsyncVectorEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 3)
         
         #expect(envs.numEnvs == 3)
         
@@ -335,32 +335,32 @@ struct AsyncVectorEnvTests {
     @Test("makeVecAsync with envFns works")
     func testMakeVecAsyncWithEnvFns() async throws {
         let envFns = try await makeSendableCartPoleEnvFns(count: 2)
-        let envs: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync(envFns: envFns)
+        let envs: AsyncVectorEnv = try await Gymnazo.makeVecAsync(envFns: envFns)
         
         #expect(envs.numEnvs == 2)
     }
     
     @Test("makeVec with async mode returns AsyncVectorEnv")
     func testMakeVecWithAsyncMode() async throws {
-        let envs: any VectorEnv<Int> = try await Gymnazo.makeVec(
+        let envs: any VectorEnv = try await Gymnazo.makeVec(
             "CartPole",
             numEnvs: 2,
             vectorizationMode: .async
         )
         
-        #expect(envs is AsyncVectorEnv<Int>)
+        #expect(envs is AsyncVectorEnv)
         #expect(envs.numEnvs == 2)
     }
     
     @Test("makeVec with sync mode returns SyncVectorEnv")
     func testMakeVecWithSyncMode() async throws {
-        let envs: any VectorEnv<Int> = try await Gymnazo.makeVec(
+        let envs: any VectorEnv = try await Gymnazo.makeVec(
             "CartPole",
             numEnvs: 2,
             vectorizationMode: .sync
         )
         
-        #expect(envs is SyncVectorEnv<Int>)
+        #expect(envs is SyncVectorEnv)
         #expect(envs.numEnvs == 2)
     }
     
