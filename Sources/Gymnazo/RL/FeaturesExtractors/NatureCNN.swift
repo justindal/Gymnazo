@@ -25,7 +25,7 @@ private func convOut(
 /// It maps an input image tensor to a fixed-size latent feature vector.
 ///
 /// - Parameters:
-///     - observationSpace: The observation space of the environment. Must be a ``Box`` with 3 dimensions `[C, H, W]`.
+///     - observationSpace: The observation space of the environment. Must be a ``Box`` with 3 dimensions `[H, W, C]`.
 ///     - featuresDim: Number of features extracted (output feature dimension). This corresponds to the number of
 ///       units in the final linear layer.
 ///     - normalizedImage: Whether to assume the image is already normalized.
@@ -50,15 +50,15 @@ public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
         self.normalizedImage = normalizedImage
 
         guard let shape = observationSpace.shape, shape.count == 3 else {
-            preconditionFailure("Shape should be [C, H, W].")
+            preconditionFailure("Shape should be [H, W, C].")
         }
 
         self.expectedShape = shape
 
-        let c = shape[0]
-        let h = shape[1]
-        let w = shape[2]
-        precondition(c > 0 && h > 0 && w > 0)
+        let h = shape[0]
+        let w = shape[1]
+        let c = shape[2]
+        precondition(h > 0 && w > 0 && c > 0)
 
         if !normalizedImage {
             precondition(
@@ -94,7 +94,6 @@ public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
             ReLU()
         }
 
-        // Flatten
         let h1 = convOut(h, 8, 4)
         let w1 = convOut(w, 8, 4)
         let h2 = convOut(h1, 4, 2)
@@ -103,7 +102,7 @@ public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
         let w3 = convOut(w2, 3, 1)
         precondition(
             h3 > 0 && w3 > 0,
-            "Input image too small."
+            "Input image too small for NatureCNN convolutions (need at least ~36x36)."
         )
 
         let nFlatten = 64 * h3 * w3
@@ -128,7 +127,7 @@ public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
             batched = true
         } else {
             preconditionFailure(
-                "NatureCNN got shape \(s), expected \(expectedShape)."
+                "NatureCNN got shape \(s), expected \(expectedShape) or [N, \(expectedShape.map(String.init).joined(separator: ", "))]."
             )
         }
 
@@ -146,12 +145,17 @@ public final class NatureCNN: Module, UnaryLayer, FeaturesExtractor {
 
         precondition(
             y.shape.count == 4,
-            "Conv output should have shape [B, 64, H', W'] but got \(y.shape)."
+            "Conv output should have shape [N, H', W', 64] but got \(y.shape)."
         )
         let b = y.shape[0]
 
         y = y.reshaped([b, nFlatten])
 
-        return head(y)
+        let result = head(y)
+
+        if !batched {
+            return result.squeezed(axis: 0)
+        }
+        return result
     }
 }
