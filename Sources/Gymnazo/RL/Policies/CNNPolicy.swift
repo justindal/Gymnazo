@@ -34,6 +34,6 @@ extension CNNPolicy {
                 "CNNPolicy requires a Box observation space, got \(type(of: observationSpace))"
             )
         }
-        return NatureCNN(observationSpace: box, normalizedImage: !normalizeImages)
+        return NatureCNN(observationSpace: box, normalizedImage: true)
     }
 }

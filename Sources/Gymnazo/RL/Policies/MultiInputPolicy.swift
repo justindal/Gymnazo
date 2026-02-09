@@ -36,7 +36,7 @@ extension MultiInputPolicy {
         return CombinedExtractor(
             observationSpace: dict,
             featuresDim: 256,
-            normalizedImage: normalizeImages
+            normalizedImage: true
         )
     }
 }
