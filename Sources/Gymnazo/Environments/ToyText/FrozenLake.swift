@@ -206,7 +206,7 @@ public final class FrozenLake: Env {
 
             let uniform: MLXArray = MLX.uniform(0 ..< 1, [size, size], key: loopKey.0)
 
-            let boardML: MLXArray = MLX.which(uniform .< p, MLXArray(0), MLXArray(1))
+            let boardML: MLXArray = MLX.which(uniform .< p, 0, 1)
             eval(boardML)
             let boardData = boardML.asArray(Int32.self)
 
@@ -282,15 +282,19 @@ public final class FrozenLake: Env {
         map_name: String = "4x4",
         isSlippery: Bool = true,
         successRate: Float = (1.0 / 3.0)
-    ) {
+    ) throws {
         self.renderMode = renderMode
         let reward_schedule: (Double, Double, Double) = (1.0, 0.0, 0.0)
 
         var mapDesc: [String]
-        if let desc: [String] = desc {
+        if let desc {
+            try Self.validateMap(desc)
             mapDesc = desc
         } else {
-            mapDesc = Self.MAPS[map_name]!
+            guard let namedMap = Self.MAPS[map_name] else {
+                throw GymnazoError.invalidMap("Unknown map name '\(map_name)'")
+            }
+            mapDesc = namedMap
         }
 
         let mapChars: [[String.Element]] = mapDesc.map { Array($0) }
@@ -398,14 +402,48 @@ public final class FrozenLake: Env {
         desc: [String]? = nil,
         map_name: String = "4x4",
         isSlippery: Bool = true
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             renderMode: renderMode,
             desc: desc,
             map_name: map_name,
             isSlippery: isSlippery,
             successRate: (1.0 / 3.0)
         )
+    }
+
+    private static let validTiles: Set<Character> = ["S", "F", "H", "G"]
+
+    private static func validateMap(_ desc: [String]) throws {
+        guard let firstRow = desc.first, !firstRow.isEmpty else {
+            throw GymnazoError.invalidMap("Map description is empty")
+        }
+
+        let ncol = firstRow.count
+        var hasStart = false
+        var hasGoal = false
+
+        for (i, row) in desc.enumerated() {
+            guard row.count == ncol else {
+                throw GymnazoError.invalidMap(
+                    "Row \(i) has \(row.count) columns, expected \(ncol)"
+                )
+            }
+            for tile in row {
+                guard validTiles.contains(tile) else {
+                    throw GymnazoError.invalidMap("Invalid tile '\(tile)'")
+                }
+                if tile == "S" { hasStart = true }
+                if tile == "G" { hasGoal = true }
+            }
+        }
+
+        guard hasStart else {
+            throw GymnazoError.invalidMap("Map requires at least one start tile (S)")
+        }
+        guard hasGoal else {
+            throw GymnazoError.invalidMap("Map requires at least one goal tile (G)")
+        }
     }
 
     public func reset(

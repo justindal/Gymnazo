@@ -3,24 +3,12 @@
 //  Gymnazo
 //
 
-import MLX
-import MLXNN
-
-/// Protocol for off-policy algorithms like DQN, SAC, or TD3.
-public protocol OffPolicyAlgorithm: Algorithm {
-    var config: OffPolicyConfig { get }
-
-    func train(gradientSteps: Int, batchSize: Int)
-}
-
-/// Units for training frequency.
-public enum TrainFrequencyUnit: String, Sendable {
+public enum TrainFrequencyUnit: String, Sendable, Codable {
     case step
     case episode
 }
 
-/// Training frequency for off-policy algorithms.
-public struct TrainFrequency: Sendable {
+public struct TrainFrequency: Sendable, Codable {
     public let frequency: Int
     public let unit: TrainFrequencyUnit
 
@@ -30,14 +18,12 @@ public struct TrainFrequency: Sendable {
     }
 }
 
-/// How many gradient steps to run after collecting data.
-public enum GradientSteps: Sendable {
+public enum GradientSteps: Sendable, Codable {
     case fixed(Int)
     case asCollectedSteps
 }
 
-/// Hyperparameters for off-policy algorithms.
-public struct OffPolicyConfig: Sendable {
+public struct OffPolicyConfig: Sendable, Codable {
     public let bufferSize: Int
     public let learningStarts: Int
     public let batchSize: Int

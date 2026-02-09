@@ -9,7 +9,7 @@ import MLXNN
 /// Module wrapper for trainable log entropy coefficient.
 ///
 /// This lets us use an optimizer.
-final class LogEntropyCoefModule: Module {
+final class LogEntropyCoefModule: Module, @unchecked Sendable {
     @ModuleInfo var logEntCoef: MLXArray
 
     init(initialValue: Float) {

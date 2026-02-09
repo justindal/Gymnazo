@@ -54,7 +54,7 @@ public final class SquashedDiagGaussianDistribution: Distribution {
     }
 
     private func inverseTanh(_ x: MLXArray) -> MLXArray {
-        let clipped = MLX.clip(x, min: MLXArray(-1.0 + epsilon), max: MLXArray(1.0 - epsilon))
+        let clipped = MLX.clip(x, min: -1.0 + epsilon, max: 1.0 - epsilon)
         return 0.5 * (MLX.log(1.0 + clipped) - MLX.log(1.0 - clipped))
     }
 

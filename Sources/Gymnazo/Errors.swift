@@ -26,4 +26,5 @@ public enum GymnazoError: Error, Sendable, Equatable {
     case invalidStackSize(Int)
     case invalidResizeShape
     case invalidStatsKey(String)
+    case invalidMap(String)
 }

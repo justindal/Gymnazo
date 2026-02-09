@@ -84,7 +84,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
     }
     
     public func mode() -> MLXArray {
-        return MLX.where(probs .>= 0.5, MLXArray(1.0), MLXArray(0.0))
+        return MLX.where(probs .>= 0.5, 1.0, 0.0)
     }
 }
 

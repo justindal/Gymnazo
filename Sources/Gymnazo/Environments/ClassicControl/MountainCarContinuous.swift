@@ -79,7 +79,7 @@ public struct MountainCarContinuous: Env {
     public let power: Float = 0.0015
     public let gravity: Float = 0.0025
     
-    public var state: MLXArray? = nil
+    public private(set) var state: (position: Float, velocity: Float)? = nil
     
     public let actionSpace: any Space
     public let observationSpace: any Space
@@ -88,6 +88,7 @@ public struct MountainCarContinuous: Env {
     public var renderMode: RenderMode? = nil
     
     private var _key: MLXArray?
+    private var lastForce: Float? = nil
     
     public static var metadata: [String: Any] {
         [
@@ -121,38 +122,32 @@ public struct MountainCarContinuous: Env {
     /// - Parameter action: An `MLXArray` with shape `(1,)` representing the force to apply (clipped to `[-1, 1]`).
     /// - Returns: A tuple containing the observation, reward, terminated flag, truncated flag, and info dictionary.
     public mutating func step(_ action: MLXArray) throws -> Step {
-        guard let currentState = state else {
+        guard var currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
         
-        var position = currentState[0].item(Float.self)
-        var velocity = currentState[1].item(Float.self)
+        let force = min(max(action[0].item(Float.self), -1.0), 1.0)
+        lastForce = force
         
-        var force = action[0].item(Float.self)
-        force = min(max(force, -1.0), 1.0)
+        currentState.velocity += force * power + cos(3 * currentState.position) * (-gravity)
+        currentState.velocity = min(max(currentState.velocity, -maxSpeed), maxSpeed)
         
-        velocity += force * power + cos(3 * position) * (-gravity)
-        velocity = min(max(velocity, -maxSpeed), maxSpeed)
+        currentState.position += currentState.velocity
+        currentState.position = min(max(currentState.position, minPosition), maxPosition)
         
-        position += velocity
-        position = min(max(position, minPosition), maxPosition)
-        
-        if position == minPosition && velocity < 0 {
-            velocity = 0
+        if currentState.position == minPosition && currentState.velocity < 0 {
+            currentState.velocity = 0
         }
         
-        self.state = MLXArray([position, velocity] as [Float32])
+        state = currentState
         
-        let terminated = position >= goalPosition && velocity >= goalVelocity
+        let terminated = currentState.position >= goalPosition && currentState.velocity >= goalVelocity
         
-        var reward: Double = 0.0
-        if terminated {
-            reward = 100.0
-        }
+        var reward: Double = terminated ? 100.0 : 0.0
         reward -= Double(force * force) * 0.1
         
         return Step(
-            obs: self.state!,
+            obs: observation,
             reward: reward,
             terminated: terminated,
             truncated: false,
@@ -177,11 +172,10 @@ public struct MountainCarContinuous: Env {
         self._key = nextKey
         
         let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(Float.self)
-        let velocity: Float = 0.0
+        state = (position: position, velocity: 0.0)
+        lastForce = nil
         
-        self.state = MLXArray([position, velocity] as [Float32])
-        
-        return Reset(obs: self.state!, info: [:])
+        return Reset(obs: observation, info: [:])
     }
     
     /// Render the environment.
@@ -205,20 +199,23 @@ public struct MountainCarContinuous: Env {
     }
     
     public var currentSnapshot: MountainCarSnapshot {
-        guard let s = state else { return MountainCarSnapshot.zero }
-        let position = s[0].item(Float.self)
-        let velocity = s[1].item(Float.self)
+        guard let state else { return MountainCarSnapshot.zero }
         return MountainCarSnapshot(
-            position: position,
-            velocity: velocity,
+            position: state.position,
+            velocity: state.velocity,
             minPosition: minPosition,
             maxPosition: maxPosition,
             goalPosition: goalPosition
         )
     }
     
+    private var observation: MLXArray {
+        guard let state else { return MLXArray([0.0, 0.0] as [Float32]) }
+        return MLXArray([state.position, state.velocity] as [Float32])
+    }
+    
     public static func height(at position: Float) -> Float {
-        return sin(3 * position) * 0.45 + 0.55
+        sin(3 * position) * 0.45 + 0.55
     }
 }
 

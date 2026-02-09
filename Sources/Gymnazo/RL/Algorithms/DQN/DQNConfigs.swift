@@ -28,7 +28,7 @@ public struct DQNPolicyConfig: Sendable, Codable, Equatable {
 }
 
 /// Configuration for DQN hyperparameters.
-public struct DQNConfig: Sendable {
+public struct DQNConfig: Sendable, Codable {
     public let bufferSize: Int
     public let learningStarts: Int
     public let batchSize: Int

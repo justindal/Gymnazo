@@ -56,7 +56,7 @@ public struct CarRacing: Env {
     
     private var _key: MLXArray?
     
-    nonisolated(unsafe) private static let fallbackObservation: MLXArray = {
+    private static let fallbackObservation: MLXArray = {
         let pixels = [UInt8](repeating: 128, count: 96 * 96 * 3)
         let arr = MLXArray(pixels).reshaped([96, 96, 3]).asType(.uint8)
         eval(arr)

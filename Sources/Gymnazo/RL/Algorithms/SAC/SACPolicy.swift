@@ -10,7 +10,7 @@ private let logStdMax: Float = 2.0
 private let logStdMin: Float = -20.0
 
 /// Actor (Policy) Network for SAC
-public final class SACActor: Module, Policy {
+public final class SACActor: Module, Policy, @unchecked Sendable {
     public let observationSpace: any Space
     private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }
