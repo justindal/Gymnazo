@@ -27,6 +27,8 @@ extension DQN {
             currentProgressRemaining: progressRemaining,
             learningRateSchedule: LearningRateScheduleData.from(learningRate),
             dqnConfig: config,
+            dqnPolicyConfig: policyConfig,
+            dqnOptimizerConfig: optimizerConfig,
             explorationRate: explorationRate,
             numGradientSteps: gradientSteps,
             seed: randomSeed
@@ -49,6 +51,8 @@ extension DQN {
         guard let dqnConfig = checkpoint.dqnConfig else {
             throw PersistenceError.invalidCheckpoint("Missing DQN config")
         }
+        let policyConfig = checkpoint.dqnPolicyConfig ?? DQNPolicyConfig()
+        let optimizerConfig = checkpoint.dqnOptimizerConfig ?? DQNOptimizerConfig()
 
         guard let environment = env else {
             throw PersistenceError.invalidCheckpoint(
@@ -64,7 +68,8 @@ extension DQN {
 
         let networks = DQNNetworks(
             observationSpace: environment.observationSpace,
-            nActions: discrete.n
+            nActions: discrete.n,
+            config: policyConfig
         )
 
         try networks.qNet.loadWeights(
@@ -73,7 +78,7 @@ extension DQN {
             from: directory.appendingPathComponent(CheckpointFiles.target))
         eval(networks.qNet.parameters(), networks.qNetTarget.parameters())
 
-        let optimizer = DQNOptimizerConfig().optimizer.make(
+        let optimizer = optimizerConfig.optimizer.make(
             learningRate: Float(schedule.value(at: checkpoint.currentProgressRemaining))
         )
 
@@ -103,6 +108,8 @@ extension DQN {
             targetPolicy: networks.qNetTarget,
             optimizer: optimizer,
             config: dqnConfig,
+            policyConfig: policyConfig,
+            optimizerConfig: optimizerConfig,
             learningRate: schedule,
             seed: checkpoint.seed,
             timesteps: checkpoint.numTimesteps,

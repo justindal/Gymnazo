@@ -4,6 +4,8 @@ import MLXOptimizers
 
 public actor DQN {
     public nonisolated let config: DQNConfig
+    public nonisolated let policyConfig: DQNPolicyConfig
+    public nonisolated let optimizerConfig: DQNOptimizerConfig
 
     nonisolated(unsafe) private var env: (any Env)?
     private let policy: DQNPolicy
@@ -46,6 +48,8 @@ public actor DQN {
 
         self.env = env
         self.config = config
+        self.policyConfig = policyConfig
+        self.optimizerConfig = optimizerConfig
         self.policy = networks.qNet
         self.targetPolicy = networks.qNetTarget
         self.learningRate = learningRate
@@ -75,6 +79,8 @@ public actor DQN {
 
         self.env = env
         self.config = config
+        self.policyConfig = policyConfig
+        self.optimizerConfig = optimizerConfig
         self.policy = networks.qNet
         self.targetPolicy = networks.qNetTarget
         self.learningRate = learningRate
@@ -91,6 +97,8 @@ public actor DQN {
         targetPolicy: DQNPolicy,
         optimizer: Adam,
         config: DQNConfig,
+        policyConfig: DQNPolicyConfig,
+        optimizerConfig: DQNOptimizerConfig,
         learningRate: any LearningRateSchedule,
         seed: UInt64?,
         timesteps: Int,
@@ -105,6 +113,8 @@ public actor DQN {
         self.targetPolicy = targetPolicy
         self.optimizer = optimizer
         self.config = config
+        self.policyConfig = policyConfig
+        self.optimizerConfig = optimizerConfig
         self.learningRate = learningRate
         self.randomSeed = seed
         self.timesteps = timesteps
