@@ -10,7 +10,7 @@ import MLXNN
 ///
 /// Takes observations and scaled actions (in [-1, 1]) and outputs Q-values
 /// from multiple critic networks for clipped double Q-learning.
-public final class SACCritic: Module, ContinuousCritic {
+public final class SACCritic: Module, ContinuousCritic, @unchecked Sendable {
     public let observationSpace: any Space
     private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }

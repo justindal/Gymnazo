@@ -164,14 +164,20 @@ public final class StateDependentNoiseDistribution: Distribution {
     /// - Parameter key: Key for reproducible sampling if weights need initialization.
     private func getExplorationNoise(key: MLXArray? = nil) -> MLXArray {
         let latentShape = latentSDE.shape
-        let batchSize = latentShape.count > 1 ? latentShape[0] : 1
+        let unbatched = latentShape.count <= 1
+        let batchSize = unbatched ? 1 : latentShape[0]
 
         if explorationMatrix.size == 0 {
             sampleWeights(batchSize: batchSize, key: key)
         }
 
         let latent = latentSDE.reshaped([batchSize, 1, latentSDEDim])
-        let noise = MLX.matmul(latent, explorationMatrix).squeezed(axis: 1)
+        var noise = MLX.matmul(latent, explorationMatrix).squeezed(axis: 1)
+
+        if unbatched {
+            noise = noise.squeezed(axis: 0)
+        }
+
         return noise
     }
 
@@ -234,7 +240,7 @@ public final class StateDependentNoiseDistribution: Distribution {
 
     /// Inverse of the squashing function (tanh).
     private func inverseSquash(_ actions: MLXArray) -> MLXArray {
-        let clipped = MLX.clip(actions, min: MLXArray(-1.0 + epsilon), max: MLXArray(1.0 - epsilon))
+        let clipped = MLX.clip(actions, min: -1.0 + epsilon, max: 1.0 - epsilon)
         return 0.5 * (MLX.log(1.0 + clipped) - MLX.log(1.0 - clipped))
     }
 }

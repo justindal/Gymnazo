@@ -1,28 +1,6 @@
 import MLX
 
-public protocol Batchable {
-    static func stack(_ items: [Self]) -> Self
-}
-
-extension MLXArray: Batchable {
-    public static func stack(_ items: [MLXArray]) -> MLXArray {
-        MLX.stacked(items)
-    }
-}
-
-extension Dictionary: Batchable where Key == String, Value == MLXArray {
-    public static func stack(_ items: [Self]) -> Self {
-        guard let first: [String: MLXArray] = items.first else { return [:] }
-        var result: [String: MLXArray] = [:]
-        for key: String in first.keys {
-            result[key] = MLX.stacked(items.compactMap { $0[key] })
-        }
-        return result
-    }
-}
-
-/// A replay buffer for off-policy RL algorithms.
-public struct ReplayBuffer<Obs: Batchable>: Buffer {
+public struct ReplayBuffer: Buffer {
     public struct Configuration: Sendable {
         public let bufferSize: Int
         public let optimizeMemoryUsage: Bool
@@ -35,7 +13,7 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
             handleTimeoutTermination: Bool = true,
             seed: UInt64? = nil
         ) {
-            precondition(bufferSize > 0, "bufferSize must be positive, got \(bufferSize)")
+            precondition(bufferSize > 0)
             self.bufferSize = bufferSize
             self.optimizeMemoryUsage = optimizeMemoryUsage
             self.handleTimeoutTermination = handleTimeoutTermination
@@ -44,30 +22,29 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
     }
 
     public struct Sample {
-        public let obs: Obs
+        public let obs: MLXArray
         public let actions: MLXArray
         public let rewards: MLXArray
-        public let nextObs: Obs
+        public let nextObs: MLXArray
         public let dones: MLXArray
         public let timeouts: MLXArray
     }
 
     public let config: Configuration
-
     public var bufferSize: Int { config.bufferSize }
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let numEnvs: Int
 
-    private var observations: [Obs?]
-    private var nextObservations: [Obs?]?
-    private var actions: [MLXArray?]
-    private var rewards: [MLXArray?]
-    private var dones: [MLXArray?]
-    private var timeouts: [MLXArray?]
+    var observations: MLXArray
+    var nextObservations: MLXArray?
+    var actions: MLXArray
+    var rewards: MLXArray
+    var dones: MLXArray
+    var timeouts: MLXArray
 
-    private var position: Int = 0
-    private var isBufferFull: Bool = false
+    var position: Int = 0
+    var isBufferFull: Bool = false
     private var seededRng: SplitMix64?
     private var systemRng = SystemRandomNumberGenerator()
 
@@ -79,17 +56,12 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         config: Configuration,
         numEnvs: Int = 1
     ) {
-        precondition(numEnvs > 0, "numEnvs must be positive, got \(numEnvs)")
+        precondition(numEnvs > 0)
         precondition(
             !(config.optimizeMemoryUsage && config.handleTimeoutTermination),
             "optimizeMemoryUsage is not compatible with handleTimeoutTermination")
         if config.optimizeMemoryUsage {
-            precondition(
-                config.bufferSize > 1,
-                "optimizeMemoryUsage requires bufferSize > 1, got \(config.bufferSize)")
-            precondition(
-                !(observationSpace is Dict),
-                "optimizeMemoryUsage is not compatible with Dict observations")
+            precondition(config.bufferSize > 1)
         }
 
         self.observationSpace = observationSpace
@@ -97,35 +69,55 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         self.config = config
         self.numEnvs = numEnvs
 
-        let n = config.bufferSize
-        self.observations = Array(repeating: nil, count: n)
-        self.nextObservations = config.optimizeMemoryUsage ? nil : Array(repeating: nil, count: n)
-        self.actions = Array(repeating: nil, count: n)
-        self.rewards = Array(repeating: nil, count: n)
-        self.dones = Array(repeating: nil, count: n)
-        self.timeouts = Array(repeating: nil, count: n)
+        let (obs, nextObs, acts, rews, dns, tos) = Self.allocateStorage(
+            bufferSize: config.bufferSize,
+            observationSpace: observationSpace,
+            actionSpace: actionSpace,
+            optimizeMemory: config.optimizeMemoryUsage
+        )
+        self.observations = obs
+        self.nextObservations = nextObs
+        self.actions = acts
+        self.rewards = rews
+        self.dones = dns
+        self.timeouts = tos
+
+        var toEval = [observations, actions, rewards, dones, timeouts]
+        if let next = nextObservations { toEval.append(next) }
+        eval(toEval)
+
         if let seed = config.seed {
             self.seededRng = SplitMix64(state: seed)
         }
     }
 
     public mutating func reset() {
-        let n = config.bufferSize
-        observations = Array(repeating: nil, count: n)
-        nextObservations = config.optimizeMemoryUsage ? nil : Array(repeating: nil, count: n)
-        actions = Array(repeating: nil, count: n)
-        rewards = Array(repeating: nil, count: n)
-        dones = Array(repeating: nil, count: n)
-        timeouts = Array(repeating: nil, count: n)
+        let (obs, nextObs, acts, rews, dns, tos) = Self.allocateStorage(
+            bufferSize: config.bufferSize,
+            observationSpace: observationSpace,
+            actionSpace: actionSpace,
+            optimizeMemory: config.optimizeMemoryUsage
+        )
+        observations = obs
+        nextObservations = nextObs
+        actions = acts
+        rewards = rews
+        dones = dns
+        timeouts = tos
+
+        var toEval = [observations, actions, rewards, dones, timeouts]
+        if let next = nextObservations { toEval.append(next) }
+        eval(toEval)
+
         position = 0
         isBufferFull = false
     }
 
     public mutating func add(
-        obs: Obs,
+        obs: MLXArray,
         action: MLXArray,
         reward: MLXArray,
-        nextObs: Obs,
+        nextObs: MLXArray,
         terminated: Bool,
         truncated: Bool
     ) {
@@ -133,83 +125,47 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         let timeoutValue: Float = truncated ? 1.0 : 0.0
 
         observations[position] = obs
-        actions[position] = action
+        actions[position] = action.reshaped([-1])
         rewards[position] = reward
         dones[position] = MLXArray(doneValue)
         timeouts[position] = MLXArray(timeoutValue)
 
-        let nextPosition = (position + 1) % bufferSize
         if config.optimizeMemoryUsage {
-            observations[nextPosition] = nextObs
+            let nextPos = (position + 1) % bufferSize
+            observations[nextPos] = nextObs
         } else {
             nextObservations![position] = nextObs
         }
 
-        position = nextPosition
+        var toEval = [observations, actions, rewards, dones, timeouts]
+        if let next = nextObservations { toEval.append(next) }
+        eval(toEval)
+
+        position = (position + 1) % bufferSize
         if position == 0 { isBufferFull = true }
     }
 
     public mutating func sample(_ batchSize: Int, key: MLXArray) -> Sample {
-        precondition(batchSize > 0, "batchSize must be positive, got \(batchSize)")
-        precondition(count >= batchSize, "Not enough samples")
+        precondition(batchSize > 0)
+        precondition(count >= batchSize)
 
-        let indices = sampleIndices(batchSize: batchSize)
+        let rawIndices = sampleIndices(batchSize: batchSize)
+        let indices = MLXArray(rawIndices.map { Int32($0) })
 
-        var batchObs: [Obs] = []
-        var batchActions: [MLXArray] = []
-        var batchRewards: [MLXArray] = []
-        var batchNextObs: [Obs] = []
-        var batchDones: [MLXArray] = []
-        var batchTimeouts: [MLXArray] = []
+        let obsBatch = observations[indices]
+        let actionsBatch = actions[indices]
+        let rewardsBatch = rewards[indices]
+        var donesBatch = dones[indices]
+        let timeoutsBatch = timeouts[indices]
 
-        batchObs.reserveCapacity(batchSize)
-        batchActions.reserveCapacity(batchSize)
-        batchRewards.reserveCapacity(batchSize)
-        batchNextObs.reserveCapacity(batchSize)
-        batchDones.reserveCapacity(batchSize)
-        batchTimeouts.reserveCapacity(batchSize)
-
-        for idx in indices {
-            guard
-                let obs = observations[idx],
-                let action = actions[idx],
-                let reward = rewards[idx],
-                let done = dones[idx],
-                let timeout = timeouts[idx]
-            else {
-                preconditionFailure(
-                    "ReplayBuffer sampled an uninitialized transition at index \(idx)")
-            }
-
-            batchObs.append(obs)
-            batchActions.append(action)
-            batchRewards.append(reward)
-            batchDones.append(done)
-            batchTimeouts.append(timeout)
-
-            if config.optimizeMemoryUsage {
-                let nextIdx = (idx + 1) % bufferSize
-                guard let nextObs = observations[nextIdx] else {
-                    preconditionFailure(
-                        "ReplayBuffer sampled an uninitialized next observation at index \(nextIdx)"
-                    )
-                }
-                batchNextObs.append(nextObs)
-            } else {
-                guard let nextObs = nextObservations?[idx] else {
-                    preconditionFailure(
-                        "ReplayBuffer sampled an uninitialized next observation at index \(idx)")
-                }
-                batchNextObs.append(nextObs)
-            }
+        let nextObsBatch: MLXArray
+        if config.optimizeMemoryUsage {
+            let nextIndices = MLXArray(rawIndices.map { Int32(($0 + 1) % bufferSize) })
+            nextObsBatch = observations[nextIndices]
+        } else {
+            nextObsBatch = nextObservations![indices]
         }
 
-        let obsBatch = Obs.stack(batchObs)
-        let actionsBatch = MLXArray.stack(batchActions)
-        let rewardsBatch = MLXArray.stack(batchRewards)
-        let nextObsBatch = Obs.stack(batchNextObs)
-        var donesBatch = MLXArray.stack(batchDones)
-        let timeoutsBatch = MLXArray.stack(batchTimeouts)
         if config.handleTimeoutTermination {
             donesBatch = donesBatch * (1.0 - timeoutsBatch)
         }
@@ -222,6 +178,27 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
             dones: donesBatch,
             timeouts: timeoutsBatch
         )
+    }
+
+    private static func allocateStorage(
+        bufferSize: Int,
+        observationSpace: any Space,
+        actionSpace: any Space,
+        optimizeMemory: Bool
+    ) -> (MLXArray, MLXArray?, MLXArray, MLXArray, MLXArray, MLXArray) {
+        let obsShape = observationSpace.shape ?? [1]
+        let obsDtype = observationSpace.dtype ?? .float32
+        let actionDim = bufferActionDim(for: actionSpace)
+
+        let obs = MLX.zeros([bufferSize] + obsShape, dtype: obsDtype)
+        let nextObs = optimizeMemory
+            ? nil : MLX.zeros([bufferSize] + obsShape, dtype: obsDtype)
+        let acts = MLX.zeros([bufferSize, actionDim])
+        let rews = MLX.zeros([bufferSize])
+        let dns = MLX.zeros([bufferSize])
+        let tos = MLX.zeros([bufferSize])
+
+        return (obs, nextObs, acts, rews, dns, tos)
     }
 
     private mutating func sampleIndices(batchSize: Int) -> [Int] {
@@ -253,6 +230,10 @@ public struct ReplayBuffer<Obs: Batchable>: Buffer {
         }
         return Int(systemRng.next() % UInt64(upperBound))
     }
+}
+
+private func bufferActionDim(for actionSpace: any Space) -> Int {
+    (actionSpace as? Box)?.shape?.reduce(1, *) ?? 1
 }
 
 private struct SplitMix64: RandomNumberGenerator {

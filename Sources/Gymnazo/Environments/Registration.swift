@@ -166,7 +166,7 @@ extension GymnazoRegistry {
             description: "Navigate a frozen lake from start to goal without falling into holes.",
             category: .toyText,
             entryPoint: { options in
-                RegistrationSupport.createFrozenLake(options: options, defaultMap: "4x4")
+                try RegistrationSupport.createFrozenLake(options: options, defaultMap: "4x4")
             },
             maxEpisodeSteps: 100
         )
@@ -177,7 +177,7 @@ extension GymnazoRegistry {
             description: "Navigate a larger frozen lake from start to goal without falling into holes.",
             category: .toyText,
             entryPoint: { options in
-                RegistrationSupport.createFrozenLake(options: options, defaultMap: "8x8")
+                try RegistrationSupport.createFrozenLake(options: options, defaultMap: "8x8")
             },
             maxEpisodeSteps: 200
         )
@@ -386,14 +386,14 @@ extension GymnazoRegistry {
 }
 
 private struct RegistrationSupport {
-    static func createFrozenLake(options: EnvOptions, defaultMap: String) -> FrozenLake {
+    static func createFrozenLake(options: EnvOptions, defaultMap: String) throws -> FrozenLake {
         let renderMode = renderMode(from: options)
         let mapName = options["map_name"] as? String ?? defaultMap
         let isSlippery = options["is_slippery"] as? Bool ?? true
         let successRate = floatValue(from: options["success_rate"], default: 1.0 / 3.0)
         let desc = options["desc"] as? [String]
 
-        return FrozenLake(
+        return try FrozenLake(
             renderMode: renderMode,
             desc: desc,
             map_name: mapName,

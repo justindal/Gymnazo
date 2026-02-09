@@ -195,7 +195,7 @@ public final class SyncVectorEnv: VectorEnv {
             if needsReset[i] {
                 if autoresetMode == .nextStep {
                     let resetResult = try envs[i].reset(seed: nil, options: nil)
-                    let obs = copyObservations ? (resetResult.obs + MLXArray(Float(0))) : resetResult.obs
+                    let obs = copyObservations ? (resetResult.obs + 0) : resetResult.obs
                     observations.append(obs)
                     lastObservations[i] = resetResult.obs
                     needsReset[i] = false
@@ -217,11 +217,11 @@ public final class SyncVectorEnv: VectorEnv {
             let obs = stepResult.obs
             
             if done {
-                let finalObs = copyObservations ? (obs + MLXArray(Float(0))) : obs
+                let finalObs = copyObservations ? (obs + 0) : obs
                 if autoresetMode == .sameStep {
                     let resetResult = try envs[i].reset(seed: nil, options: nil)
                     needsReset[i] = false
-                    let returnedObs = copyObservations ? (resetResult.obs + MLXArray(Float(0))) : resetResult.obs
+                    let returnedObs = copyObservations ? (resetResult.obs + 0) : resetResult.obs
                     observations.append(returnedObs)
                     lastObservations[i] = resetResult.obs
                     var info = resetResult.info
@@ -242,7 +242,7 @@ public final class SyncVectorEnv: VectorEnv {
                     infos[i] = info
                 }
             } else {
-                observations.append(copyObservations ? (obs + MLXArray(Float(0))) : obs)
+                observations.append(copyObservations ? (obs + 0) : obs)
                 lastObservations[i] = obs
                 infos[i] = stepResult.info
             }
@@ -289,7 +289,7 @@ public final class SyncVectorEnv: VectorEnv {
             let resetResult = try envs[i].reset(seed: envSeed, options: options)
             let obs = resetResult.obs
             
-            observations.append(copyObservations ? (obs + MLXArray(Float(0))) : obs)
+            observations.append(copyObservations ? (obs + 0) : obs)
             lastObservations[i] = obs
             needsReset[i] = false
             infos[i] = resetResult.info

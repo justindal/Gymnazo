@@ -63,16 +63,20 @@ import MLX
 struct Demo {
     @MainActor
     static func main() async throws {
-        var env: AnyEnv<MLXArray, Int> = try await Gymnazo.make("CartPole")
-        let reset = try env.reset(seed: 42)
+        var env = try await Gymnazo.make("CartPole")
+        let reset = try env.reset()
         var observation = reset.obs
         var key = MLX.key(42)
         var done = false
         var totalReward = 0.0
 
         while !done {
-            let action = env.actionSpace.sample(key: key)
+            let (newKey, actionKey) = MLX.split(key: key)
+            key = newKey
+            let action = env.actionSpace.sample(key: actionKey)
+
             let step = try env.step(action)
+
             totalReward += step.reward
             observation = step.obs
             done = step.terminated || step.truncated
@@ -85,21 +89,23 @@ struct Demo {
 ```
 
 ## Vector Environments
-> Note: Vector environments are currently still in development and may not be fully functional.
+> Note: Vector environments are currently still in development and may not be fully functional. This information may be outdated.
 
 For parallel training, Gymnazo provides vector environments (sync + async):
 
 ```swift
 import Gymnazo
+import MLX
 
-// Synchronous vector environment with 4 CartPoles
-let syncEnv: SyncVectorEnv<Int> = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
+// synchronous vector environment with 4 CartPoles
+let syncEnv = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
 let reset = try syncEnv.reset(seed: 42)
 _ = reset.observations
 
-// Asynchronous vector environment with 4 CartPoles
-let asyncEnv: AsyncVectorEnv<Int> = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
-let step = try await asyncEnv.stepAsync([1, 0, 1, 0])
+// asynchronous vector environment with 4 CartPoles
+let asyncEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
+let actions = MLXArray([1, 0, 1, 0])
+let step = try await asyncEnv.stepAsync(actions)
 _ = step.rewards
 ```
 
@@ -151,27 +157,38 @@ Spaces describe valid actions/observations:
 
 `Discrete`, `Box`, `MultiDiscrete`, `MultiBinary`, `TextSpace`, `Tuple`, `Dict`, `SequenceSpace`, `Graph`
 
-## Included Reinforcement Learning Algorithms (Experimental)
+## Reinforcement Learning Algorithms
 
-Gymnazo includes common reinforcement learning algorithms implementations, inspired by Stable-Baselines3.
+Gymnazo includes common reinforcement learning algorithm implementations inspired by Stable-Baselines3. Algorithms have support for callbacks, checkpointing, and save/load.
 
-> This has not been tested much yet.
-
-- `SAC` (Soft Actor-Critic)
+| Algorithm | Type | Action Space |
+|-----------|------|--------------|
+| `DQN` | Deep Q-Network | Discrete |
+| `SAC` | Soft Actor-Critic | Continuous |
+| `TabularAgent` | Q-Learning / SARSA | Discrete (small) |
 
 ```swift
 import Gymnazo
 
-let env = try await Gymnazo.make("Pendulum")
-let model = try SAC(env: env)
-try model.learn(totalTimesteps: 100000)
+let env = try await Gymnazo.make("CartPole")
+let model = try DQN(env: env)
+try await model.learn(totalTimesteps: 50_000, callbacks: nil)
+
+// save and load checkpoints
+let url = URL.documentsDirectory.appending(path: "my-agent")
+try await model.save(to: url)
+let loaded = try DQN.load(from: url, env: env)
 ```
+
+See the [Reinforcement Learning guide](https://swiftpackageindex.com/justindal/Gymnazo/main/documentation/gymnazo/reinforcement-learning) for detailed usage, configuration, and callbacks.
 
 ## TODO
 - [ ] switch from kwargs-based configs to object-based configs
 - [ ] add more common RL algorithms
 - [ ] fix Vector Environments and better use Swift concurrency
 - [ ] add more wrapper types
+- [ ] select device for MLX operations
+
 
 
 ## Documentation
@@ -184,8 +201,8 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [Farama Foundation](https://farama.org/) for Gymnasium
-- [OpenAI](https://openai.com/) for the original Gym
+- [Farama Foundation](https://farama.org/)
+- [OpenAI](https://openai.com/)
 - [MLX Swift](https://github.com/ml-explore/mlx-swift)
-- [Box2D](https://box2d.org/) for the physics engine used in some environments
-- [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3) as a guide for the RL implementations
+- [Box2D](https://box2d.org/)
+- [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3)

@@ -7,7 +7,7 @@ import MLX
 import MLXNN
 
 /// Q-Network for DQN that outputs Q-values for all discrete actions.
-public final class DQNPolicy: Module, Policy {
+public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let normalizeImages: Bool

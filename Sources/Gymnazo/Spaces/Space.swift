@@ -1,7 +1,7 @@
 import Foundation
 import MLX
 
-public protocol Space {
+public protocol Space: Sendable {
     var shape: [Int]? { get }
     var dtype: DType? { get }
 

@@ -6,7 +6,7 @@
 import Foundation
 
 /// Linear learning rate schedule that decays from initial to final value.
-public struct LinearSchedule: LearningRateSchedule {
+public struct LinearSchedule: LearningRateSchedule, Codable, Sendable {
     public let initialValue: Double
     public let finalValue: Double
 
@@ -26,7 +26,7 @@ public struct LinearSchedule: LearningRateSchedule {
 }
 
 /// Exponential learning rate schedule.
-public struct ExponentialSchedule: LearningRateSchedule {
+public struct ExponentialSchedule: LearningRateSchedule, Codable, Sendable {
     public let initialValue: Double
     public let decayRate: Double
 
@@ -47,7 +47,7 @@ public struct ExponentialSchedule: LearningRateSchedule {
 }
 
 /// Step learning rate schedule that reduces at specified milestones.
-public struct StepSchedule: LearningRateSchedule {
+public struct StepSchedule: LearningRateSchedule, Codable, Sendable {
     public let initialValue: Double
     public let milestones: [Double]
     public let gamma: Double
@@ -77,7 +77,7 @@ public struct StepSchedule: LearningRateSchedule {
 }
 
 /// Cosine annealing learning rate schedule.
-public struct CosineAnnealingSchedule: LearningRateSchedule {
+public struct CosineAnnealingSchedule: LearningRateSchedule, Codable, Sendable {
     public let initialValue: Double
     public let minValue: Double
 
@@ -135,12 +135,9 @@ public struct WarmupSchedule: LearningRateSchedule {
 
 /// Callable wrapper for learning rate schedules.
 public struct ScheduleFunction: LearningRateSchedule {
-    private let function: (Double) -> Double
+    private let function: @Sendable (Double) -> Double
 
-    /// Creates a schedule from a custom function.
-    ///
-    /// - Parameter function: Function mapping progress remaining to learning rate.
-    public init(_ function: @escaping (Double) -> Double) {
+    public init(_ function: @escaping @Sendable (Double) -> Double) {
         self.function = function
     }
 
