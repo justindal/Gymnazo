@@ -25,6 +25,8 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
 
     public let offPolicyConfig: OffPolicyConfig?
     public let dqnConfig: DQNConfig?
+    public let dqnPolicyConfig: DQNPolicyConfig?
+    public let dqnOptimizerConfig: DQNOptimizerConfig?
     public let tabularConfig: TabularConfig?
 
     public let explorationRate: Double?
@@ -47,6 +49,8 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
         learningRateSchedule: LearningRateScheduleData?,
         offPolicyConfig: OffPolicyConfig? = nil,
         dqnConfig: DQNConfig? = nil,
+        dqnPolicyConfig: DQNPolicyConfig? = nil,
+        dqnOptimizerConfig: DQNOptimizerConfig? = nil,
         tabularConfig: TabularConfig? = nil,
         explorationRate: Double? = nil,
         numGradientSteps: Int? = nil,
@@ -65,6 +69,8 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
         self.learningRateSchedule = learningRateSchedule
         self.offPolicyConfig = offPolicyConfig
         self.dqnConfig = dqnConfig
+        self.dqnPolicyConfig = dqnPolicyConfig
+        self.dqnOptimizerConfig = dqnOptimizerConfig
         self.tabularConfig = tabularConfig
         self.explorationRate = explorationRate
         self.numGradientSteps = numGradientSteps

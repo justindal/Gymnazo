@@ -60,19 +60,39 @@ public struct DQNConfig: Sendable, Codable {
         optimizeMemoryUsage: Bool = false,
         handleTimeoutTermination: Bool = true
     ) {
-        self.bufferSize = bufferSize
-        self.learningStarts = learningStarts
-        self.batchSize = batchSize
-        self.tau = tau
-        self.gamma = gamma
-        self.trainFrequency = trainFrequency
-        self.gradientSteps = gradientSteps
-        self.targetUpdateInterval = targetUpdateInterval
-        self.explorationFraction = explorationFraction
-        self.explorationInitialEps = explorationInitialEps
-        self.explorationFinalEps = explorationFinalEps
-        self.maxGradNorm = maxGradNorm
-        self.optimizeMemoryUsage = optimizeMemoryUsage
+        let safeTrainFrequency = TrainFrequency(
+            frequency: max(1, trainFrequency.frequency),
+            unit: trainFrequency.unit
+        )
+        let safeGradientSteps: GradientSteps
+        switch gradientSteps {
+        case .fixed(let steps):
+            safeGradientSteps = .fixed(max(1, steps))
+        case .asCollectedSteps:
+            safeGradientSteps = .asCollectedSteps
+        }
+        let safeInitialEps = min(max(explorationInitialEps, 0.0), 1.0)
+        let safeFinalEps = min(
+            max(explorationFinalEps, 0.0),
+            safeInitialEps
+        )
+        let safeOptimizeMemoryUsage =
+            optimizeMemoryUsage && handleTimeoutTermination
+            ? false : optimizeMemoryUsage
+
+        self.bufferSize = max(1, bufferSize)
+        self.learningStarts = max(0, learningStarts)
+        self.batchSize = max(1, batchSize)
+        self.tau = min(max(tau, 0.0), 1.0)
+        self.gamma = min(max(gamma, 0.0), 1.0)
+        self.trainFrequency = safeTrainFrequency
+        self.gradientSteps = safeGradientSteps
+        self.targetUpdateInterval = max(1, targetUpdateInterval)
+        self.explorationFraction = min(max(explorationFraction, 1e-9), 1.0)
+        self.explorationInitialEps = safeInitialEps
+        self.explorationFinalEps = safeFinalEps
+        self.maxGradNorm = maxGradNorm.map { max(0.0, $0) }
+        self.optimizeMemoryUsage = safeOptimizeMemoryUsage
         self.handleTimeoutTermination = handleTimeoutTermination
     }
 }
