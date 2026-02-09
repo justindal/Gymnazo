@@ -20,27 +20,29 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
     case combined(featuresDim: Int = 256, cnnOutputDim: Int = 256)
 
     public func make(observationSpace: any Space, normalizeImages: Bool) -> any FeaturesExtractor {
+        _ = normalizeImages
+        let normalizedImage = true
         if let dict = observationSpace as? Dict {
             switch self {
             case .auto:
                 return CombinedExtractor(
                     observationSpace: dict,
                     featuresDim: 256,
-                    normalizedImage: normalizeImages,
+                    normalizedImage: normalizedImage,
                     cnnOutputDim: 256
                 )
             case .combined(let featuresDim, let cnnOutputDim):
                 return CombinedExtractor(
                     observationSpace: dict,
                     featuresDim: featuresDim,
-                    normalizedImage: normalizeImages,
+                    normalizedImage: normalizedImage,
                     cnnOutputDim: cnnOutputDim
                 )
             case .flatten:
                 return CombinedExtractor(
                     observationSpace: dict,
                     featuresDim: 256,
-                    normalizedImage: normalizeImages,
+                    normalizedImage: normalizedImage,
                     cnnOutputDim: 256
                 )
             case .natureCNN:
@@ -56,7 +58,7 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
                     return NatureCNN(
                         observationSpace: box,
                         featuresDim: 512,
-                        normalizedImage: normalizeImages
+                        normalizedImage: normalizedImage
                     )
                 }
                 return FlattenExtractor(featuresDim: box.shape?.reduce(1, *) ?? 1)
@@ -68,7 +70,7 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
                 return NatureCNN(
                     observationSpace: box,
                     featuresDim: featuresDim,
-                    normalizedImage: normalizeImages
+                    normalizedImage: normalizedImage
                 )
             case .combined:
                 preconditionFailure("CombinedExtractor requires a Dict observation space, got Box.")
