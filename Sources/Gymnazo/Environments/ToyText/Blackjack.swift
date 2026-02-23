@@ -115,7 +115,7 @@ public final class Blackjack: Env {
 #endif
     
     private func toInt(_ action: MLXArray) -> Int {
-        Int(action.item(Int32.self))
+        Int(action.singletonValue(Int32.self))
     }
     
     public init(
@@ -572,4 +572,3 @@ public struct BlackjackCanvasView: View {
     }
 }
 #endif
-

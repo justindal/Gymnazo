@@ -257,12 +257,12 @@ public actor TabularAgent {
                 k = nextKey(for: &key, stream: .cpu)
                 let sample = actionSpace.sample(key: k)
                 eval(sample)
-                return sample.item()
+                return sample.singletonValue(Int32.self)
             }
         }
         let action = MLX.argMax(qTable[Int(state)], stream: .cpu).asType(.int32, stream: .cpu)
         eval(action)
-        return action.item()
+        return action.scalarValue(Int32.self)
     }
 
     public func stop() {

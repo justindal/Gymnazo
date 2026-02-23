@@ -531,8 +531,8 @@ public actor SAC {
 
         let totalLoss = lossArrays.reduce(MLXArray(0.0), +)
         eval(totalLoss)
-        let avgLoss: Float = (totalLoss / Float(gradientSteps)).item()
-        let entCoefValue: Float = logEntCoefModule.entCoef.item()
+        let avgLoss = (totalLoss / Float(gradientSteps)).scalarValue(Float.self)
+        let entCoefValue = logEntCoefModule.entCoef.scalarValue(Float.self)
 
         await callbacks?.onTrain?([
             "loss": Double(avgLoss),

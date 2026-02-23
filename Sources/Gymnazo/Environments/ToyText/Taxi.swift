@@ -98,7 +98,7 @@ public final class Taxi: Env {
     public static let locColors: [String] = ["R", "G", "Y", "B"]
     
     private func toInt(_ action: MLXArray) -> Int {
-        Int(action.item(Int32.self))
+        Int(action.singletonValue(Int32.self))
     }
     
     private func toMLX(_ state: Int) -> MLXArray {
@@ -864,4 +864,3 @@ public struct TaxiCanvasView: View {
     }
 }
 #endif
-

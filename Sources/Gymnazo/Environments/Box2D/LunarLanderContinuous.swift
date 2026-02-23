@@ -202,8 +202,13 @@ public struct LunarLanderContinuous: Env {
             throw GymnazoError.stepBeforeReset
         }
 
-        let mainAction = clip(action[0].item(Float.self), min: -1.0, max: 1.0)
-        let lateralAction = clip(action[1].item(Float.self), min: -1.0, max: 1.0)
+        let actionValues = action.reshaped([-1]).asArray(Float.self)
+        precondition(
+            actionValues.count == 2,
+            "LunarLanderContinuous expects exactly 2 action values, got \(actionValues.count) for shape \(action.shape)"
+        )
+        let mainAction = clip(actionValues[0], min: -1.0, max: 1.0)
+        let lateralAction = clip(actionValues[1], min: -1.0, max: 1.0)
 
         if enableWind && !leftLegContact && !rightLegContact {
             let windMag =

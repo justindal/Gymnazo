@@ -217,7 +217,7 @@ private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
         guard let x = sample as? MLXArray else {
             fatalError("Expected MLXArray sample for Discrete")
         }
-        let idx = Int(x.item(Int32.self)) - discrete.start
+        let idx = Int(x.singletonValue(Int32.self)) - discrete.start
         var onehot = [Float](repeating: 0, count: discrete.n)
         if idx >= 0 && idx < discrete.n {
             onehot[idx] = 1

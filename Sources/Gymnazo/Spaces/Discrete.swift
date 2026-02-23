@@ -16,7 +16,7 @@ public struct Discrete: Space {
     }
 
     public func contains(_ x: MLXArray) -> Bool {
-        let val = Int(x.item(Int32.self))
+        let val = Int(x.singletonValue(Int32.self))
         return (self.start..<(self.start + self.n)).contains(val)
     }
 
@@ -34,12 +34,12 @@ public struct Discrete: Space {
             let negInf32: MLXArray = MLXArray(-Float.infinity)
             let logits: MLXArray = MLX.which(mask.asType(.bool), zero32, negInf32)
 
-            if logits.max().item() as Float == -Float.infinity {
+            if logits.max().scalarValue(Float.self) == -Float.infinity {
                 return MLXArray([Int32(self.start)])
             }
 
             let sampled: MLXArray = MLX.categorical(logits, key: key)
-            let sampledItem: Int32 = sampled.item() as Int32
+            let sampledItem = sampled.scalarValue(Int32.self)
             return MLXArray([Int32(self.start) + sampledItem])
         }
 
@@ -48,11 +48,11 @@ public struct Discrete: Space {
             let logits: MLXArray = MLX.log(probability + epsilon)
 
             let sampledIndex: MLXArray = MLX.categorical(logits, key: key)
-            let sampledItem: Int32 = sampledIndex.item() as Int32
+            let sampledItem = sampledIndex.scalarValue(Int32.self)
             return MLXArray([Int32(self.start) + sampledItem])
         }
         let randomInt: MLXArray = MLX.randInt(low: 0, high: self.n, key: key)
         
-        return MLXArray([Int32(self.start) + randomInt.item(Int32.self)])
+        return MLXArray([Int32(self.start) + randomInt.scalarValue(Int32.self)])
     }
 }

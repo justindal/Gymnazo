@@ -73,7 +73,7 @@ public struct CarRacingDiscrete: Env {
     }
     
     private func toInt(_ action: MLXArray) -> Int {
-        Int(action.item(Int32.self))
+        Int(action.singletonValue(Int32.self))
     }
     
     private mutating func initColors() {
@@ -488,4 +488,3 @@ public struct CarRacingDiscrete: Env {
         trackData = nil
     }
 }
-

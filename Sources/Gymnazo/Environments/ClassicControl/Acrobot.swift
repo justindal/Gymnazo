@@ -95,7 +95,7 @@ public struct Acrobot: Env {
     }
     
     private func toInt(_ action: MLXArray) -> Int {
-        Int(action.item(Int32.self))
+        Int(action.singletonValue(Int32.self))
     }
 
     public mutating func step(_ action: MLXArray) throws -> Step {

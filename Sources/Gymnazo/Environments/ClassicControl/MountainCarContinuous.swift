@@ -126,7 +126,7 @@ public struct MountainCarContinuous: Env {
             throw GymnazoError.stepBeforeReset
         }
         
-        let force = min(max(action[0].item(Float.self), -1.0), 1.0)
+        let force = min(max(action.singletonValue(Float.self), -1.0), 1.0)
         lastForce = force
         
         currentState.velocity += force * power + cos(3 * currentState.position) * (-gravity)
@@ -218,4 +218,3 @@ public struct MountainCarContinuous: Env {
         sin(3 * position) * 0.45 + 0.55
     }
 }
-

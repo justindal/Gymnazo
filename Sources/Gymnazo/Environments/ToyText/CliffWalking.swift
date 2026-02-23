@@ -92,7 +92,7 @@ public final class CliffWalking: Env {
     ]
     
     private func toInt(_ action: MLXArray) -> Int {
-        Int(action.item(Int32.self))
+        Int(action.singletonValue(Int32.self))
     }
     
     private func toMLX(_ state: Int) -> MLXArray {
@@ -573,4 +573,3 @@ public struct CliffWalkingCanvasView: View {
     }
 }
 #endif
-

@@ -120,7 +120,7 @@ public struct Pendulum: Env {
         let theta = currentState.theta
         let thetaDot = currentState.thetaDot
         
-        var torque = action[0].item(Float.self)
+        var torque = action.singletonValue(Float.self)
         torque = clip(torque, min: -maxTorque, max: maxTorque)
         lastTorque = torque
         

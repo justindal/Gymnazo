@@ -13,7 +13,7 @@ final class LogEntropyCoefModule: Module, @unchecked Sendable {
     @ModuleInfo var logEntCoef: MLXArray
 
     init(initialValue: Float) {
-        self.logEntCoef = MLX.log(MLXArray([initialValue]))
+        self.logEntCoef = MLX.log(MLXArray(initialValue))
         super.init()
     }
 

@@ -123,7 +123,7 @@ public struct CartPole: Env {
     }
     
     private func toInt(_ action: MLXArray) -> Int {
-        Int(action.item(Int32.self))
+        Int(action.singletonValue(Int32.self))
     }
 
     /// Takes a step in the environment using the given action.
