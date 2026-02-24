@@ -29,15 +29,15 @@ public protocol ContinuousCritic: Model {
     var shareFeaturesExtractor: Bool { get }
     var qNetworks: [Sequential] { get }
     
-    /// Forward pass through all critic networks.
+    /// Computes Q-values from all critic networks.
     ///
     /// - Parameters:
     ///   - obs: Observation tensor.
     ///   - actions: Action tensor.
     /// - Returns: Q-values from each critic network.
-    func forward(obs: MLXArray, actions: MLXArray) -> [MLXArray]
+    func callAsFunction(obs: MLXArray, actions: MLXArray) -> [MLXArray]
     
-    /// Forward pass through only the first critic network.
+    /// Computes Q-value from a single critic network.
     ///
     /// Reduces computation when only one estimate is needed
     /// (e.g., when updating the policy in TD3).
@@ -45,34 +45,35 @@ public protocol ContinuousCritic: Model {
     /// - Parameters:
     ///   - obs: Observation tensor.
     ///   - actions: Action tensor.
-    /// - Returns: Q-value from the first critic.
-    func q1Forward(obs: MLXArray, actions: MLXArray) -> MLXArray
+    ///   - criticIndex: Index of the critic network to use.
+    /// - Returns: Q-value from the specified critic.
+    func callAsFunction(obs: MLXArray, actions: MLXArray, criticIndex: Int) -> MLXArray
 }
 
 extension ContinuousCritic {
     public var nCritics: Int { 2 }
-    public var shareFeaturesExtractor: Bool { true }
+    public var shareFeaturesExtractor: Bool { false }
     
-    public func forward(obs: MLXArray, actions: MLXArray) -> [MLXArray] {
+    public func callAsFunction(obs: MLXArray, actions: MLXArray) -> [MLXArray] {
         guard let extractor = featuresExtractor else {
             preconditionFailure("ContinuousCritic requires a features extractor")
         }
         
         let features = extractFeatures(obs: obs, featuresExtractor: extractor)
-        let qvalueInput = MLX.concatenated([features, actions], axis: 1)
+        let qvalueInput = MLX.concatenated([features, actions], axis: -1)
         
         return qNetworks.map { $0(qvalueInput) }
     }
     
-    public func q1Forward(obs: MLXArray, actions: MLXArray) -> MLXArray {
+    public func callAsFunction(obs: MLXArray, actions: MLXArray, criticIndex: Int) -> MLXArray {
         guard let extractor = featuresExtractor else {
             preconditionFailure("ContinuousCritic requires a features extractor")
         }
         
         let features = extractFeatures(obs: obs, featuresExtractor: extractor)
-        let qvalueInput = MLX.concatenated([features, actions], axis: 1)
+        let qvalueInput = MLX.concatenated([features, actions], axis: -1)
         
-        return qNetworks[0](qvalueInput)
+        return qNetworks[criticIndex](qvalueInput)
     }
 }
 

@@ -36,13 +36,13 @@ public protocol ActorCriticPolicy: Policy {
     var actionDist: any Distribution { get }
     var logStd: MLXArray? { get set }
 
-    /// Forward pass through both actor and critic networks.
+    /// Computes actions, values, and log probabilities from both actor and critic networks.
     ///
     /// - Parameters:
     ///   - obs: Observation tensor.
     ///   - deterministic: Whether to use deterministic actions.
     /// - Returns: Tuple of (actions, values, log_prob).
-    func forward(obs: MLXArray, deterministic: Bool) -> (MLXArray, MLXArray, MLXArray)
+    func callAsFunction(obs: MLXArray, deterministic: Bool) -> (MLXArray, MLXArray, MLXArray)
 
     /// Evaluates actions given observations.
     ///
@@ -112,7 +112,7 @@ extension ActorCriticPolicy {
     }
 }
 
-/// Result of a forward pass through the actor-critic networks.
+/// Result of an actor-critic pass through the networks.
 public struct ActorCriticOutput {
     public let actions: MLXArray
     public let values: MLXArray

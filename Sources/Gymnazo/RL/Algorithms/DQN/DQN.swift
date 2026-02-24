@@ -374,7 +374,7 @@ public actor DQN {
 
     private func selectAction(obs: MLXArray) -> MLXArray {
         policy.setTrainingMode(false)
-        let qValues = policy.forward(obs: obs)
+        let qValues = policy(obs: obs)
         var action = MLX.argMax(qValues, axis: -1, stream: .cpu).asType(.int32, stream: .cpu)
         if action.ndim == 0 { action = action.reshaped([1]) }
         eval(action)
@@ -489,7 +489,7 @@ public actor DQN {
         dones: MLXArray,
         gamma: Float
     ) -> MLXArray {
-        let nextQValues = target.forward(obs: nextObs)
+        let nextQValues = target(obs: nextObs)
         let nextQMax = MLX.max(nextQValues, axis: -1, keepDims: true)
         return rewards.expandedDimensions(axis: -1)
             + (1.0 - dones.expandedDimensions(axis: -1)) * gamma * nextQMax
@@ -501,7 +501,7 @@ public actor DQN {
         actions: MLXArray,
         targetQ: MLXArray
     ) -> (loss: MLXArray, tdError: MLXArray, meanQ: MLXArray) {
-        let qValues = qNet.forward(obs: obs)
+        let qValues = qNet(obs: obs)
         let batchSize = actions.shape[0]
         let batchIndices = MLXArray(Array(0..<Int32(batchSize)))
         let actionIndices = actions.reshaped([-1]).asType(.int32)

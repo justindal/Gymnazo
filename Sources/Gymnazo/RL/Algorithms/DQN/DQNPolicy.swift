@@ -129,7 +129,7 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     ///
     /// - Parameter obs: The observation tensor.
     /// - Returns: Q-values for all actions with shape [batch, nActions].
-    public func forward(obs: MLXArray) -> MLXArray {
+    public func callAsFunction(obs: MLXArray) -> MLXArray {
         let features = extractFeatures(obs: obs, featuresExtractor: featuresExtractor)
         return qNet(features)
     }
@@ -138,9 +138,9 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     ///
     /// - Parameter obs: The Dict observation.
     /// - Returns: Q-values for all actions.
-    public func forward(obs: [String: MLXArray]) -> MLXArray {
+    public func callAsFunction(obs: [String: MLXArray]) -> MLXArray {
         guard let dictExtractor = featuresExtractor as? any DictFeaturesExtractor else {
-            preconditionFailure("forward(obs: [String: MLXArray]) requires a DictFeaturesExtractor")
+            preconditionFailure("callAsFunction(obs: [String: MLXArray]) requires a DictFeaturesExtractor")
         }
         let features = extractFeatures(obs: obs, featuresExtractor: dictExtractor)
         return qNet(features)
@@ -154,7 +154,7 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     /// - Returns: The action index as an MLXArray.
     public func predict(observation: MLXArray, deterministic: Bool = true) -> MLXArray {
         setTrainingMode(false)
-        let qValues = forward(obs: observation)
+        let qValues = self(obs: observation)
         return MLX.argMax(qValues, axis: -1)
     }
 
@@ -166,7 +166,7 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     /// - Returns: The action index as an MLXArray.
     public func predict(observation: [String: MLXArray], deterministic: Bool = true) -> MLXArray {
         setTrainingMode(false)
-        let qValues = forward(obs: observation)
+        let qValues = self(obs: observation)
         return MLX.argMax(qValues, axis: -1)
     }
 }

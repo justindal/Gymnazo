@@ -69,11 +69,11 @@ public final class MLPExtractor: Module {
         (policyNet(features), valueNet(features))
     }
 
-    public func forwardActor(_ features: MLXArray) -> MLXArray {
+    public func actor(_ features: MLXArray) -> MLXArray {
         policyNet(features)
     }
 
-    public func forwardCritic(_ features: MLXArray) -> MLXArray {
+    public func critic(_ features: MLXArray) -> MLXArray {
         valueNet(features)
     }
 }
