@@ -80,7 +80,7 @@ public struct SACNetworks {
         criticConfig: SACCriticConfig = SACCriticConfig()
     ) {
         let observationSpace = actor.observationSpace
-        let actionSpace = actor.continuousActionSpace
+        let actionSpace = actor.actionSpace
 
         let criticNetArch = criticConfig.netArch ?? actor.netArch.critic
         let criticNormalizeImages = criticConfig.normalizeImages ?? actor.normalizeImages

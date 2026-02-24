@@ -14,7 +14,6 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
     public let observationSpace: any Space
     private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }
-    public var continuousActionSpace: any Space { _actionSpace }
     public let netArch: NetArch
 
     public let featuresExtractor: any FeaturesExtractor
@@ -129,6 +128,18 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
     }
 
     public var squashOutput: Bool { true }
+
+    public func predict(observation: MLXArray, deterministic: Bool = false) -> MLXArray {
+        setTrainingMode(false)
+        let (actions, _) = actionLogProb(obs: observation, deterministic: deterministic)
+        return unscaleAction(actions)
+    }
+
+    public func predict(observation: [String: MLXArray], deterministic: Bool = false) -> MLXArray {
+        setTrainingMode(false)
+        let (actions, _) = actionLogProb(obs: observation, deterministic: deterministic)
+        return unscaleAction(actions)
+    }
 
     public func predictInternal(observation: MLXArray, deterministic: Bool) -> MLXArray {
         let (actions, _) = actionLogProbFromFeatures(observation, deterministic: deterministic)
