@@ -148,10 +148,29 @@ struct PersistenceTests {
             learningStarts: 10,
             batchSize: 32
         )
+        let networksConfig = SACNetworksConfig(
+            actor: SACActorConfig(
+                netArch: .shared([128, 64]),
+                featuresExtractor: .flatten
+            ),
+            critic: SACCriticConfig(
+                netArch: [128, 64],
+                nCritics: 2,
+                shareFeaturesExtractor: false,
+                featuresExtractor: .flatten
+            )
+        )
+        let optimizerConfig = SACOptimizerConfig(
+            actor: .adam(beta1: 0.85, beta2: 0.995, eps: 1e-7),
+            critic: .adam(beta1: 0.88, beta2: 0.996, eps: 1e-7),
+            entropy: .adam(beta1: 0.9, beta2: 0.999, eps: 1e-8)
+        )
         let sac = SAC(
             observationSpace: env.observationSpace,
             actionSpace: env.actionSpace,
+            networksConfig: networksConfig,
             config: config,
+            optimizerConfig: optimizerConfig,
             entCoef: .auto(init: 1.0),
             targetEntropy: -1.0,
             seed: 42
@@ -186,9 +205,19 @@ struct PersistenceTests {
         #expect(await loaded.gradientSteps == 30)
         #expect(await loaded.targetEntropy == -1.0)
         #expect(await loaded.entCoefConfig.isAuto)
+        #expect(loaded.networksConfig == networksConfig)
+        #expect(loaded.optimizerConfig == optimizerConfig)
         let loadedSacConfig = loaded.offPolicyConfig
         #expect(loadedSacConfig.bufferSize == 500)
         #expect(loadedSacConfig.batchSize == 32)
+
+        let loadedNoEnv = try SAC.load(from: dir)
+        #expect(loadedNoEnv.networksConfig == networksConfig)
+        #expect(loadedNoEnv.optimizerConfig == optimizerConfig)
+        var evalEnv = env
+        let obs = try evalEnv.reset().obs
+        let action = await loadedNoEnv(observation: obs, deterministic: true)
+        #expect(action.size > 0)
     }
 
     @Test
