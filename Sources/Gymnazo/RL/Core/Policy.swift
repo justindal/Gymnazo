@@ -17,27 +17,18 @@ public protocol Policy: Model {
     var featuresExtractor: any FeaturesExtractor { get }
     var squashOutput: Bool { get }
 
-    /// Get the action according to the policy for a given observation.
-    ///
-    /// - Parameters:
-    ///   - observation: The preprocessed observation tensor.
-    ///   - deterministic: Whether to use deterministic or stochastic actions.
-    /// - Returns: The action tensor.
-    func predictInternal(observation: MLXArray, deterministic: Bool) -> MLXArray
+    func callAsFunction(_ observation: MLXArray, deterministic: Bool) -> MLXArray
+    func predict(observation: MLXArray, deterministic: Bool) -> MLXArray
+    func predict(observation: [String: MLXArray], deterministic: Bool) -> MLXArray
 }
 
 extension Policy {
     public var squashOutput: Bool { false }
 
-    /// Get the policy action from an observation.
-    ///
-    /// - Parameters:
-    ///   - observation: The input observation.
-    ///   - deterministic: Whether to return deterministic actions.
-    /// - Returns: The action to take.
-    public func predict(observation: MLXArray, deterministic: Bool = false)
-        -> MLXArray
-    {
+    public func predict(
+        observation: MLXArray,
+        deterministic: Bool = false
+    ) -> MLXArray {
         setTrainingMode(false)
 
         let features = extractFeatures(
@@ -45,8 +36,8 @@ extension Policy {
             featuresExtractor: featuresExtractor
         )
 
-        var actions = predictInternal(
-            observation: features,
+        var actions = self(
+            features,
             deterministic: deterministic
         )
 
@@ -61,15 +52,10 @@ extension Policy {
         return actions
     }
 
-    /// Get the policy action from a Dict observation.
-    ///
-    /// - Parameters:
-    ///   - observation: The Dict observation.
-    ///   - deterministic: Whether to return deterministic actions.
-    /// - Returns: The action to take.
-    public func predict(observation: [String: MLXArray], deterministic: Bool = false)
-        -> MLXArray
-    {
+    public func predict(
+        observation: [String: MLXArray],
+        deterministic: Bool = false
+    ) -> MLXArray {
         setTrainingMode(false)
 
         guard let dictExtractor = featuresExtractor as? any DictFeaturesExtractor else {
@@ -82,8 +68,8 @@ extension Policy {
             featuresExtractor: dictExtractor
         )
 
-        var actions = predictInternal(
-            observation: features,
+        var actions = self(
+            features,
             deterministic: deterministic
         )
 

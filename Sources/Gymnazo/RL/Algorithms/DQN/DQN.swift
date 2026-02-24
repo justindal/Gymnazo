@@ -253,7 +253,10 @@ public actor DQN {
             var episodeLength: Int = 0
 
             while !done {
-                let action = predict(observation: obs, deterministic: deterministic)
+                let action = callAsFunction(
+                    observation: obs,
+                    deterministic: deterministic
+                )
                 let step = try environment.step(action)
                 episodeReward += step.reward
                 episodeLength += 1
@@ -282,7 +285,10 @@ public actor DQN {
         self.env = environment
     }
 
-    func predict(observation: MLXArray, deterministic: Bool = true) -> MLXArray {
+    public func callAsFunction(
+        observation: MLXArray,
+        deterministic: Bool = true
+    ) -> MLXArray {
         if !deterministic {
             let (exploreKey, nextKey) = MLX.split(key: key, stream: .cpu)
             key = nextKey

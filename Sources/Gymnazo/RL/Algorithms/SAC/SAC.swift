@@ -4,6 +4,8 @@ import MLXOptimizers
 
 public actor SAC {
     public nonisolated let offPolicyConfig: OffPolicyConfig
+    public nonisolated let networksConfig: SACNetworksConfig
+    public nonisolated let optimizerConfig: SACOptimizerConfig
 
     nonisolated(unsafe) private var env: (any Env)?
     let policy: SACActor
@@ -51,6 +53,8 @@ public actor SAC {
 
         self.env = env
         self.offPolicyConfig = config
+        self.networksConfig = networksConfig
+        self.optimizerConfig = optimizerConfig
         self.policy = setup.networks.actor
         self.critic = setup.networks.critic
         self.criticTarget = setup.networks.criticTarget
@@ -91,6 +95,8 @@ public actor SAC {
 
         self.env = env
         self.offPolicyConfig = config
+        self.networksConfig = networksConfig
+        self.optimizerConfig = optimizerConfig
         self.policy = setup.networks.actor
         self.critic = setup.networks.critic
         self.criticTarget = setup.networks.criticTarget
@@ -116,6 +122,8 @@ public actor SAC {
         entropyOptimizer: Adam?,
         logEntCoefModule: LogEntropyCoefModule,
         offPolicyConfig: OffPolicyConfig,
+        networksConfig: SACNetworksConfig,
+        optimizerConfig: SACOptimizerConfig,
         entCoefConfig: EntropyCoef,
         targetEntropy: Float,
         learningRate: any LearningRateSchedule,
@@ -135,6 +143,8 @@ public actor SAC {
         self.entropyOptimizer = entropyOptimizer
         self.logEntCoefModule = logEntCoefModule
         self.offPolicyConfig = offPolicyConfig
+        self.networksConfig = networksConfig
+        self.optimizerConfig = optimizerConfig
         self.entCoefConfig = entCoefConfig
         self.targetEntropy = targetEntropy
         self.learningRate = learningRate
@@ -291,11 +301,13 @@ public actor SAC {
                 case .fixed(let steps): gradSteps = steps
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
-                await train(
-                    gradientSteps: gradSteps,
-                    batchSize: offPolicyConfig.batchSize,
-                    callbacks: callbacks
-                )
+                if gradSteps > 0 {
+                    await train(
+                        gradientSteps: gradSteps,
+                        batchSize: offPolicyConfig.batchSize,
+                        callbacks: callbacks
+                    )
+                }
                 stepsSinceTrain = 0
             }
         }
@@ -321,7 +333,7 @@ public actor SAC {
             var episodeLength: Int = 0
 
             while !done {
-                let action = predict(
+                let action = callAsFunction(
                     observation: obs,
                     deterministic: deterministic
                 )
@@ -353,8 +365,10 @@ public actor SAC {
         self.env = environment
     }
 
-    func predict(observation: MLXArray, deterministic: Bool = true) -> MLXArray
-    {
+    public func callAsFunction(
+        observation: MLXArray,
+        deterministic: Bool = true
+    ) -> MLXArray {
         policy.setTrainingMode(false)
         let action = policy.predict(
             observation: observation,
@@ -478,6 +492,7 @@ public actor SAC {
         batchSize: Int,
         callbacks: LearnCallbacks?
     ) async {
+        guard gradientSteps > 0 else { return }
         guard var buf = buffer, buf.count >= batchSize else { return }
 
         let lr = Float(learningRate.value(at: progressRemaining))

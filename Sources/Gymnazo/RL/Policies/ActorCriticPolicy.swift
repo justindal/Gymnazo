@@ -100,7 +100,7 @@ extension ActorCriticPolicy {
         }
     }
 
-    public func predictInternal(observation: MLXArray, deterministic: Bool) -> MLXArray {
+    public func callAsFunction(_ observation: MLXArray, deterministic: Bool) -> MLXArray {
         return getDistribution(obs: observation).getActions(deterministic: deterministic)
     }
 

@@ -120,7 +120,7 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         FlattenExtractor(featuresDim: observationSpace.shape?.reduce(1, *) ?? 1)
     }
 
-    public func predictInternal(observation: MLXArray, deterministic: Bool) -> MLXArray {
+    public func callAsFunction(_ observation: MLXArray, deterministic: Bool) -> MLXArray {
         let qValues = qNet(observation)
         return MLX.argMax(qValues, axis: -1)
     }
@@ -154,7 +154,8 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     /// - Returns: The action index as an MLXArray.
     public func predict(observation: MLXArray, deterministic: Bool = true) -> MLXArray {
         setTrainingMode(false)
-        let qValues = self(obs: observation)
+        let features = extractFeatures(obs: observation, featuresExtractor: featuresExtractor)
+        let qValues = qNet(features)
         return MLX.argMax(qValues, axis: -1)
     }
 
@@ -166,7 +167,11 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     /// - Returns: The action index as an MLXArray.
     public func predict(observation: [String: MLXArray], deterministic: Bool = true) -> MLXArray {
         setTrainingMode(false)
-        let qValues = self(obs: observation)
+        guard let dictExtractor = featuresExtractor as? any DictFeaturesExtractor else {
+            preconditionFailure("predict(observation: [String: MLXArray]) requires a DictFeaturesExtractor")
+        }
+        let features = extractFeatures(obs: observation, featuresExtractor: dictExtractor)
+        let qValues = qNet(features)
         return MLX.argMax(qValues, axis: -1)
     }
 }

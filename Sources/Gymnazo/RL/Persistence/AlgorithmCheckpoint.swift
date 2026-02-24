@@ -34,6 +34,10 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
 
     public let targetEntropy: Float?
     public let entCoefConfig: EntropyCoef?
+    public let sacNetworksConfig: SACNetworksConfig?
+    public let sacOptimizerConfig: SACOptimizerConfig?
+    public let sacObservationSpace: SpaceDescriptor?
+    public let sacActionSpace: SpaceDescriptor?
 
     public let nStates: Int?
     public let nActions: Int?
@@ -56,6 +60,10 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
         numGradientSteps: Int? = nil,
         targetEntropy: Float? = nil,
         entCoefConfig: EntropyCoef? = nil,
+        sacNetworksConfig: SACNetworksConfig? = nil,
+        sacOptimizerConfig: SACOptimizerConfig? = nil,
+        sacObservationSpace: SpaceDescriptor? = nil,
+        sacActionSpace: SpaceDescriptor? = nil,
         nStates: Int? = nil,
         nActions: Int? = nil,
         stateStrides: [Int]? = nil,
@@ -76,6 +84,10 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
         self.numGradientSteps = numGradientSteps
         self.targetEntropy = targetEntropy
         self.entCoefConfig = entCoefConfig
+        self.sacNetworksConfig = sacNetworksConfig
+        self.sacOptimizerConfig = sacOptimizerConfig
+        self.sacObservationSpace = sacObservationSpace
+        self.sacActionSpace = sacActionSpace
         self.nStates = nStates
         self.nActions = nActions
         self.stateStrides = stateStrides

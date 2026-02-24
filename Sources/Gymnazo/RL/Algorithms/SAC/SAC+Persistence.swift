@@ -24,6 +24,9 @@ extension SAC {
             try buffer.save(to: bufferDir)
         }
 
+        let observationSpace = try SpaceDescriptor.from(space: policy.observationSpace)
+        let actionSpace = try SpaceDescriptor.from(space: policy.actionSpace)
+
         let checkpoint = AlgorithmCheckpoint(
             algorithmKind: .sac,
             numTimesteps: numTimesteps,
@@ -35,6 +38,10 @@ extension SAC {
             numGradientSteps: gradientSteps,
             targetEntropy: targetEntropy,
             entCoefConfig: entCoefConfig,
+            sacNetworksConfig: networksConfig,
+            sacOptimizerConfig: optimizerConfig,
+            sacObservationSpace: observationSpace,
+            sacActionSpace: actionSpace,
             seed: randomSeed
         )
         try checkpoint.write(to: directory)
@@ -56,18 +63,33 @@ extension SAC {
             throw PersistenceError.invalidCheckpoint("Missing off-policy config")
         }
 
-        guard let environment = env else {
-            throw PersistenceError.invalidCheckpoint(
-                "SAC.load requires an environment to reconstruct network architecture")
-        }
-
         let schedule = checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(3e-4)
         let entCoef = checkpoint.entCoefConfig ?? .auto()
+        let networksConfig = checkpoint.sacNetworksConfig ?? SACNetworksConfig()
+        let optimizerConfig = checkpoint.sacOptimizerConfig ?? SACOptimizerConfig()
+
+        let observationSpace: any Space
+        let actionSpace: any Space
+        if let env {
+            observationSpace = env.observationSpace
+            actionSpace = env.actionSpace
+        } else {
+            guard let observationDescriptor = checkpoint.sacObservationSpace,
+                let actionDescriptor = checkpoint.sacActionSpace
+            else {
+                throw PersistenceError.invalidCheckpoint(
+                    "SAC.load without env requires checkpointed observation/action spaces"
+                )
+            }
+            observationSpace = try observationDescriptor.makeSpace()
+            actionSpace = try actionDescriptor.makeSpace()
+        }
 
         let networks = SACNetworks(
-            observationSpace: environment.observationSpace,
-            actionSpace: environment.actionSpace
+            observationSpace: observationSpace,
+            actionSpace: actionSpace,
+            config: networksConfig
         )
 
         try networks.actor.loadWeights(
@@ -78,7 +100,6 @@ extension SAC {
             from: directory.appendingPathComponent(CheckpointFiles.criticTarget))
 
         let lr = Float(schedule.value(at: checkpoint.currentProgressRemaining))
-        let optimizerConfig = SACOptimizerConfig()
         let actorOpt = optimizerConfig.actor.make(learningRate: lr)
         let criticOpt = optimizerConfig.critic.make(learningRate: lr)
         let entOpt: Adam? = entCoef.isAuto ? optimizerConfig.entropy?.make(learningRate: lr) : nil
@@ -115,7 +136,7 @@ extension SAC {
             }
         }
 
-        let actionDim = getActionDim(environment.actionSpace)
+        let actionDim = getActionDim(actionSpace)
 
         let agent = SAC(
             policy: networks.actor,
@@ -126,6 +147,8 @@ extension SAC {
             entropyOptimizer: entOpt,
             logEntCoefModule: entModule,
             offPolicyConfig: offPolicyConfig,
+            networksConfig: networksConfig,
+            optimizerConfig: optimizerConfig,
             entCoefConfig: entCoef,
             targetEntropy: checkpoint.targetEntropy ?? Float(-actionDim),
             learningRate: schedule,
