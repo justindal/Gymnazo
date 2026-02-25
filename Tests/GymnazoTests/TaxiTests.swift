@@ -60,12 +60,21 @@ struct TaxiTests {
     }
     
     @Test
-    func testInfoContainsProbOnly() async throws {
+    func testInfoContainsProbAndActionMask() async throws {
         let env = try await makeTaxi()
         let result = try env.reset(seed: 123)
         
         #expect(result.info["prob"]?.double == 1.0)
-        #expect(result.info["action_mask"] == nil)
+        let state = result.obs.item(Int.self)
+        let expectedMask = env.actionMask(for: state)
+        let resetMask = result.info["action_mask"]?.array?.compactMap(\.int)
+        #expect(resetMask == expectedMask)
+
+        let step = try env.step(MLXArray(Int32(0)))
+        let stepState = step.obs.item(Int.self)
+        let expectedStepMask = env.actionMask(for: stepState)
+        let stepMask = step.info["action_mask"]?.array?.compactMap(\.int)
+        #expect(stepMask == expectedStepMask)
     }
     
     @Test

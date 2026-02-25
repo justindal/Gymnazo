@@ -37,6 +37,13 @@ Terminates when the passenger is successfully dropped off.
 
 Truncation is typically handled by the default `maxEpisodeSteps` wrapper for the registered env.
 
+## Info
+
+`reset()` and `step()` include:
+
+- `prob`: transition probability for the sampled transition
+- `action_mask`: valid actions for the current state (`[0, 1]` values for actions `0...5`)
+
 ## Arguments
 
 ```swift

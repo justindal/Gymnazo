@@ -494,21 +494,29 @@ public actor SAC {
     ) async {
         guard gradientSteps > 0 else { return }
         guard var buf = buffer, buf.count >= batchSize else { return }
+        let targetUpdateInterval = max(1, offPolicyConfig.targetUpdateInterval)
 
         let lr = Float(learningRate.value(at: progressRemaining))
         actorOptimizer.learningRate = lr
         criticOptimizer.learningRate = lr
         entropyOptimizer?.learningRate = lr
 
-        let includeTargetUpdate = offPolicyConfig.targetUpdateInterval == 1
+        let includeTargetUpdate = targetUpdateInterval == 1
         let step = buildCompiledStep(includeTargetUpdate: includeTargetUpdate)
 
-        var lossArrays: [MLXArray] = []
-        lossArrays.reserveCapacity(gradientSteps)
+        var criticLossArrays: [MLXArray] = []
+        var actorLossArrays: [MLXArray] = []
+        criticLossArrays.reserveCapacity(gradientSteps)
+        actorLossArrays.reserveCapacity(gradientSteps)
 
-        for _ in 0..<gradientSteps {
-            let (sampleKey, k1) = MLX.split(key: key, stream: .cpu)
-            let (actionKey, nextKey) = MLX.split(key: k1, stream: .cpu)
+        for gradientStep in 0..<gradientSteps {
+            if policy.useSDE && offPolicyConfig.sdeSupported {
+                let (noiseKey, k1) = MLX.split(key: key, stream: .cpu)
+                key = k1
+                policy.resetNoise(key: noiseKey)
+            }
+            let (sampleKey, k2) = MLX.split(key: key, stream: .cpu)
+            let (actionKey, nextKey) = MLX.split(key: k2, stream: .cpu)
             key = nextKey
             let batch = buf.sample(batchSize, key: sampleKey)
 
@@ -520,6 +528,7 @@ public actor SAC {
             )
             eval(
                 values[0],
+                values[1],
                 policy,
                 critic,
                 criticTarget,
@@ -527,33 +536,48 @@ public actor SAC {
                 criticOptimizer,
                 logEntCoefModule
             )
-            lossArrays.append(values[0])
+            criticLossArrays.append(values[0])
+            actorLossArrays.append(values[1])
 
             if !includeTargetUpdate {
-                self.gradientSteps += 1
-                if self.gradientSteps % offPolicyConfig.targetUpdateInterval
-                    == 0
+                if gradientStep % targetUpdateInterval == 0
                 {
                     softUpdate()
                     eval(criticTarget.parameters())
                 }
             }
         }
-        if includeTargetUpdate {
-            self.gradientSteps += gradientSteps
-        }
+        self.gradientSteps += gradientSteps
         buffer = buf
 
-        let totalLoss = lossArrays.reduce(MLXArray(0.0), +)
-        eval(totalLoss)
-        let avgLoss = (totalLoss / Float(gradientSteps)).scalarValue(Float.self)
+        let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
+        let totalActorLoss = actorLossArrays.reduce(MLXArray(0.0), +)
+        eval(totalCriticLoss, totalActorLoss)
+        let avgCriticLoss = (
+            totalCriticLoss / Float(max(1, criticLossArrays.count))
+        ).scalarValue(Float.self)
+        let avgActorLoss = (
+            totalActorLoss / Float(max(1, actorLossArrays.count))
+        ).scalarValue(Float.self)
         let entCoefValue = logEntCoefModule.entCoef.scalarValue(Float.self)
 
-        await callbacks?.onTrain?([
-            "loss": Double(avgLoss),
-            "entCoef": Double(entCoefValue),
-            "learningRate": Double(lr),
-        ])
+        var metrics: [String: Double] = [
+            "learningRate": Double(lr)
+        ]
+        if avgCriticLoss.isFinite {
+            metrics["loss"] = Double(avgCriticLoss)
+            metrics["criticLoss"] = Double(avgCriticLoss)
+        }
+        if avgActorLoss.isFinite {
+            metrics["actorLoss"] = Double(avgActorLoss)
+        }
+        if entCoefValue.isFinite {
+            metrics["entCoef"] = Double(entCoefValue)
+        }
+
+        if !metrics.isEmpty {
+            await callbacks?.onTrain?(metrics)
+        }
     }
 
     private func buildCompiledStep(
@@ -581,7 +605,8 @@ public actor SAC {
                     model,
                     obs: args[0],
                     actions: args[1],
-                    targetQ: args[2]
+                    targetQ: args[2],
+                    shareFeaturesExtractor: shareFeatures
                 )
             ]
         }
@@ -670,14 +695,10 @@ public actor SAC {
             )
 
             p.setTrainingMode(true)
-            var (actorValues, actorGrads) = actorVG(
+            let (actorValues, actorGrads) = actorVG(
                 p,
                 [obs, entCoef, actorKey, criticFeatures]
             )
-
-            if shareFeatures {
-                actorGrads = SAC.zeroExtractorGradients(actorGrads)
-            }
             actOpt.update(model: p, gradients: actorGrads)
 
             if let entVG, let entOpt {
@@ -696,7 +717,7 @@ public actor SAC {
                 _ = try? ct.update(parameters: updated, verify: .noUnusedKeys)
             }
 
-            return criticLossArrays
+            return [criticLossArrays[0], actorValues[0]]
         }
 
         let step: ([MLXArray]) -> [MLXArray]
@@ -731,12 +752,17 @@ public actor SAC {
         _ critic: SACCritic,
         obs: MLXArray,
         actions: MLXArray,
-        targetQ: MLXArray
+        targetQ: MLXArray,
+        shareFeaturesExtractor: Bool
     ) -> MLXArray {
-        let features = critic.extractFeatures(
+        let extractedFeatures = critic.extractFeatures(
             obs: obs,
             featuresExtractor: critic.extractor
         )
+        let features =
+            shareFeaturesExtractor
+            ? MLX.stopGradient(extractedFeatures)
+            : extractedFeatures
         let qInput = MLX.concatenated([features, actions], axis: -1)
         var loss = MLXArray(0.0)
         for qNet in critic.qNetworks {
@@ -778,20 +804,5 @@ public actor SAC {
         )
         _ = try? criticTarget.update(parameters: updated, verify: .noUnusedKeys)
         criticTarget.setTrainingMode(false)
-    }
-
-    private static func zeroExtractorGradients(_ gradients: ModuleParameters)
-        -> ModuleParameters
-    {
-        let flattened = Dictionary(uniqueKeysWithValues: gradients.flattened())
-        var zeroed: [String: MLXArray] = [:]
-        for (key, value) in flattened {
-            if key.hasPrefix("featuresExtractor") {
-                zeroed[key] = MLX.zeros(like: value)
-            } else {
-                zeroed[key] = value
-            }
-        }
-        return ModuleParameters.unflattened(zeroed)
     }
 }

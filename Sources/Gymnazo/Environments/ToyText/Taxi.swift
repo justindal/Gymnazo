@@ -387,6 +387,10 @@ public final class Taxi: Env {
         
         return mask
     }
+
+    private func actionMaskInfo(for state: Int) -> InfoValue {
+        .array(actionMask(for: state).map { .int($0) })
+    }
     
     private func prepareKey(with seed: UInt64?) throws -> MLXArray {
         if let seed {
@@ -429,7 +433,13 @@ public final class Taxi: Env {
             fickleStep = false
         }
         
-        return Reset(obs: toMLX(s), info: ["prob": 1.0])
+        return Reset(
+            obs: toMLX(s),
+            info: [
+                "prob": 1.0,
+                "action_mask": actionMaskInfo(for: s),
+            ]
+        )
     }
     
     public func step(_ action: MLXArray) throws -> Step {
@@ -488,7 +498,10 @@ public final class Taxi: Env {
             reward: reward,
             terminated: terminated,
             truncated: false,
-            info: ["prob": .double(p)]
+            info: [
+                "prob": .double(p),
+                "action_mask": actionMaskInfo(for: s),
+            ]
         )
     }
     
