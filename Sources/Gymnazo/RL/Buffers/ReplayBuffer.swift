@@ -45,8 +45,7 @@ public struct ReplayBuffer: Buffer {
 
     var position: Int = 0
     var isBufferFull: Bool = false
-    private var seededRng: SplitMix64?
-    private var systemRng = SystemRandomNumberGenerator()
+    private var keyState: MLXArray?
 
     public var count: Int { isBufferFull ? bufferSize : position }
 
@@ -86,9 +85,7 @@ public struct ReplayBuffer: Buffer {
         if let next = nextObservations { toEval.append(next) }
         eval(toEval)
 
-        if let seed = config.seed {
-            self.seededRng = SplitMix64(state: seed)
-        }
+        self.keyState = config.seed.map { MLXRandom.key($0) }
     }
 
     public mutating func reset() {
@@ -111,6 +108,7 @@ public struct ReplayBuffer: Buffer {
 
         position = 0
         isBufferFull = false
+        keyState = config.seed.map { MLXRandom.key($0) }
     }
 
     public mutating func add(
@@ -148,8 +146,15 @@ public struct ReplayBuffer: Buffer {
     public mutating func sample(_ batchSize: Int, key: MLXArray) -> Sample {
         precondition(batchSize > 0)
         precondition(count >= batchSize)
-
-        let rawIndices = sampleIndices(batchSize: batchSize)
+        let samplingKey: MLXArray
+        if let state = keyState {
+            let (sampleKey, nextKey) = MLX.split(key: state, stream: .cpu)
+            keyState = nextKey
+            samplingKey = sampleKey
+        } else {
+            samplingKey = key
+        }
+        let rawIndices = sampleIndices(batchSize: batchSize, key: samplingKey)
         let indices = MLXArray(rawIndices.map { Int32($0) })
 
         let obsBatch = observations[indices]
@@ -201,34 +206,32 @@ public struct ReplayBuffer: Buffer {
         return (obs, nextObs, acts, rews, dns, tos)
     }
 
-    private mutating func sampleIndices(batchSize: Int) -> [Int] {
+    private func sampleIndices(batchSize: Int, key: MLXArray) -> [Int] {
         var indices: [Int] = []
         indices.reserveCapacity(batchSize)
 
         if !config.optimizeMemoryUsage || !isBufferFull {
             let upper = count
-            for _ in 0..<batchSize {
-                indices.append(nextIndex(upperBound: upper))
-            }
+            indices.append(contentsOf: randomIndices(batchSize: batchSize, upperBound: upper, key: key))
             return indices
         }
 
         let upper = bufferSize - 1
-        for _ in 0..<batchSize {
-            var idx = nextIndex(upperBound: upper)
+        for idx in randomIndices(batchSize: batchSize, upperBound: upper, key: key) {
+            var idx = idx
             if idx >= position { idx += 1 }
             indices.append(idx)
         }
         return indices
     }
 
-    private mutating func nextIndex(upperBound: Int) -> Int {
-        if var rng = seededRng {
-            let value = rng.next()
-            seededRng = rng
-            return Int(value % UInt64(upperBound))
-        }
-        return Int(systemRng.next() % UInt64(upperBound))
+    private func randomIndices(batchSize: Int, upperBound: Int, key: MLXArray) -> [Int] {
+        precondition(upperBound > 0)
+        let randomValues = MLX.uniform(0.0..<1.0, [batchSize], key: key, stream: .cpu)
+        eval(randomValues)
+        let randomList = randomValues.asArray(Float.self)
+        let upperBoundF = Float(upperBound)
+        return randomList.map { min(Int($0 * upperBoundF), upperBound - 1) }
     }
 }
 
@@ -236,14 +239,3 @@ private func bufferActionDim(for actionSpace: any Space) -> Int {
     (actionSpace as? Box)?.shape?.reduce(1, *) ?? 1
 }
 
-private struct SplitMix64: RandomNumberGenerator {
-    var state: UInt64
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E3779B97F4A7C15
-        var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
-        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
-        return z ^ (z >> 31)
-    }
-}

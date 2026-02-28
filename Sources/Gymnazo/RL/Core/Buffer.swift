@@ -88,7 +88,7 @@ public struct RolloutBatch {
 }
 
 /// Rollout buffer protocol for on-policy algorithms.
-public protocol RolloutBuffer: Buffer {
+public protocol RolloutBuffering: Buffer {
     mutating func append(_ step: RolloutStep)
 
     mutating func computeReturnsAndAdvantages(

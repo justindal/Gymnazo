@@ -165,6 +165,7 @@ Gymnazo includes common reinforcement learning algorithm implementations inspire
 |-----------|------|--------------|
 | `DQN` | Deep Q-Network | Discrete |
 | `SAC` | Soft Actor-Critic | Continuous |
+| `PPO` | Proximal Policy Optimization | Discrete + Continuous + MultiDiscrete + MultiBinary |
 | `TabularAgent` | Q-Learning / SARSA | Discrete (small) |
 
 ```swift
@@ -173,6 +174,12 @@ import Gymnazo
 let env = try await Gymnazo.make("CartPole")
 let model = try DQN(env: env)
 try await model.learn(totalTimesteps: 50_000, callbacks: nil)
+
+let ppo = try PPO(
+    env: env,
+    config: PPOConfig(nSteps: 128, batchSize: 32, nEpochs: 4)
+)
+try await ppo.learn(totalTimesteps: 50_000, callbacks: nil)
 
 // save and load checkpoints
 let url = URL.documentsDirectory.appending(path: "my-agent")

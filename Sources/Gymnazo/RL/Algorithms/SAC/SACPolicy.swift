@@ -87,16 +87,6 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
         self.sdeLogStd = MLX.zeros(logStdShape) + logStdInit
 
         super.init()
-
-        /// SB3 parity: initialize `log_std` head bias to `log_std_init`.
-        ///
-        /// SB3 sets the bias of the `log_std` linear layer so initial exploration matches the
-        /// configured `log_std_init` for the diagonal Gaussian policy.
-        let bias = MLX.zeros([actionDim]) + logStdInit
-        _ = try? logStdLayer.update(
-            parameters: ModuleParameters.unflattened(["bias": bias]),
-            verify: .none
-        )
     }
 
     public convenience init(
@@ -209,9 +199,10 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
         logStd = MLX.clip(logStd, min: logStdMin, max: logStdMax)
 
         squashedDiagGaussian.probaDistribution(meanActions: meanActions, logStd: logStd)
-        let actions =
-            deterministic ? squashedDiagGaussian.mode() : squashedDiagGaussian.sample(key: key)
-        let logProb = squashedDiagGaussian.logProb(actions)
-        return (actions, logProb)
+        if deterministic {
+            return squashedDiagGaussian.modeAndLogProb()
+        } else {
+            return squashedDiagGaussian.sampleAndLogProb(key: key)
+        }
     }
 }

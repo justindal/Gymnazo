@@ -71,6 +71,8 @@ Gymnazo provides a collection of environments and utilities for developing and t
 
 - ``DQN``
 - ``SAC``
+- ``PPO``
+- ``TD3``
 - ``TabularAgent``
 
 ### Registration

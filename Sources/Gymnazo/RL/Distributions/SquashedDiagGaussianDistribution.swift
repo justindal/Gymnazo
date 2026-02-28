@@ -26,7 +26,7 @@ public final class SquashedDiagGaussianDistribution: Distribution {
         return self
     }
 
-    public func sample(key: MLXArray? = nil) -> MLXArray {
+    public func sampleAndLogProb(key: MLXArray? = nil) -> (MLXArray, MLXArray) {
         let std = MLX.exp(logStd)
         let noise: MLXArray
         if let key = key {
@@ -35,17 +35,42 @@ public final class SquashedDiagGaussianDistribution: Distribution {
             noise = MLX.normal(mean.shape)
         }
         let preTanh = mean + std * noise
-        return MLX.tanh(preTanh)
+        let actions = MLX.tanh(preTanh)
+        let logProb = logProbFromPreTanh(preTanh, squashedActions: actions)
+        return (actions, logProb)
+    }
+
+    public func modeAndLogProb() -> (MLXArray, MLXArray) {
+        let preTanh = mean
+        let actions = MLX.tanh(preTanh)
+        let logProb = logProbFromPreTanh(preTanh, squashedActions: actions)
+        return (actions, logProb)
+    }
+
+    public func sample(key: MLXArray? = nil) -> MLXArray {
+        let (actions, _) = sampleAndLogProb(key: key)
+        return actions
     }
 
     public func mode() -> MLXArray {
-        MLX.tanh(mean)
+        let (actions, _) = modeAndLogProb()
+        return actions
     }
 
     public func logProb(_ actions: MLXArray) -> MLXArray {
         let preTanh = inverseTanh(actions)
+        return logProbFromPreTanh(preTanh, squashedActions: actions)
+    }
+
+    private func logProbFromPreTanh(
+        _ preTanh: MLXArray,
+        squashedActions: MLXArray
+    ) -> MLXArray {
         let gaussianLogProb = diagGaussianLogProb(x: preTanh, mean: mean, logStd: logStd)
-        let correction = MLX.sum(MLX.log(1.0 - actions * actions + epsilon), axis: -1)
+        let correction = MLX.sum(
+            MLX.log(1.0 - squashedActions * squashedActions + epsilon),
+            axis: -1
+        )
         return gaussianLogProb - correction
     }
 
