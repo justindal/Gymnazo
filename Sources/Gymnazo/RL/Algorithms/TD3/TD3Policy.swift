@@ -1,14 +1,11 @@
-//
-//  TD3Policy.swift
-//  Gymnazo
-//
-//  Created by Justin Daludado on 2026-02-23.
-//
-
 import MLX
 import MLXNN
 import MLXOptimizers
 
+/// The combined actor-critic policy for ``TD3``.
+///
+/// Owns the actor, target actor, critic, and target critic networks, along with their
+/// optimizers. Target networks are initialised as copies of the online networks.
 public final class TD3Policy: Module, Policy, @unchecked Sendable {
     public let observationSpace: any Space
     public let actionSpace: any Space

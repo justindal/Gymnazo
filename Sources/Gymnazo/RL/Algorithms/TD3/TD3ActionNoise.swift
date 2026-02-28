@@ -1,10 +1,3 @@
-//
-//  TD3.swift
-//  Gymnazo
-//
-//  Created by Justin Daludado on 2026-02-24.
-//
-
 import MLX
 
 protocol TD3ActionNoise: Sendable {

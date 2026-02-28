@@ -2,6 +2,18 @@ import MLX
 import MLXNN
 import MLXOptimizers
 
+/// Soft Actor-Critic (SAC) — an off-policy, entropy-regularised actor-critic algorithm.
+///
+/// SAC maximizes a trade-off between expected return and entropy, leading to robust
+/// exploration and stable training on continuous action spaces.
+///
+/// ## Usage
+/// ```swift
+/// let env = try await Gymnazo.make("Pendulum")
+/// let model = SAC(env: env)
+/// try await model.learn(totalTimesteps: 100_000, callbacks: nil)
+/// let action = model(observation: obs)
+/// ```
 public actor SAC {
     public nonisolated let offPolicyConfig: OffPolicyConfig
     public nonisolated let networksConfig: SACNetworksConfig
@@ -31,6 +43,17 @@ public actor SAC {
     private var key: MLXArray
     private var compiledStep: (([MLXArray]) -> [MLXArray])?
 
+    /// Creates a SAC agent bound to an environment.
+    ///
+    /// - Parameters:
+    ///   - env: The environment to train in.
+    ///   - learningRate: Learning-rate schedule. Defaults to 3e-4.
+    ///   - networksConfig: Actor and critic network configuration.
+    ///   - config: Off-policy hyper-parameters (buffer, batch size, etc.).
+    ///   - optimizerConfig: Per-network optimizer configuration.
+    ///   - entCoef: Entropy coefficient mode (automatic tuning or fixed value).
+    ///   - targetEntropy: Optional target entropy override. Defaults to `-actionDim`.
+    ///   - seed: Optional PRNG seed for reproducibility.
     public init(
         env: any Env,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
@@ -71,6 +94,19 @@ public actor SAC {
         self.key = MLX.key(seed ?? UInt64.random(in: 0..<UInt64.max))
     }
 
+    /// Creates a SAC agent with explicit spaces, optionally attaching an environment.
+    ///
+    /// - Parameters:
+    ///   - observationSpace: The environment observation space.
+    ///   - actionSpace: The environment action space.
+    ///   - env: Optional environment. Defaults to `nil`.
+    ///   - learningRate: Learning-rate schedule. Defaults to 3e-4.
+    ///   - networksConfig: Actor and critic network configuration.
+    ///   - config: Off-policy hyper-parameters.
+    ///   - optimizerConfig: Per-network optimizer configuration.
+    ///   - entCoef: Entropy coefficient mode.
+    ///   - targetEntropy: Optional target entropy override.
+    ///   - seed: Optional PRNG seed for reproducibility.
     public init(
         observationSpace: any Space,
         actionSpace: any Space,
@@ -158,6 +194,12 @@ public actor SAC {
         self.key = MLX.key(seed ?? UInt64.random(in: 0..<UInt64.max))
     }
 
+    /// Runs the SAC training loop for the specified number of environment steps.
+    ///
+    /// - Parameters:
+    ///   - totalTimesteps: Total environment steps to collect.
+    ///   - callbacks: Optional callbacks for step, episode, and train events.
+    ///   - resetProgress: If `true` (default), resets the timestep counter before training.
     public func learn(
         totalTimesteps: Int,
         callbacks: LearnCallbacks?,
@@ -315,6 +357,12 @@ public actor SAC {
         self.env = environment
     }
 
+    /// Evaluates the current policy for the given number of episodes.
+    ///
+    /// - Parameters:
+    ///   - episodes: Number of episodes to run.
+    ///   - deterministic: If `true` (default), uses the mode action.
+    ///   - callbacks: Optional callbacks for step and episode events.
     public func evaluate(
         episodes: Int,
         deterministic: Bool = true,
@@ -365,6 +413,12 @@ public actor SAC {
         self.env = environment
     }
 
+    /// Returns an action for the given observation.
+    ///
+    /// - Parameters:
+    ///   - observation: The current environment observation.
+    ///   - deterministic: If `true` (default), returns the mode action.
+    /// - Returns: The unscaled action clipped to the environment action space.
     public func callAsFunction(
         observation: MLXArray,
         deterministic: Bool = true
@@ -378,16 +432,23 @@ public actor SAC {
         return action
     }
 
+    /// Signals the training loop to stop after the current gradient step completes.
     public func stop() {
         shouldContinue = false
     }
 
     public var numTimesteps: Int { timesteps }
 
+    /// Attaches an environment to the agent.
+    ///
+    /// - Parameter env: The environment to attach.
     nonisolated public func setEnv(_ env: any Env) {
         self.env = env
     }
 
+    /// Detaches and returns the currently attached environment, leaving the slot empty.
+    ///
+    /// - Returns: The detached environment, or `nil` if none was attached.
     nonisolated public func takeEnv() -> (any Env)? {
         let e = env
         env = nil

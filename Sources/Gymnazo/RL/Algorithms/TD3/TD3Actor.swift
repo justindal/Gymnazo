@@ -1,13 +1,9 @@
-//
-//  TD3Actor.swift
-//  Gymnazo
-//
-//  Created by Justin Daludado on 2026-02-23.
-//
-
 import MLX
 import MLXNN
 
+/// The deterministic actor network for ``TD3``.
+///
+/// Outputs a tanh-squashed action in `[-1, 1]` for each action dimension.
 public final class TD3Actor: Module, Policy, @unchecked Sendable {
     public let observationSpace: any Space
     public let actionSpace: any Space

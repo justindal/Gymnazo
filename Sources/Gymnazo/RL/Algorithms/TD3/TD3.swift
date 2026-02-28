@@ -1,14 +1,20 @@
-//
-//  TD3.swift
-//  Gymnazo
-//
-//  Created by Justin Daludado on 2026-02-23.
-//
-
 import MLX
 import MLXNN
 import MLXOptimizers
 
+/// Twin Delayed DDPG (TD3) — an off-policy algorithm for continuous action spaces.
+///
+/// TD3 improves on DDPG by maintaining two critic networks to mitigate Q-value
+/// overestimation, and by delaying actor updates relative to critic updates for
+/// more stable training.
+///
+/// ## Usage
+/// ```swift
+/// let env = try await Gymnazo.make("Pendulum")
+/// let model = TD3(env: env)
+/// try await model.learn(totalTimesteps: 100_000, callbacks: nil)
+/// let action = model(observation: obs)
+/// ```
 public actor TD3 {
     public nonisolated let offPolicyConfig: OffPolicyConfig
     public nonisolated let policyConfig: TD3PolicyConfig
@@ -41,6 +47,15 @@ public actor TD3 {
     var targetNoiseClip: Float { algorithmConfig.targetNoiseClip }
     var actionNoiseConfig: TD3ActionNoiseConfig? { algorithmConfig.actionNoise }
 
+    /// Creates a TD3 agent bound to an environment.
+    ///
+    /// - Parameters:
+    ///   - env: The environment to train in. Must have a continuous (`Box`) action space.
+    ///   - learningRate: Learning-rate schedule. Defaults to 1e-3.
+    ///   - policyConfig: Actor and critic network configuration.
+    ///   - algorithmConfig: TD3-specific hyper-parameters (policy delay, target noise, etc.).
+    ///   - config: Off-policy hyper-parameters (buffer, batch size, etc.).
+    ///   - seed: Optional PRNG seed for reproducibility.
     public init(
         env: any Env,
         learningRate: any LearningRateSchedule = ConstantLearningRate(1e-3),
@@ -61,6 +76,17 @@ public actor TD3 {
         )
     }
 
+    /// Creates a TD3 agent with explicit spaces, optionally attaching an environment.
+    ///
+    /// - Parameters:
+    ///   - observationSpace: The environment observation space.
+    ///   - actionSpace: The environment action space.
+    ///   - env: Optional environment. Defaults to `nil`.
+    ///   - learningRate: Learning-rate schedule. Defaults to 1e-3.
+    ///   - policyConfig: Actor and critic network configuration.
+    ///   - algorithmConfig: TD3-specific hyper-parameters.
+    ///   - config: Off-policy hyper-parameters.
+    ///   - seed: Optional PRNG seed for reproducibility.
     public init(
         observationSpace: any Space,
         actionSpace: any Space,
@@ -124,6 +150,12 @@ public actor TD3 {
         )
     }
 
+    /// Runs the TD3 training loop for the specified number of environment steps.
+    ///
+    /// - Parameters:
+    ///   - totalTimesteps: Total environment steps to collect.
+    ///   - callbacks: Optional callbacks for step, episode, train, and snapshot events.
+    ///   - resetProgress: If `true` (default), resets the timestep counter before training.
     public func learn(
         totalTimesteps: Int,
         callbacks: LearnCallbacks?,
@@ -263,6 +295,12 @@ public actor TD3 {
         self.env = environment
     }
 
+    /// Evaluates the current policy for the given number of episodes.
+    ///
+    /// - Parameters:
+    ///   - episodes: Number of episodes to run.
+    ///   - deterministic: If `true` (default), uses the mode action.
+    ///   - callbacks: Optional callbacks for step and episode events.
     public func evaluate(
         episodes: Int,
         deterministic: Bool = true,
@@ -313,6 +351,15 @@ public actor TD3 {
         self.env = environment
     }
 
+    /// Returns an action for the given observation.
+    ///
+    /// When `deterministic` is `true` the mode action is returned with no noise.
+    /// When `false`, exploration noise from ``TD3AlgorithmConfig/actionNoise`` is added if configured.
+    ///
+    /// - Parameters:
+    ///   - observation: The current environment observation.
+    ///   - deterministic: If `true` (default), returns the mode action without exploration noise.
+    /// - Returns: The unscaled action clipped to the environment action space.
     public func callAsFunction(
         observation: MLXArray,
         deterministic: Bool = true
@@ -335,16 +382,23 @@ public actor TD3 {
         return action
     }
 
+    /// Signals the training loop to stop at the next step boundary.
     public func stop() {
         shouldContinue = false
     }
 
     public var numTimesteps: Int { timesteps }
 
+    /// Attaches an environment to the agent.
+    ///
+    /// - Parameter env: The environment to attach.
     nonisolated public func setEnv(_ env: any Env) {
         self.env = env
     }
 
+    /// Detaches and returns the currently attached environment, leaving the slot empty.
+    ///
+    /// - Returns: The detached environment, or `nil` if none was attached.
     nonisolated public func takeEnv() -> (any Env)? {
         let e = env
         env = nil
