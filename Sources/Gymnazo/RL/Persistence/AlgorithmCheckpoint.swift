@@ -10,6 +10,7 @@ public enum AlgorithmKind: String, Codable, Sendable {
     case sac
     case td3
     case dqn
+    case ppo
     case qLearning
     case sarsa
 }
@@ -30,6 +31,10 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
     public let dqnOptimizerConfig: DQNOptimizerConfig?
     public let td3PolicyConfig: TD3PolicyConfig?
     public let td3AlgorithmConfig: TD3AlgorithmConfig?
+    public let ppoConfig: PPOConfig?
+    public let ppoPolicyConfig: PPOPolicyConfig?
+    public let ppoObservationSpace: SpaceDescriptor?
+    public let ppoActionSpace: SpaceDescriptor?
     public let tabularConfig: TabularConfig?
 
     public let explorationRate: Double?
@@ -60,6 +65,10 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
         dqnOptimizerConfig: DQNOptimizerConfig? = nil,
         td3PolicyConfig: TD3PolicyConfig? = nil,
         td3AlgorithmConfig: TD3AlgorithmConfig? = nil,
+        ppoConfig: PPOConfig? = nil,
+        ppoPolicyConfig: PPOPolicyConfig? = nil,
+        ppoObservationSpace: SpaceDescriptor? = nil,
+        ppoActionSpace: SpaceDescriptor? = nil,
         tabularConfig: TabularConfig? = nil,
         explorationRate: Double? = nil,
         numGradientSteps: Int? = nil,
@@ -86,6 +95,10 @@ public struct AlgorithmCheckpoint: Codable, Sendable {
         self.dqnOptimizerConfig = dqnOptimizerConfig
         self.td3PolicyConfig = td3PolicyConfig
         self.td3AlgorithmConfig = td3AlgorithmConfig
+        self.ppoConfig = ppoConfig
+        self.ppoPolicyConfig = ppoPolicyConfig
+        self.ppoObservationSpace = ppoObservationSpace
+        self.ppoActionSpace = ppoActionSpace
         self.tabularConfig = tabularConfig
         self.explorationRate = explorationRate
         self.numGradientSteps = numGradientSteps
