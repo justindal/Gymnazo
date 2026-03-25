@@ -13,7 +13,7 @@ public struct TrainFrequency: Sendable, Codable {
     public let unit: TrainFrequencyUnit
 
     public init(frequency: Int, unit: TrainFrequencyUnit = .step) {
-        self.frequency = frequency
+        self.frequency = max(1, frequency)
         self.unit = unit
     }
 }
