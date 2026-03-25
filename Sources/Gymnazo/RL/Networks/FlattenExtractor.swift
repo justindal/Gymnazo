@@ -34,11 +34,15 @@ public class FlattenExtractor: Module, UnaryLayer, FeaturesExtractor {
     
     public func callAsFunction(_ x: MLXArray) -> MLXArray {
         let shape = x.shape
-        
-        if shape.count <= 3 {
+
+        if shape.count <= 1 {
+            return x.reshaped([1, shape.reduce(1, *)])
+        }
+
+        if shape.count == 2 {
             return x
         }
-        
+
         let batch = shape[0]
         let rest = shape.dropFirst().reduce(1, *)
         return x.reshaped([batch, rest])
