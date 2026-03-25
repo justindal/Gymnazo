@@ -344,13 +344,13 @@ public actor SAC {
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
                 if gradSteps > 0 {
-                    await train(
+                    let didTrain = await train(
                         gradientSteps: gradSteps,
                         batchSize: offPolicyConfig.batchSize,
                         callbacks: callbacks
                     )
+                    if didTrain { stepsSinceTrain = 0 }
                 }
-                stepsSinceTrain = 0
             }
         }
 
@@ -548,13 +548,14 @@ public actor SAC {
         )
     }
 
+    @discardableResult
     private func train(
         gradientSteps: Int,
         batchSize: Int,
         callbacks: LearnCallbacks?
-    ) async {
-        guard gradientSteps > 0 else { return }
-        guard var buf = buffer, buf.count >= batchSize else { return }
+    ) async -> Bool {
+        guard gradientSteps > 0 else { return false }
+        guard var buf = buffer, buf.count >= batchSize else { return false }
         let targetUpdateInterval = max(1, offPolicyConfig.targetUpdateInterval)
 
         let lr = Float(learningRate.value(at: progressRemaining))
@@ -639,6 +640,7 @@ public actor SAC {
         if !metrics.isEmpty {
             await callbacks?.onTrain?(metrics)
         }
+        return true
     }
 
     private func buildCompiledStep(

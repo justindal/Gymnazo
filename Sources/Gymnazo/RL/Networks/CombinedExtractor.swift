@@ -15,8 +15,10 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
     private let keys: [String]
     private let normalizedImage: Bool
     private let cnnOutputDim: Int
+    private let needsProjection: Bool
 
     @ModuleInfo private var extractors: [String: any UnaryLayer]
+    @ModuleInfo private var projection: Linear
 
     public init(
         observationSpace: Dict,
@@ -58,7 +60,9 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
         }
 
         self.extractors = ex
-        self.featuresDim = total
+        self.needsProjection = total != featuresDim
+        self._projection = ModuleInfo(wrappedValue: Linear(total, featuresDim))
+        self.featuresDim = featuresDim
 
         super.init()
     }
@@ -92,7 +96,11 @@ public final class CombinedExtractor: Module, DictFeaturesExtractor {
             encoded.append(y)
         }
 
-        return concatenated(encoded, axis: 1)
+        let concat = concatenated(encoded, axis: 1)
+        if needsProjection {
+            return relu(projection(concat))
+        }
+        return concat
     }
 
     /// Must be Box with 3 dims.

@@ -229,8 +229,8 @@ public actor DQN {
                 case .fixed(let steps): gradSteps = steps
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
-                await train(gradientSteps: gradSteps, batchSize: config.batchSize, callbacks: callbacks)
-                stepsSinceTrain = 0
+                let didTrain = await train(gradientSteps: gradSteps, batchSize: config.batchSize, callbacks: callbacks)
+                if didTrain { stepsSinceTrain = 0 }
             }
         }
 
@@ -387,8 +387,9 @@ public actor DQN {
         return action
     }
 
-    private func train(gradientSteps: Int, batchSize: Int, callbacks: LearnCallbacks?) async {
-        guard var buf = buffer, buf.count >= batchSize else { return }
+    @discardableResult
+    private func train(gradientSteps: Int, batchSize: Int, callbacks: LearnCallbacks?) async -> Bool {
+        guard var buf = buffer, buf.count >= batchSize else { return false }
 
         let lr = Float(learningRate.value(at: progressRemaining))
         optimizer.learningRate = lr
@@ -433,6 +434,7 @@ public actor DQN {
             "meanQValue": Double((totalQ / steps).item(Float.self)),
             "learningRate": Double(lr),
         ])
+        return true
     }
 
     private func buildCompiledStep() -> ([MLXArray]) -> [MLXArray] {

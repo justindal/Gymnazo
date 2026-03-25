@@ -116,7 +116,10 @@ public actor TabularAgent {
         resetProgress: Bool = true
     ) async throws {
         self.totalTimesteps = totalTimesteps
-        if resetProgress { self.timesteps = 0 }
+        if resetProgress {
+            self.timesteps = 0
+            self.explorationRate = config.epsilon
+        }
         shouldContinue = true
 
         guard var environment = env else {

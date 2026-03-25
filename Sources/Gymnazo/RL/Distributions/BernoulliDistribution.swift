@@ -34,8 +34,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
         latentDim: Int,
         logStdInit: Float = 0.0
     ) -> (any UnaryLayer, MLXArray?) {
-        let actionNet = Linear(latentDim, 0)
-        return (actionNet, nil)
+        fatalError("Use probaDistributionNet(latentDim:actionDim:) instead.")
     }
     
     /// Creates the network for this distribution with the correct action dim.

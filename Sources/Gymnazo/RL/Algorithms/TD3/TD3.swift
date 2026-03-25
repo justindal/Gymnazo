@@ -282,13 +282,13 @@ public actor TD3 {
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
                 if gradSteps > 0 {
-                    await train(
+                    let didTrain = await train(
                         gradientSteps: gradSteps,
                         batchSize: offPolicyConfig.batchSize,
                         callbacks: callbacks
                     )
+                    if didTrain { stepsSinceTrain = 0 }
                 }
-                stepsSinceTrain = 0
             }
         }
 
@@ -474,13 +474,14 @@ public actor TD3 {
         )
     }
 
+    @discardableResult
     private func train(
         gradientSteps: Int,
         batchSize: Int,
         callbacks: LearnCallbacks?
-    ) async {
-        guard gradientSteps > 0 else { return }
-        guard var buf = buffer, buf.count >= batchSize else { return }
+    ) async -> Bool {
+        guard gradientSteps > 0 else { return false }
+        guard var buf = buffer, buf.count >= batchSize else { return false }
 
         policy.updateOptimizers(progressRemaining: progressRemaining)
         policy.setTrainingMode(true)
@@ -549,6 +550,7 @@ public actor TD3 {
         }
 
         await callbacks?.onTrain?(metrics)
+        return true
     }
 
     private func buildCriticStep() -> ([MLXArray]) -> [MLXArray] {

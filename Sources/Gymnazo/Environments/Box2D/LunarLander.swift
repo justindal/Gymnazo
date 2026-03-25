@@ -356,14 +356,15 @@ public struct LunarLander: Env {
         reward -= sPower * 0.03
         
         var terminated = false
+        let crashed = gameOver || abs(stateArray[0]) >= 1.0
         
-        if gameOver || abs(stateArray[0]) >= 1.0 {
+        if crashed {
             terminated = true
             reward = -100
         }
         
         let isAwake = b2Body_IsAwake(landerId)
-        if !isAwake {
+        if !isAwake && !crashed {
             terminated = true
             reward = 100
         }

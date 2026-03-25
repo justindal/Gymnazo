@@ -63,6 +63,7 @@ public func evaluatePolicy(
         var done = false
         var episodeReward: Double = 0
         var episodeLength: Int = 0
+        var episodeSuccess: Bool?
 
         while !done {
             let action = policy.predict(observation: obs, deterministic: deterministic)
@@ -76,12 +77,16 @@ public func evaluatePolicy(
             obs = step.obs
 
             if let success = step.info["is_success"]?.bool {
-                successes.append(success)
+                episodeSuccess = success
             }
 
             if render {
                 try env.render()
             }
+        }
+
+        if let success = episodeSuccess {
+            successes.append(success)
         }
 
         episodeRewards.append(episodeReward)

@@ -57,7 +57,7 @@ public enum MLPFactory {
             layers.append(Linear(currentDim, outputDim, bias: withBias))
 
             if squashOutput {
-
+                layers.append(Tanh())
             }
         }
         return Sequential(layers: layers)
