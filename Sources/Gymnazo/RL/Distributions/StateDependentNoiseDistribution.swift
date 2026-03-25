@@ -167,7 +167,8 @@ public final class StateDependentNoiseDistribution: Distribution {
         let unbatched = latentShape.count <= 1
         let batchSize = unbatched ? 1 : latentShape[0]
 
-        if explorationMatrix.size == 0 {
+        let expectedShape = [batchSize, latentSDEDim, actionDim]
+        if explorationMatrix.shape != expectedShape {
             sampleWeights(batchSize: batchSize, key: key)
         }
 
