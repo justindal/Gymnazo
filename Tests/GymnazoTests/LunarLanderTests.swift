@@ -253,26 +253,6 @@ struct LunarLanderTests {
     }
 
     @Test
-    func testFuelCostInReward() async throws {
-        var envNoAction = try await makeLunarLander()
-        var envMainEngine = try await makeLunarLander()
-
-        _ = try envNoAction.reset(seed: 42)
-        _ = try envMainEngine.reset(seed: 42)
-
-        for _ in 0..<5 {
-            _ = try envNoAction.step(MLXArray(Int32(0)))
-            _ = try envMainEngine.step(MLXArray(Int32(2)))
-        }
-
-        let rewardNoAction = try envNoAction.step(MLXArray(Int32(0))).reward
-        let rewardMainEngine = try envMainEngine.step(MLXArray(Int32(2))).reward
-
-        _ = rewardNoAction
-        _ = rewardMainEngine
-    }
-
-    @Test
     func testObservationContainsLegContact() async throws {
         var env = try await makeLunarLander()
         let obs = try env.reset(seed: 42).obs
@@ -496,28 +476,6 @@ struct LunarLanderContinuousTests {
         let vyHigh = obsHigh[3].item(Float.self)
 
         #expect(vyHigh > vyLow)
-    }
-
-    @Test
-    func testLateralEngineDeadzone() async throws {
-        var envOff = try await makeLunarLanderContinuous()
-        var envOn = try await makeLunarLanderContinuous()
-
-        _ = try envOff.reset(seed: 42)
-        _ = try envOn.reset(seed: 42)
-
-        let actionOff = MLXArray([0.0, 0.3] as [Float32])
-        let actionOn = MLXArray([0.0, 0.8] as [Float32])
-
-        let obsOff = try envOff.step(actionOff).obs
-        let obsOn = try envOn.step(actionOn).obs
-
-        eval(obsOff, obsOn)
-
-        let angVelOff = obsOff[5].item(Float.self)
-        let angVelOn = obsOn[5].item(Float.self)
-
-        #expect(angVelOff != angVelOn || abs(angVelOff - angVelOn) >= 0)
     }
 
     @Test
