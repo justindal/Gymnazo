@@ -66,7 +66,7 @@ extension DQN {
         let schedule = checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(1e-4)
 
-        let networks = DQNNetworks(
+        let networks = try DQNNetworks(
             observationSpace: environment.observationSpace,
             nActions: discrete.n,
             config: policyConfig

@@ -61,7 +61,7 @@ extension PPO {
             actionSpace = try ppoActionSpace.makeSpace()
         }
 
-        let policy = PPOPolicy(
+        let policy = try PPOPolicy(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             config: policyConfig,

@@ -67,7 +67,7 @@ extension TD3 {
         let policyConfig = checkpoint.td3PolicyConfig ?? TD3PolicyConfig()
         let algorithmConfig = checkpoint.td3AlgorithmConfig ?? TD3AlgorithmConfig()
 
-        let policy = TD3Policy(
+        let policy = try TD3Policy(
             observationSpace: environment.observationSpace,
             actionSpace: environment.actionSpace,
             learningRateSchedule: schedule,

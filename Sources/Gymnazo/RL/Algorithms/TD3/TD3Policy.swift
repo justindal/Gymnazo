@@ -42,7 +42,7 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         shareFeaturesExtractor: Bool = false,
         actorOptimizer: OptimizerConfig = .adam(),
         criticOptimizer: OptimizerConfig = .adam()
-    ) {
+    ) throws {
         let resolvedNetArch =
             netArch
             ?? Self.defaultNetArch(
@@ -50,7 +50,7 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
                 featuresExtractor: featuresExtractor
             )
         let resolvedNCritics = max(1, nCritics)
-        let setup = Self.buildSetup(
+        let setup = try Self.buildSetup(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             netArch: resolvedNetArch,
@@ -92,8 +92,8 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         actionSpace: any Space,
         learningRateSchedule: any LearningRateSchedule = ConstantLearningRate(1e-3),
         config: TD3PolicyConfig = TD3PolicyConfig()
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             learningRateSchedule: learningRateSchedule,
@@ -121,10 +121,10 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
     }
 
     public func makeFeatureExtractor() -> any FeaturesExtractor {
-        featuresExtractorConfig.make(
+        (try? featuresExtractorConfig.make(
             observationSpace: observationSpace,
             normalizeImages: normalizeImages
-        )
+        )) ?? FlattenExtractor(featuresDim: observationSpace.shape?.reduce(1, *) ?? 1)
     }
 
     public func setTrainingMode(_ mode: Bool) {
@@ -189,12 +189,12 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         actorOptimizerConfig: OptimizerConfig,
         criticOptimizerConfig: OptimizerConfig,
         learningRateSchedule: any LearningRateSchedule
-    ) -> PolicySetup {
-        let actor = TD3Actor(
+    ) throws -> PolicySetup {
+        let actor = try TD3Actor(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             netArch: .shared(netArch.actor),
-            featuresExtractor: featuresExtractor.make(
+            featuresExtractor: try featuresExtractor.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             ),
@@ -202,11 +202,11 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
             activation: { activation.make() }
         )
 
-        let actorTarget = TD3Actor(
+        let actorTarget = try TD3Actor(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             netArch: .shared(netArch.actor),
-            featuresExtractor: featuresExtractor.make(
+            featuresExtractor: try featuresExtractor.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             ),
@@ -217,12 +217,12 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         let criticExtractor: (any FeaturesExtractor)? =
             shareFeaturesExtractor
             ? actor.featuresExtractor
-            : featuresExtractor.make(
+            : try featuresExtractor.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             )
 
-        let critic = SACCritic(
+        let critic = try SACCritic(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             normalizeImages: normalizeImages,
@@ -236,12 +236,12 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         let criticTargetExtractor: (any FeaturesExtractor)? =
             shareFeaturesExtractor
             ? actorTarget.featuresExtractor
-            : featuresExtractor.make(
+            : try featuresExtractor.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             )
 
-        let criticTarget = SACCritic(
+        let criticTarget = try SACCritic(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             normalizeImages: normalizeImages,

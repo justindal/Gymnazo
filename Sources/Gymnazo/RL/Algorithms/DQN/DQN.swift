@@ -40,7 +40,7 @@ public actor DQN {
             )
         }
 
-        let networks = DQNNetworks(
+        let networks = try DQNNetworks(
             observationSpace: env.observationSpace,
             nActions: discrete.n,
             config: policyConfig
@@ -70,8 +70,8 @@ public actor DQN {
         config: DQNConfig = DQNConfig(),
         optimizerConfig: DQNOptimizerConfig = DQNOptimizerConfig(),
         seed: UInt64? = nil
-    ) {
-        let networks = DQNNetworks(
+    ) throws {
+        let networks = try DQNNetworks(
             observationSpace: observationSpace,
             nActions: actionSpace.n,
             config: policyConfig

@@ -21,8 +21,8 @@ public struct SACNetworks {
         observationSpace: any Space,
         actionSpace: any Space,
         config: SACNetworksConfig = SACNetworksConfig()
-    ) {
-        let actor = SACActor(
+    ) throws {
+        let actor = try SACActor(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             config: config.actor
@@ -37,12 +37,12 @@ public struct SACNetworks {
         let criticExtractor: (any FeaturesExtractor)? =
             config.critic.shareFeaturesExtractor
             ? actor.featuresExtractor
-            : criticExtractorConfig.make(
+            : try criticExtractorConfig.make(
                 observationSpace: observationSpace,
                 normalizeImages: criticNormalizeImages
             )
 
-        let critic = SACCritic(
+        let critic = try SACCritic(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             normalizeImages: criticNormalizeImages,
@@ -53,11 +53,11 @@ public struct SACNetworks {
             activation: { criticActivation.make() }
         )
 
-        let targetExtractor = criticExtractorConfig.make(
+        let targetExtractor = try criticExtractorConfig.make(
             observationSpace: observationSpace,
             normalizeImages: criticNormalizeImages
         )
-        let criticTarget = SACCritic(
+        let criticTarget = try SACCritic(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             normalizeImages: criticNormalizeImages,
@@ -78,7 +78,7 @@ public struct SACNetworks {
     public init(
         actor: SACActor,
         criticConfig: SACCriticConfig = SACCriticConfig()
-    ) {
+    ) throws {
         let observationSpace = actor.observationSpace
         let actionSpace = actor.actionSpace
 
@@ -90,12 +90,12 @@ public struct SACNetworks {
         let criticExtractor: (any FeaturesExtractor)? =
             criticConfig.shareFeaturesExtractor
             ? actor.featuresExtractor
-            : criticExtractorConfig.make(
+            : try criticExtractorConfig.make(
                 observationSpace: observationSpace,
                 normalizeImages: criticNormalizeImages
             )
 
-        let critic = SACCritic(
+        let critic = try SACCritic(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             normalizeImages: criticNormalizeImages,
@@ -106,11 +106,11 @@ public struct SACNetworks {
             activation: { criticActivation.make() }
         )
 
-        let targetExtractor = criticExtractorConfig.make(
+        let targetExtractor = try criticExtractorConfig.make(
             observationSpace: observationSpace,
             normalizeImages: criticNormalizeImages
         )
-        let criticTarget = SACCritic(
+        let criticTarget = try SACCritic(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             normalizeImages: criticNormalizeImages,
