@@ -21,12 +21,12 @@ struct FlatteningTests {
     @Test
     func testDiscreteOneHotRoundTrip() async throws {
         let space = Discrete(n: 5)
-        let flattened = flatten(space: space, sample: MLXArray(Int32(3)))
+        let flattened = try flatten(space: space, sample: MLXArray(Int32(3)))
         guard let flat = flattened as? MLXArray else {
             Issue.record("Expected MLXArray from flatten")
             return
         }
-        let restored = unflatten(space: space, flattened: flat)
+        let restored = try unflatten(space: space, flattened: flat)
         guard let restoredArr = restored as? MLXArray else {
             Issue.record("Expected MLXArray from unflatten")
             return
@@ -44,12 +44,12 @@ struct FlatteningTests {
             "a": MLXArray(Int32(1)),
             "b": MLXArray(Int32(0)),
         ]
-        let flattened = flatten(space: space, sample: sample)
+        let flattened = try flatten(space: space, sample: sample)
         guard let flat = flattened as? MLXArray else {
             Issue.record("Expected MLXArray from flatten")
             return
         }
-        let restored = unflatten(space: space, flattened: flat)
+        let restored = try unflatten(space: space, flattened: flat)
         let dict = restored as? [String: Any]
         #expect((dict?["a"] as? MLXArray)?.item(Int.self) == 1)
         #expect((dict?["b"] as? MLXArray)?.item(Int.self) == 0)
@@ -59,12 +59,12 @@ struct FlatteningTests {
     func testTupleRoundTrip() async throws {
         let space = Tuple(Discrete(n: 2), Discrete(n: 3))
         let sample: [Any] = [MLXArray(Int32(1)), MLXArray(Int32(2))]
-        let flattened = flatten(space: space, sample: sample)
+        let flattened = try flatten(space: space, sample: sample)
         guard let flat = flattened as? MLXArray else {
             Issue.record("Expected MLXArray from flatten")
             return
         }
-        let restored = unflatten(space: space, flattened: flat)
+        let restored = try unflatten(space: space, flattened: flat)
         let tuple = restored as? [Any]
         #expect((tuple?[0] as? MLXArray)?.item(Int.self) == 1)
         #expect((tuple?[1] as? MLXArray)?.item(Int.self) == 2)
@@ -85,7 +85,7 @@ struct FlatteningTests {
     @Test
     func testFlattenSpaceDiscreteHasZeroOneBounds() async throws {
         let space = Discrete(n: 5)
-        let flattened = flatten_space(space)
+        let flattened = try flatten_space(space)
         guard let box = flattened as? Box else {
             Issue.record("Expected Box from flatten_space(Discrete)")
             return
@@ -101,7 +101,7 @@ struct FlatteningTests {
     @Test
     func testFlattenSpaceMultiDiscreteHasZeroOneBounds() async throws {
         let space = MultiDiscrete([2, 3])
-        let flattened = flatten_space(space)
+        let flattened = try flatten_space(space)
         guard let box = flattened as? Box else {
             Issue.record("Expected Box from flatten_space(MultiDiscrete)")
             return
@@ -117,7 +117,7 @@ struct FlatteningTests {
     @Test
     func testFlattenSpaceTextSpaceHasMinusOnePaddingBounds() async throws {
         let space = TextSpace(minLength: 0, maxLength: 4)
-        let flattened = flatten_space(space)
+        let flattened = try flatten_space(space)
         guard let box = flattened as? Box else {
             Issue.record("Expected Box from flatten_space(TextSpace)")
             return
@@ -134,13 +134,13 @@ struct FlatteningTests {
     func testFlattenSpaceSequenceStaysSequence() async throws {
         let inner = MultiDiscrete([2, 3])
         let seq = SequenceSpace(space: inner, minLength: 0, maxLength: 7)
-        let flattened = flatten_space(seq)
+        let flattened = try flatten_space(seq)
         #expect((flattened as? Box) == nil)
         guard let seqFlat = flattened as? any AnySequenceSpace else {
             Issue.record("Expected SequenceSpace from flatten_space(SequenceSpace)")
             return
         }
-        let elementFlattened = flatten_space(seqFlat.elementSpace)
+        let elementFlattened = try flatten_space(seqFlat.elementSpace)
         #expect(elementFlattened is Box)
     }
 
@@ -149,14 +149,14 @@ struct FlatteningTests {
         let nodeSpace = MultiDiscrete([2, 3])
         let edgeSpace = MultiBinary(n: 2)
         let graph = Graph(nodeSpace: nodeSpace, edgeSpace: edgeSpace, maxNodes: 3, maxEdges: 4)
-        let flattened = flatten_space(graph)
+        let flattened = try flatten_space(graph)
         #expect((flattened as? Box) == nil)
         guard let graphFlat = flattened as? any AnyGraphSpace else {
             Issue.record("Expected Graph from flatten_space(Graph)")
             return
         }
-        #expect(flatten_space(graphFlat.nodeSpaceAny) is Box)
-        #expect(flatten_space(graphFlat.edgeSpaceAny) is Box)
+        #expect((try flatten_space(graphFlat.nodeSpaceAny)) is Box)
+        #expect((try flatten_space(graphFlat.edgeSpaceAny)) is Box)
     }
 
     @Test
@@ -164,7 +164,7 @@ struct FlatteningTests {
         let low = MLXArray([Float](arrayLiteral: -1, 0)).asType(.float32)
         let high = MLXArray([Float](arrayLiteral: 1, 2)).asType(.float32)
         let space = Box(low: low, high: high, dtype: .float32)
-        let flattened = flatten_space(space)
+        let flattened = try flatten_space(space)
         guard let box = flattened as? Box else {
             Issue.record("Expected Box from flatten_space(Box)")
             return
@@ -181,11 +181,49 @@ struct FlatteningTests {
     func testFlattenSpaceToBoxIsNilForSequenceAndGraph() async throws {
         let inner = MultiDiscrete([2, 3])
         let seq = SequenceSpace(space: inner, minLength: 0, maxLength: 7)
-        #expect(flattenSpaceToBox(seq) == nil)
+        #expect(try flattenSpaceToBox(seq) == nil)
 
         let nodeSpace = MultiDiscrete([2, 3])
         let edgeSpace = MultiBinary(n: 2)
         let graph = Graph(nodeSpace: nodeSpace, edgeSpace: edgeSpace, maxNodes: 3, maxEdges: 4)
-        #expect(flattenSpaceToBox(graph) == nil)
+        #expect(try flattenSpaceToBox(graph) == nil)
+    }
+
+    @Test
+    func testFlattenTupleCountMismatchThrowsTypedError() async throws {
+        let space = Tuple(Discrete(n: 2), Discrete(n: 3))
+        let sample: [Any] = [MLXArray(Int32(1))]
+        do {
+            _ = try flatten(space: space, sample: sample)
+            Issue.record("Expected flatten to throw invalidSampleCount for tuple mismatch")
+        } catch let error as GymnazoError {
+            #expect(
+                error
+                    == .invalidSampleCount(
+                        operation: "flattenToBox.tuple",
+                        expected: 2,
+                        actual: 1
+                    )
+            )
+        } catch {
+            Issue.record("Expected GymnazoError, got \(error)")
+        }
+    }
+
+    @Test
+    func testFlattenDictMissingKeyThrowsTypedError() async throws {
+        let space = Dict([
+            "a": Discrete(n: 2),
+            "b": Discrete(n: 2),
+        ])
+        let sample: [String: Any] = ["a": MLXArray(Int32(1))]
+        do {
+            _ = try flatten(space: space, sample: sample)
+            Issue.record("Expected flatten to throw missingSampleKey for dict sample")
+        } catch let error as GymnazoError {
+            #expect(error == .missingSampleKey("b"))
+        } catch {
+            Issue.record("Expected GymnazoError, got \(error)")
+        }
     }
 }

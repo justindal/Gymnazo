@@ -100,7 +100,7 @@ struct PersistenceTests {
             learningStarts: 10,
             batchSize: 32
         )
-        let dqn = DQN(
+        let dqn = try DQN(
             observationSpace: env.observationSpace,
             actionSpace: env.actionSpace as! Discrete,
             config: dqnConfig,
@@ -165,7 +165,7 @@ struct PersistenceTests {
             critic: .adam(beta1: 0.88, beta2: 0.996, eps: 1e-7),
             entropy: .adam(beta1: 0.9, beta2: 0.999, eps: 1e-8)
         )
-        let sac = SAC(
+        let sac = try SAC(
             observationSpace: env.observationSpace,
             actionSpace: env.actionSpace,
             networksConfig: networksConfig,

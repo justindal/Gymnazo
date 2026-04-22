@@ -23,6 +23,21 @@ final class DummyBoxEnv: Env {
     }
 }
 
+final class DummyDiscreteEnv: Env {
+    let actionSpace: any Space = Discrete(n: 3)
+    let observationSpace: any Space = Box(low: -1.0, high: 1.0, shape: [1], dtype: .float32)
+    var spec: EnvSpec? = nil
+    var renderMode: RenderMode? = nil
+
+    func step(_ action: MLXArray) throws -> Step {
+        Step(obs: action, reward: 0.0, terminated: false, truncated: false, info: [:])
+    }
+
+    func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
+        Reset(obs: MLXArray([0.0 as Float]), info: [:])
+    }
+}
+
 @Suite("Action wrappers on Box spaces")
 struct ActionWrappersTests {
     @Test
@@ -49,5 +64,49 @@ struct ActionWrappersTests {
         let obs = result.obs.asArray(Float.self)
         #expect(abs(obs[0] - 0.0) < 1e-6)
         #expect(abs(obs[1] - 2.0) < 1e-6)
+    }
+
+    @Test
+    func testClipActionThrowsForNonBoxSpace() async throws {
+        let env = DummyDiscreteEnv()
+        var wrapper = ClipAction(env: env)
+        _ = try wrapper.reset(seed: 0, options: nil)
+
+        do {
+            _ = try wrapper.step(MLXArray([1.0 as Float]))
+            Issue.record("Expected ClipAction to throw on non-Box action space")
+        } catch let error as GymnazoError {
+            #expect(
+                error
+                    == .invalidActionType(
+                        expected: "Box",
+                        actual: "Discrete"
+                    )
+            )
+        } catch {
+            Issue.record("Expected GymnazoError, got \(error)")
+        }
+    }
+
+    @Test
+    func testRescaleActionThrowsForNonBoxSpace() async throws {
+        let env = DummyDiscreteEnv()
+        var wrapper = RescaleAction(env: env)
+        _ = try wrapper.reset(seed: 0, options: nil)
+
+        do {
+            _ = try wrapper.step(MLXArray([1.0 as Float]))
+            Issue.record("Expected RescaleAction to throw on non-Box action space")
+        } catch let error as GymnazoError {
+            #expect(
+                error
+                    == .invalidActionType(
+                        expected: "Box",
+                        actual: "Discrete"
+                    )
+            )
+        } catch {
+            Issue.record("Expected GymnazoError, got \(error)")
+        }
     }
 }
