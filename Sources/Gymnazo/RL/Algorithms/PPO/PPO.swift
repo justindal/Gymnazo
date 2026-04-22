@@ -184,7 +184,9 @@ public actor PPO {
             for stepIndex in 0..<rolloutSteps {
                 guard shouldContinue else { break }
 
-                if config.useSDE && config.sdeSampleFreq > 0 && stepIndex % config.sdeSampleFreq == 0 {
+                if config.useSDE && config.sdeSampleFreq > 0
+                    && stepIndex % config.sdeSampleFreq == 0
+                {
                     let (noiseKey, nextKey) = MLX.split(key: key, stream: .cpu)
                     key = nextKey
                     policy.resetNoise(nEnvs: 1, key: noiseKey)
@@ -519,20 +521,24 @@ public actor PPO {
             let ratio = MLX.exp(logProb - oldLogProbs)
 
             let policyLoss1 = advantages * ratio
-            let policyLoss2 = advantages * MLX.clip(
-                ratio,
-                min: 1.0 - clipRange,
-                max: 1.0 + clipRange
-            )
+            let policyLoss2 =
+                advantages
+                * MLX.clip(
+                    ratio,
+                    min: 1.0 - clipRange,
+                    max: 1.0 + clipRange
+                )
             let policyLoss = -MLX.mean(MLX.minimum(policyLoss1, policyLoss2))
 
             let valuePred: MLXArray
             if let clipRangeVf {
-                valuePred = oldValues + MLX.clip(
-                    values - oldValues,
-                    min: -clipRangeVf,
-                    max: clipRangeVf
-                )
+                valuePred =
+                    oldValues
+                    + MLX.clip(
+                        values - oldValues,
+                        min: -clipRangeVf,
+                        max: clipRangeVf
+                    )
             } else {
                 valuePred = values
             }
@@ -642,7 +648,9 @@ public actor PPO {
         return centered / (std + 1e-8)
     }
 
-    private static func clipGradients(_ gradients: ModuleParameters, maxNorm: Float) -> ModuleParameters {
+    private static func clipGradients(_ gradients: ModuleParameters, maxNorm: Float)
+        -> ModuleParameters
+    {
         let flattened = Dictionary(uniqueKeysWithValues: gradients.flattened())
         var totalNormSq = MLXArray(0.0)
         for (_, gradient) in flattened {
@@ -661,18 +669,20 @@ public actor PPO {
         guard values.count == returns.count, values.count > 1 else { return 0.0 }
         let n = Double(returns.count)
         let meanReturns = returns.reduce(0.0) { $0 + Double($1) } / n
-        let varianceReturns = returns.reduce(0.0) { partial, value in
-            let centered = Double(value) - meanReturns
-            return partial + centered * centered
-        } / n
+        let varianceReturns =
+            returns.reduce(0.0) { partial, value in
+                let centered = Double(value) - meanReturns
+                return partial + centered * centered
+            } / n
         if !varianceReturns.isFinite || varianceReturns < 1e-12 {
             return 0.0
         }
 
-        let varianceResidual = zip(returns, values).reduce(0.0) { partial, pair in
-            let residual = Double(pair.0 - pair.1)
-            return partial + residual * residual
-        } / n
+        let varianceResidual =
+            zip(returns, values).reduce(0.0) { partial, pair in
+                let residual = Double(pair.0 - pair.1)
+                return partial + residual * residual
+            } / n
         let explained = 1.0 - varianceResidual / varianceReturns
         if explained.isFinite {
             return explained

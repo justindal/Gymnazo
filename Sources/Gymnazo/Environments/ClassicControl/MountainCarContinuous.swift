@@ -1,7 +1,8 @@
 import Foundation
 import MLX
+
 #if canImport(SwiftUI)
-import SwiftUI
+    import SwiftUI
 #endif
 
 /// The MountainCarContinuous environment from Gymnasium's classic control suite.
@@ -75,48 +76,48 @@ public struct MountainCarContinuous: Env {
     public let maxSpeed: Float = 0.07
     public let goalPosition: Float = 0.45
     public let goalVelocity: Float
-    
+
     public let power: Float = 0.0015
     public let gravity: Float = 0.0025
-    
+
     public private(set) var state: (position: Float, velocity: Float)? = nil
-    
+
     public let actionSpace: any Space
     public let observationSpace: any Space
-    
+
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
-    
+
     private var _key: MLXArray?
     private var lastForce: Float? = nil
-    
+
     public static var metadata: [String: Any] {
         [
             "render_modes": ["human", "rgb_array"],
             "render_fps": 30,
         ]
     }
-    
+
     public init(renderMode: RenderMode? = nil, goal_velocity: Float = 0.0) {
         self.renderMode = renderMode
         self.goalVelocity = goal_velocity
-        
+
         self.actionSpace = Box(
             low: MLXArray([-1.0] as [Float32]),
             high: MLXArray([1.0] as [Float32]),
             dtype: .float32
         )
-        
+
         let low = MLXArray([minPosition, -maxSpeed] as [Float32])
         let high = MLXArray([maxPosition, maxSpeed] as [Float32])
-        
+
         self.observationSpace = Box(
             low: low,
             high: high,
             dtype: .float32
         )
     }
-    
+
     /// Execute one time step within the environment.
     ///
     /// - Parameter action: An `MLXArray` with shape `(1,)` representing the force to apply (clipped to `[-1, 1]`).
@@ -125,27 +126,28 @@ public struct MountainCarContinuous: Env {
         guard var currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
-        
+
         let force = min(max(action.singletonValue(Float.self), -1.0), 1.0)
         lastForce = force
-        
+
         currentState.velocity += force * power + cos(3 * currentState.position) * (-gravity)
         currentState.velocity = min(max(currentState.velocity, -maxSpeed), maxSpeed)
-        
+
         currentState.position += currentState.velocity
         currentState.position = min(max(currentState.position, minPosition), maxPosition)
-        
+
         if currentState.position == minPosition && currentState.velocity < 0 {
             currentState.velocity = 0
         }
-        
+
         state = currentState
-        
-        let terminated = currentState.position >= goalPosition && currentState.velocity >= goalVelocity
-        
+
+        let terminated =
+            currentState.position >= goalPosition && currentState.velocity >= goalVelocity
+
         var reward: Double = terminated ? 100.0 : 0.0
         reward -= Double(force * force) * 0.1
-        
+
         return Step(
             obs: observation,
             reward: reward,
@@ -154,7 +156,7 @@ public struct MountainCarContinuous: Env {
             info: [:]
         )
     }
-    
+
     /// Reset the environment to an initial state.
     ///
     /// - Parameters:
@@ -167,29 +169,30 @@ public struct MountainCarContinuous: Env {
         } else if self._key == nil {
             self._key = MLX.key(UInt64.random(in: 0...UInt64.max))
         }
-        
+
         let (stepKey, nextKey) = MLX.split(key: self._key!)
         self._key = nextKey
-        
-        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(Float.self)
+
+        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(
+            Float.self)
         state = (position: position, velocity: 0.0)
         lastForce = nil
-        
+
         return Reset(obs: observation, info: [:])
     }
-    
+
     /// Render the environment.
     ///
     /// - Returns: A `MountainCarSnapshot` for human mode, `nil` otherwise.
     public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
-        
+
         switch mode {
         case .human:
             #if canImport(SwiftUI)
-            return .other(self.currentSnapshot)
+                return .other(self.currentSnapshot)
             #else
-            return nil
+                return nil
             #endif
         case .rgbArray:
             return nil
@@ -197,7 +200,7 @@ public struct MountainCarContinuous: Env {
             return nil
         }
     }
-    
+
     public var currentSnapshot: MountainCarSnapshot {
         guard let state else { return MountainCarSnapshot.zero }
         return MountainCarSnapshot(
@@ -208,12 +211,12 @@ public struct MountainCarContinuous: Env {
             goalPosition: goalPosition
         )
     }
-    
+
     private var observation: MLXArray {
         guard let state else { return MLXArray([0.0, 0.0] as [Float32]) }
         return MLXArray([state.position, state.velocity] as [Float32])
     }
-    
+
     public static func height(at position: Float) -> Float {
         sin(3 * position) * 0.45 + 0.55
     }

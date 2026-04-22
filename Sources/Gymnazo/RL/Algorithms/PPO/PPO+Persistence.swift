@@ -41,7 +41,8 @@ extension PPO {
 
         let config = checkpoint.ppoConfig ?? PPOConfig()
         let policyConfig = checkpoint.ppoPolicyConfig ?? PPOPolicyConfig()
-        let learningRate = checkpoint.learningRateSchedule?.makeSchedule()
+        let learningRate =
+            checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(3e-4)
 
         let observationSpace: any Space

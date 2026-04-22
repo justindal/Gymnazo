@@ -34,7 +34,8 @@ public struct TextSpace: Space {
     ///   - minLength: Minimum string length (inclusive).
     ///   - maxLength: Maximum string length (inclusive).
     public init(minLength: Int, maxLength: Int) {
-        let defaultChars = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".map { $0 })
+        let defaultChars = Array(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".map { $0 })
         self.init(minLength: minLength, maxLength: maxLength, charset: defaultChars)
     }
 
@@ -44,7 +45,8 @@ public struct TextSpace: Space {
         let lenKey = keys[0]
         let charKey = keys[1]
 
-        let length = Int(MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
+        let length = Int(
+            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
 
         if length == 0 {
             return MLXArray([Int32](repeating: -1, count: maxLength))
@@ -52,7 +54,7 @@ public struct TextSpace: Space {
 
         let rand = MLX.uniform(low: 0, high: 1, [length], key: charKey).asType(.float32)
         let idx = (rand * Float(charset.count)).asType(.int32)
-        
+
         if length < maxLength {
             let padding = MLXArray([Int32](repeating: -1, count: maxLength - length))
             return MLX.concatenated([idx, padding])
@@ -61,12 +63,15 @@ public struct TextSpace: Space {
     }
 
     /// Samples a random string from the space.
-    public func sampleString(key: MLXArray, mask: MLXArray? = nil, probability: MLXArray? = nil) -> String {
+    public func sampleString(key: MLXArray, mask: MLXArray? = nil, probability: MLXArray? = nil)
+        -> String
+    {
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
         let charKey = keys[1]
 
-        let length = Int(MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
+        let length = Int(
+            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
 
         if length == 0 {
             return ""
@@ -110,4 +115,3 @@ public struct TextSpace: Space {
         return true
     }
 }
-

@@ -88,4 +88,3 @@ public struct AutoReset: Wrapper {
 private func sendableValue(_ value: MLXArray) -> InfoValue {
     .sendable(MLXArrayBox(array: value))
 }
-

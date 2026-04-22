@@ -67,7 +67,9 @@ public struct SequenceSpace<Inner: TensorSpace>: Space, AnySequenceSpace {
     ///
     /// - Returns: A padded ``SequenceSample`` where `mask` is `true` for a prefix of length `L` and `false` elsewhere.
     /// - Note: `mask` and `probability` are currently ignored.
-    public func sampleSequence(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> SequenceSample {
+    public func sampleSequence(key: MLXArray, mask: MLXArray?, probability: MLXArray?)
+        -> SequenceSample
+    {
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
         let valKey = keys[1]

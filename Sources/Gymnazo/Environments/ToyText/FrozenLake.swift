@@ -1,16 +1,17 @@
+import CoreGraphics
 import Foundation
 import MLX
-import CoreGraphics
+
 #if canImport(SwiftUI)
-import SwiftUI
-#if os(macOS)
-import AppKit
-#elseif os(iOS) || os(tvOS) || os(visionOS)
-import UIKit
-#endif
+    import SwiftUI
+    #if os(macOS)
+        import AppKit
+    #elseif os(iOS) || os(tvOS) || os(visionOS)
+        import UIKit
+    #endif
 #endif
 #if canImport(PlaygroundSupport)
-import PlaygroundSupport
+    import PlaygroundSupport
 #endif
 
 /// Frozen lake involves crossing a frozen lake from start to goal without falling into any holes
@@ -108,16 +109,16 @@ public final class FrozenLake: Env {
         case right = 2
         case up = 3
     }
-    
+
     private func toInt(_ action: MLXArray) -> Int {
         Int(action.singletonValue(Int32.self))
     }
-    
+
     private func toMLX(_ state: Int) -> MLXArray {
         MLXArray([Int32(state)])
     }
 
-    public static let MAPS: [String : [String]] = [
+    public static let MAPS: [String: [String]] = [
         "4x4": ["SFFF", "FHFH", "FFFH", "HFFG"],
         "8x8": [
             "SFFFFFFF",
@@ -204,7 +205,7 @@ public final class FrozenLake: Env {
             let loopKey: (MLXArray, MLXArray) = MLX.split(key: master)
             master = loopKey.1
 
-            let uniform: MLXArray = MLX.uniform(0 ..< 1, [size, size], key: loopKey.0)
+            let uniform: MLXArray = MLX.uniform(0..<1, [size, size], key: loopKey.0)
 
             let boardML: MLXArray = MLX.which(uniform .< p, 0, 1)
             eval(boardML)
@@ -239,21 +240,21 @@ public final class FrozenLake: Env {
     public let observationSpace: any Space
     public var spec: EnvSpec?
     public var renderMode: RenderMode?
-    
+
     private let descMatrix: [[Character]]
     private let nrow: Int
     private let ncol: Int
 
-#if canImport(SwiftUI)
-    private var lastRGBFrame: CGImage?
-#endif
+    #if canImport(SwiftUI)
+        private var lastRGBFrame: CGImage?
+    #endif
 
     public typealias Transition = (prob: Double, nextState: Int, reward: Double, terminated: Bool)
     private let P: [[[Transition]]]
 
     private var s: Int
     private var lastAction: Int?
-    
+
     private var _key: MLXArray?
     private var _seed: UInt64?
 
@@ -326,11 +327,12 @@ public final class FrozenLake: Env {
         self.initial_state_logits = MLXArray(startStateLogits)
         let successProb: Double = Double(successRate)
         let failProb: Double = (1.0 - successProb) / 2.0
-        
+
         func to_s(_ r: Int, _ c: Int) -> Int { r * ncol + c }
-        
+
         func inc(_ r: Int, _ c: Int, _ a: FrozenLake.Direction) -> (Int, Int) {
-            var newRow = r, newCol = c
+            var newRow = r
+            var newCol = c
             switch a {
             case .left: newCol = max(c - 1, 0)
             case .down: newRow = min(r + 1, nrow - 1)
@@ -340,16 +342,21 @@ public final class FrozenLake: Env {
             return (newRow, newCol)
         }
 
-        func update_prob_matrix(_ r: Int, _ c: Int, _ a: FrozenLake.Direction) -> (Int, Double, Bool) {
+        func update_prob_matrix(_ r: Int, _ c: Int, _ a: FrozenLake.Direction) -> (
+            Int, Double, Bool
+        ) {
             let (newRow, newCol) = inc(r, c, a)
             let newState = to_s(newRow, newCol)
             let newLetter = mapChars[newRow][newCol]
             let terminated = "GH".contains(newLetter)
-            
+
             var reward = reward_schedule.2
-            if newLetter == "G" { reward = reward_schedule.0 }
-            else if newLetter == "H" { reward = reward_schedule.1 }
-            
+            if newLetter == "G" {
+                reward = reward_schedule.0
+            } else if newLetter == "H" {
+                reward = reward_schedule.1
+            }
+
             return (newState, reward, terminated)
         }
 
@@ -357,7 +364,7 @@ public final class FrozenLake: Env {
             repeating: Array(repeating: [], count: nA),
             count: nS
         )
-        
+
         for r in 0..<nrow {
             for c in 0..<ncol {
                 let s = to_s(r, c)
@@ -367,7 +374,7 @@ public final class FrozenLake: Env {
                     }
                     var li: [Transition] = []
                     let letter = mapChars[r][c]
-                    
+
                     if "GH".contains(letter) {
                         li.append((prob: 1.0, nextState: s, reward: 0.0, terminated: true))
                     } else {
@@ -378,11 +385,13 @@ public final class FrozenLake: Env {
                                 }
                                 let p = (b == a) ? successProb : failProb
                                 let (s_new, r_new, t_new) = update_prob_matrix(r, c, b)
-                                li.append((prob: p, nextState: s_new, reward: r_new, terminated: t_new))
+                                li.append(
+                                    (prob: p, nextState: s_new, reward: r_new, terminated: t_new))
                             }
                         } else {
                             let (s_new, r_new, t_new) = update_prob_matrix(r, c, a)
-                            li.append((prob: 1.0, nextState: s_new, reward: r_new, terminated: t_new))
+                            li.append(
+                                (prob: 1.0, nextState: s_new, reward: r_new, terminated: t_new))
                         }
                     }
                     P_temp[s][a_int] = li
@@ -450,16 +459,16 @@ public final class FrozenLake: Env {
         seed: UInt64? = nil,
         options: EnvOptions? = nil
     ) throws -> Reset {
-        
+
         let key = try self.prepareKey(with: seed)
-        
+
         let (resetKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
-        
+
         let s_ml: MLXArray = MLX.categorical(self.initial_state_logits, key: resetKey)
         self.s = s_ml.item(Int.self)
         self.lastAction = nil
-        
+
         return Reset(obs: toMLX(self.s), info: ["prob": 1.0])
     }
 
@@ -469,25 +478,27 @@ public final class FrozenLake: Env {
             throw GymnazoError.invalidAction("Invalid action: \(a)")
         }
         let transitions = self.P[self.s][a]
-        
+
         guard let key = self._key else {
             throw GymnazoError.invalidState("Env must be seeded with reset(seed:)")
         }
         let (stepKey, nextKey) = MLX.split(key: key)
         self._key = nextKey
-        
+
         let probs = transitions.map { Float($0.prob) }
         let epsilon = MLXArray(1e-9, dtype: .float32)
         let prob_logits = MLX.log(MLXArray(probs) + epsilon)
-        
+
         let i = MLX.categorical(prob_logits, key: stepKey).item(Int.self)
-        
+
         let (p, s, r, t) = transitions[i]
-        
+
         self.s = s
         self.lastAction = a
-        
-        return Step(obs: toMLX(self.s), reward: r, terminated: t, truncated: false, info: ["prob": .double(p)])
+
+        return Step(
+            obs: toMLX(self.s), reward: r, terminated: t, truncated: false,
+            info: ["prob": .double(p)])
     }
 
     /// returns an ansi representation of the current grid, independent of `render_mode`.
@@ -499,7 +510,9 @@ public final class FrozenLake: Env {
     public func render() throws -> RenderOutput? {
         guard let mode = renderMode else {
             if let specId = spec?.id {
-                print("[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId).")
+                print(
+                    "[Gymnazo] render() called without renderMode. Set renderMode when creating \(specId)."
+                )
             }
             return nil
         }
@@ -509,9 +522,9 @@ public final class FrozenLake: Env {
             return .ansi(_renderText())
         case .human:
             #if canImport(SwiftUI)
-            return .other(currentSnapshot)
+                return .other(currentSnapshot)
             #else
-            return nil
+                return nil
             #endif
         case .rgbArray:
             return nil
@@ -539,191 +552,199 @@ public final class FrozenLake: Env {
     }
 
     @MainActor
-    private static func _renderGUI(snapshot: FrozenLakeRenderSnapshot, mode: RenderMode) -> CGImage? {
-#if canImport(SwiftUI)
-        let view = FrozenLakeCanvasView(snapshot: snapshot)
+    private static func _renderGUI(snapshot: FrozenLakeRenderSnapshot, mode: RenderMode) -> CGImage?
+    {
+        #if canImport(SwiftUI)
+            let view = FrozenLakeCanvasView(snapshot: snapshot)
 
-        switch mode {
-        case .human:
-#if canImport(PlaygroundSupport)
-            PlaygroundPage.current.setLiveView(view)
-#else
-            print("[Gymnazo] SwiftUI Canvas available via FrozenLakeCanvasView; integrate it into your app UI.")
-#endif
-            return nil
-        case .rgbArray:
-            if #available(macOS 13.0, iOS 16.0, *) {
-                let renderer = ImageRenderer(content: view)
-#if os(macOS)
-                renderer.scale = NSScreen.main?.backingScaleFactor ?? 2.0
-#else
-                renderer.scale = UIScreen.main.scale
-#endif
-                return renderer.cgImage
-            } else {
-                print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
+            switch mode {
+            case .human:
+                #if canImport(PlaygroundSupport)
+                    PlaygroundPage.current.setLiveView(view)
+                #else
+                    print(
+                        "[Gymnazo] SwiftUI Canvas available via FrozenLakeCanvasView; integrate it into your app UI."
+                    )
+                #endif
+                return nil
+            case .rgbArray:
+                if #available(macOS 13.0, iOS 16.0, *) {
+                    let renderer = ImageRenderer(content: view)
+                    #if os(macOS)
+                        renderer.scale = NSScreen.main?.backingScaleFactor ?? 2.0
+                    #else
+                        renderer.scale = UIScreen.main.scale
+                    #endif
+                    return renderer.cgImage
+                } else {
+                    print("[Gymnazo] rgb_array rendering requires macOS 13/iOS 16.")
+                    return nil
+                }
+            case .ansi:
+                return nil
+            case .statePixels:
                 return nil
             }
-        case .ansi:
+        #else
+            print("[Gymnazo] SwiftUI is not available; falling back to ANSI render.")
             return nil
-        case .statePixels:
-            return nil
+        #endif
+    }
+
+    #if canImport(SwiftUI)
+        /// last rendered rgb frame when using the "rgb_array" render mode.
+        public var latestRGBFrame: CGImage? {
+            lastRGBFrame
         }
-#else
-        print("[Gymnazo] SwiftUI is not available; falling back to ANSI render.")
-        return nil
-#endif
-    }
 
-#if canImport(SwiftUI)
-    /// last rendered rgb frame when using the "rgb_array" render mode.
-    public var latestRGBFrame: CGImage? {
-        lastRGBFrame
-    }
-
-    @MainActor
-    public func renderRGBArray() -> CGImage? {
-        let image = Self._renderGUI(snapshot: currentSnapshot, mode: .rgbArray)
-        lastRGBFrame = image
-        return image
-    }
-
-    /// snapshot of the current grid state for use with `FrozenLakeCanvasView`.
-    public var currentSnapshot: FrozenLakeRenderSnapshot {
-        FrozenLakeRenderSnapshot(
-            rows: nrow,
-            cols: ncol,
-            tiles: descMatrix,
-            playerIndex: s,
-            lastAction: lastAction
-        )
-    }
-
-    /// convenience for embedding the environment into a swiftui hierarchy.
-    @MainActor
-    public func humanView() -> FrozenLakeCanvasView {
-        FrozenLakeCanvasView(snapshot: currentSnapshot)
-    }
-#endif
-
-}
-
-#if canImport(SwiftUI)
-/// Snapshot of the lake grid used by SwiftUI renderers.
-public struct FrozenLakeRenderSnapshot: Sendable {
-    public let rows: Int
-    public let cols: Int
-    public let tiles: [[Character]]
-    public let playerIndex: Int
-    public let lastAction: Int?
-
-    func tile(at index: Int) -> Character {
-        let row = index / cols
-        let col = index % cols
-        return tiles[row][col]
-    }
-}
-
-/// SwiftUI Canvas view that renders a snapshot of FrozenLake.
-public struct FrozenLakeCanvasView: View {
-    let snapshot: FrozenLakeRenderSnapshot
-    /// Creates a canvas view for a given snapshot.
-    public init(snapshot: FrozenLakeRenderSnapshot) {
-        self.snapshot = snapshot
-    }
-
-    public var body: some View {
-        GeometryReader { proxy in
-            Canvas { context, size in
-                drawBackground(context: &context, size: size)
-                drawGrid(context: &context, size: size)
-                drawPlayer(context: &context, size: size)
-            }
+        @MainActor
+        public func renderRGBArray() -> CGImage? {
+            let image = Self._renderGUI(snapshot: currentSnapshot, mode: .rgbArray)
+            lastRGBFrame = image
+            return image
         }
-        .aspectRatio(CGFloat(snapshot.cols) / CGFloat(snapshot.rows), contentMode: .fit)
-    }
 
-    private func cellSize(for size: CGSize) -> CGSize {
-        CGSize(width: size.width / CGFloat(snapshot.cols), height: size.height / CGFloat(snapshot.rows))
-    }
-
-    private func drawBackground(context: inout GraphicsContext, size: CGSize) {
-        let cell = cellSize(for: size)
-        for row in 0..<snapshot.rows {
-            for col in 0..<snapshot.cols {
-                let rect = CGRect(
-                    x: CGFloat(col) * cell.width,
-                    y: CGFloat(row) * cell.height,
-                    width: cell.width,
-                    height: cell.height
-                )
-                let tile = snapshot.tiles[row][col]
-                let color: Color
-                switch tile {
-                case "S": color = Color(red: 0.6, green: 0.8, blue: 1.0)
-                case "G": color = Color.green.opacity(0.8)
-                case "H": color = Color.blue.opacity(0.5)
-                default: color = Color.cyan.opacity(0.7)
-                }
-                context.fill(Path(rect), with: .color(color))
-            }
-        }
-    }
-
-    private func drawGrid(context: inout GraphicsContext, size: CGSize) {
-        let cell = cellSize(for: size)
-        let stroke = StrokeStyle(lineWidth: 1)
-        for row in 0..<snapshot.rows {
-            for col in 0..<snapshot.cols {
-                let rect = CGRect(
-                    x: CGFloat(col) * cell.width,
-                    y: CGFloat(row) * cell.height,
-                    width: cell.width,
-                    height: cell.height
-                )
-                context.stroke(Path(rect), with: .color(Color.white.opacity(0.4)), style: stroke)
-            }
-        }
-    }
-
-    private func drawPlayer(context: inout GraphicsContext, size: CGSize) {
-        let cell = cellSize(for: size)
-        let row = snapshot.playerIndex / snapshot.cols
-        let col = snapshot.playerIndex % snapshot.cols
-        let rect = CGRect(
-            x: CGFloat(col) * cell.width,
-            y: CGFloat(row) * cell.height,
-            width: cell.width,
-            height: cell.height
-        )
-
-        var path = Path()
-        let insetRect = rect.insetBy(dx: cell.width * 0.2, dy: cell.height * 0.2)
-        path.addRoundedRect(in: insetRect, cornerSize: CGSize(width: 6, height: 6))
-        let tile = snapshot.tile(at: snapshot.playerIndex)
-        let fillColor: Color = tile == "H" ? .red : .orange
-        context.fill(path, with: .color(fillColor))
-
-        if let direction = snapshot.lastAction {
-            let indicatorSize = CGSize(width: cell.width * 0.2, height: cell.height * 0.2)
-            var indicatorRect = CGRect(
-                x: insetRect.midX - indicatorSize.width / 2,
-                y: insetRect.midY - indicatorSize.height / 2,
-                width: indicatorSize.width,
-                height: indicatorSize.height
+        /// snapshot of the current grid state for use with `FrozenLakeCanvasView`.
+        public var currentSnapshot: FrozenLakeRenderSnapshot {
+            FrozenLakeRenderSnapshot(
+                rows: nrow,
+                cols: ncol,
+                tiles: descMatrix,
+                playerIndex: s,
+                lastAction: lastAction
             )
-            let offset: CGPoint
-            switch direction {
-            case 0: offset = CGPoint(x: -indicatorSize.width, y: 0)
-            case 1: offset = CGPoint(x: 0, y: indicatorSize.height)
-            case 2: offset = CGPoint(x: indicatorSize.width, y: 0)
-            case 3: offset = CGPoint(x: 0, y: -indicatorSize.height)
-            default: offset = .zero
-            }
-            indicatorRect.origin.x += offset.x
-            indicatorRect.origin.y += offset.y
-            context.fill(Path(roundedRect: indicatorRect, cornerRadius: 4), with: .color(.white.opacity(0.9)))
+        }
+
+        /// convenience for embedding the environment into a swiftui hierarchy.
+        @MainActor
+        public func humanView() -> FrozenLakeCanvasView {
+            FrozenLakeCanvasView(snapshot: currentSnapshot)
+        }
+    #endif
+
+}
+
+#if canImport(SwiftUI)
+    /// Snapshot of the lake grid used by SwiftUI renderers.
+    public struct FrozenLakeRenderSnapshot: Sendable {
+        public let rows: Int
+        public let cols: Int
+        public let tiles: [[Character]]
+        public let playerIndex: Int
+        public let lastAction: Int?
+
+        func tile(at index: Int) -> Character {
+            let row = index / cols
+            let col = index % cols
+            return tiles[row][col]
         }
     }
-}
+
+    /// SwiftUI Canvas view that renders a snapshot of FrozenLake.
+    public struct FrozenLakeCanvasView: View {
+        let snapshot: FrozenLakeRenderSnapshot
+        /// Creates a canvas view for a given snapshot.
+        public init(snapshot: FrozenLakeRenderSnapshot) {
+            self.snapshot = snapshot
+        }
+
+        public var body: some View {
+            GeometryReader { proxy in
+                Canvas { context, size in
+                    drawBackground(context: &context, size: size)
+                    drawGrid(context: &context, size: size)
+                    drawPlayer(context: &context, size: size)
+                }
+            }
+            .aspectRatio(CGFloat(snapshot.cols) / CGFloat(snapshot.rows), contentMode: .fit)
+        }
+
+        private func cellSize(for size: CGSize) -> CGSize {
+            CGSize(
+                width: size.width / CGFloat(snapshot.cols),
+                height: size.height / CGFloat(snapshot.rows))
+        }
+
+        private func drawBackground(context: inout GraphicsContext, size: CGSize) {
+            let cell = cellSize(for: size)
+            for row in 0..<snapshot.rows {
+                for col in 0..<snapshot.cols {
+                    let rect = CGRect(
+                        x: CGFloat(col) * cell.width,
+                        y: CGFloat(row) * cell.height,
+                        width: cell.width,
+                        height: cell.height
+                    )
+                    let tile = snapshot.tiles[row][col]
+                    let color: Color
+                    switch tile {
+                    case "S": color = Color(red: 0.6, green: 0.8, blue: 1.0)
+                    case "G": color = Color.green.opacity(0.8)
+                    case "H": color = Color.blue.opacity(0.5)
+                    default: color = Color.cyan.opacity(0.7)
+                    }
+                    context.fill(Path(rect), with: .color(color))
+                }
+            }
+        }
+
+        private func drawGrid(context: inout GraphicsContext, size: CGSize) {
+            let cell = cellSize(for: size)
+            let stroke = StrokeStyle(lineWidth: 1)
+            for row in 0..<snapshot.rows {
+                for col in 0..<snapshot.cols {
+                    let rect = CGRect(
+                        x: CGFloat(col) * cell.width,
+                        y: CGFloat(row) * cell.height,
+                        width: cell.width,
+                        height: cell.height
+                    )
+                    context.stroke(
+                        Path(rect), with: .color(Color.white.opacity(0.4)), style: stroke)
+                }
+            }
+        }
+
+        private func drawPlayer(context: inout GraphicsContext, size: CGSize) {
+            let cell = cellSize(for: size)
+            let row = snapshot.playerIndex / snapshot.cols
+            let col = snapshot.playerIndex % snapshot.cols
+            let rect = CGRect(
+                x: CGFloat(col) * cell.width,
+                y: CGFloat(row) * cell.height,
+                width: cell.width,
+                height: cell.height
+            )
+
+            var path = Path()
+            let insetRect = rect.insetBy(dx: cell.width * 0.2, dy: cell.height * 0.2)
+            path.addRoundedRect(in: insetRect, cornerSize: CGSize(width: 6, height: 6))
+            let tile = snapshot.tile(at: snapshot.playerIndex)
+            let fillColor: Color = tile == "H" ? .red : .orange
+            context.fill(path, with: .color(fillColor))
+
+            if let direction = snapshot.lastAction {
+                let indicatorSize = CGSize(width: cell.width * 0.2, height: cell.height * 0.2)
+                var indicatorRect = CGRect(
+                    x: insetRect.midX - indicatorSize.width / 2,
+                    y: insetRect.midY - indicatorSize.height / 2,
+                    width: indicatorSize.width,
+                    height: indicatorSize.height
+                )
+                let offset: CGPoint
+                switch direction {
+                case 0: offset = CGPoint(x: -indicatorSize.width, y: 0)
+                case 1: offset = CGPoint(x: 0, y: indicatorSize.height)
+                case 2: offset = CGPoint(x: indicatorSize.width, y: 0)
+                case 3: offset = CGPoint(x: 0, y: -indicatorSize.height)
+                default: offset = .zero
+                }
+                indicatorRect.origin.x += offset.x
+                indicatorRect.origin.y += offset.y
+                context.fill(
+                    Path(roundedRect: indicatorRect, cornerRadius: 4),
+                    with: .color(.white.opacity(0.9)))
+            }
+        }
+    }
 #endif

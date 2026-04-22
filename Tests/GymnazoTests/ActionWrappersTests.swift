@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 final class DummyBoxEnv: Env {
@@ -58,7 +59,7 @@ struct ActionWrappersTests {
         let env = DummyBoxEnv(low: 0.0, high: 2.0, shape: [2])
         var wrapper = RescaleAction(env: env, sourceLow: -1.0, sourceHigh: 1.0)
         _ = try wrapper.reset(seed: 0, options: nil)
-        
+
         let action = MLXArray([-1.0 as Float, 1.0 as Float])
         let result = try wrapper.step(action)
         let obs = result.obs.asArray(Float.self)

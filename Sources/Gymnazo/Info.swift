@@ -46,57 +46,57 @@ public enum InfoValue: Sendable {
     public init(_ value: String) { self = .string(value) }
 }
 
-public extension InfoValue {
-    var bool: Bool? {
-        if case let .bool(v) = self { return v }
+extension InfoValue {
+    public var bool: Bool? {
+        if case .bool(let v) = self { return v }
         return nil
     }
 
-    var int: Int? {
-        if case let .int(v) = self { return v }
+    public var int: Int? {
+        if case .int(let v) = self { return v }
         return nil
     }
 
-    var double: Double? {
-        if case let .double(v) = self { return v }
+    public var double: Double? {
+        if case .double(let v) = self { return v }
         return nil
     }
 
-    var string: String? {
-        if case let .string(v) = self { return v }
+    public var string: String? {
+        if case .string(let v) = self { return v }
         return nil
     }
 
-    var array: [InfoValue]? {
-        if case let .array(v) = self { return v }
+    public var array: [InfoValue]? {
+        if case .array(let v) = self { return v }
         return nil
     }
 
-    var object: [String: InfoValue]? {
-        if case let .object(v) = self { return v }
+    public var object: [String: InfoValue]? {
+        if case .object(let v) = self { return v }
         return nil
     }
 
-    var sendable: (any Sendable)? {
-        if case let .sendable(v) = self { return v }
+    public var sendable: (any Sendable)? {
+        if case .sendable(let v) = self { return v }
         return nil
     }
 
-    func cast<T>(_ type: T.Type) -> T? {
+    public func cast<T>(_ type: T.Type) -> T? {
         switch self {
-        case let .bool(v):
+        case .bool(let v):
             return v as? T
-        case let .int(v):
+        case .int(let v):
             return v as? T
-        case let .double(v):
+        case .double(let v):
             return v as? T
-        case let .string(v):
+        case .string(let v):
             return v as? T
-        case let .array(v):
+        case .array(let v):
             return v as? T
-        case let .object(v):
+        case .object(let v):
             return v as? T
-        case let .sendable(v):
+        case .sendable(let v):
             if let result = v as? T {
                 return result
             }

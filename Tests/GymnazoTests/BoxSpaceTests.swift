@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 @Suite("Box space sampling and membership")
@@ -27,4 +28,3 @@ struct BoxSpaceTests {
         #expect(box.contains(outside) == false)
     }
 }
-

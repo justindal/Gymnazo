@@ -114,7 +114,7 @@ public struct MountainCar: Env {
             dtype: .float32
         )
     }
-    
+
     private func toInt(_ action: MLXArray) -> Int {
         Int(action.singletonValue(Int32.self))
     }

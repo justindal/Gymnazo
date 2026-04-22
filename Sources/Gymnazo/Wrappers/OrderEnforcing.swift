@@ -66,4 +66,3 @@ public final class OrderEnforcing: Wrapper {
         hasReset
     }
 }
-

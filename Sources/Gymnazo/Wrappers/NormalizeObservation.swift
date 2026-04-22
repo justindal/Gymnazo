@@ -11,9 +11,9 @@ import MLX
 public struct NormalizeObservation: Wrapper {
     public var env: any Env
     public let epsilon: Float = 1e-8
-    
+
     private let rms: RunningMeanStdMLX
-    
+
     public init(env: any Env) throws {
         self.env = env
         guard let shape = env.observationSpace.shape else {
@@ -21,12 +21,12 @@ public struct NormalizeObservation: Wrapper {
         }
         self.rms = RunningMeanStdMLX(shape: shape)
     }
-    
+
     public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
-        
+
         return Step(
             obs: normalized_obs,
             reward: result.reward,
@@ -35,14 +35,12 @@ public struct NormalizeObservation: Wrapper {
             info: result.info
         )
     }
-    
+
     public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         rms.update(result.obs)
         let normalized_obs = (result.obs - rms.mean) / (rms.std + epsilon)
-        
+
         return Reset(obs: normalized_obs, info: result.info)
     }
 }
-
-

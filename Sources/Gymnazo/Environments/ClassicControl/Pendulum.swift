@@ -2,7 +2,7 @@ import Foundation
 import MLX
 
 #if canImport(SwiftUI)
-import SwiftUI
+    import SwiftUI
 #endif
 
 /// A snapshot of the Pendulum state for serialization/debugging.
@@ -10,13 +10,13 @@ public struct PendulumSnapshot: Equatable, Sendable {
     public let theta: Float
     public let thetaDot: Float
     public let torque: Float?
-    
+
     public init(theta: Float, thetaDot: Float, torque: Float? = nil) {
         self.theta = theta
         self.thetaDot = thetaDot
         self.torque = torque
     }
-    
+
     public static var zero: PendulumSnapshot {
         PendulumSnapshot(theta: 0, thetaDot: 0, torque: nil)
     }
@@ -75,35 +75,35 @@ public struct Pendulum: Env {
     public let g: Float
     public let m: Float = 1.0
     public let l: Float = 1.0
-    
+
     public private(set) var state: (theta: Float, thetaDot: Float)? = nil
-    
+
     public let actionSpace: any Space
     public let observationSpace: any Space
-    
+
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
-    
+
     private var _key: MLXArray?
     private var lastTorque: Float? = nil
-    
+
     public static var metadata: [String: Any] {
         [
             "render_modes": ["human", "rgb_array"],
             "render_fps": 30,
         ]
     }
-    
+
     public init(renderMode: RenderMode? = nil, g: Float = 10.0) {
         self.renderMode = renderMode
         self.g = g
-        
+
         self.actionSpace = Box(
             low: MLXArray([-maxTorque] as [Float32]),
             high: MLXArray([maxTorque] as [Float32]),
             dtype: .float32
         )
-        
+
         let high = MLXArray([1.0, 1.0, maxSpeed] as [Float32])
         self.observationSpace = Box(
             low: -high,
@@ -111,32 +111,34 @@ public struct Pendulum: Env {
             dtype: .float32
         )
     }
-    
+
     public mutating func step(_ action: MLXArray) throws -> Step {
         guard let currentState = state else {
             throw GymnazoError.stepBeforeReset
         }
-        
+
         let theta = currentState.theta
         let thetaDot = currentState.thetaDot
-        
+
         var torque = action.singletonValue(Float.self)
         torque = clip(torque, min: -maxTorque, max: maxTorque)
         lastTorque = torque
-        
-        let costs = angleNormalize(theta) * angleNormalize(theta)
+
+        let costs =
+            angleNormalize(theta) * angleNormalize(theta)
             + 0.1 * thetaDot * thetaDot
             + 0.001 * torque * torque
-        
-        let newThetaDot = thetaDot + (3 * g / (2 * l) * sin(theta) + 3.0 / (m * l * l) * torque) * dt
+
+        let newThetaDot =
+            thetaDot + (3 * g / (2 * l) * sin(theta) + 3.0 / (m * l * l) * torque) * dt
         let clippedThetaDot = clip(newThetaDot, min: -maxSpeed, max: maxSpeed)
         let newTheta = theta + clippedThetaDot * dt
-        
+
         state = (theta: newTheta, thetaDot: clippedThetaDot)
-        
+
         let observation = try getObservation()
         let reward = Double(-costs)
-        
+
         return Step(
             obs: observation,
             reward: reward,
@@ -145,42 +147,42 @@ public struct Pendulum: Env {
             info: [:]
         )
     }
-    
+
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {
             _key = MLX.key(UInt64.random(in: 0..<UInt64.max))
         }
-        
+
         let xInit = (options?["x_init"] as? Float) ?? Float.pi
         let yInit = (options?["y_init"] as? Float) ?? 1.0
-        
+
         let (k1, k2, nextKey) = splitKey3(_key!)
         _key = nextKey
-        
+
         let theta = MLX.uniform(low: -xInit, high: xInit, [1], key: k1)[0].item(Float.self)
         let thetaDot = MLX.uniform(low: -yInit, high: yInit, [1], key: k2)[0].item(Float.self)
-        
+
         state = (theta: theta, thetaDot: thetaDot)
         lastTorque = nil
-        
+
         return Reset(obs: try getObservation(), info: [:])
     }
-    
+
     @discardableResult
     public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
-        
+
         switch mode {
         case .human:
             #if canImport(SwiftUI)
-            if let snapshot = self.currentSnapshot {
-                return .other(snapshot)
-            }
-            return nil
+                if let snapshot = self.currentSnapshot {
+                    return .other(snapshot)
+                }
+                return nil
             #else
-            return nil
+                return nil
             #endif
         case .rgbArray:
             return nil
@@ -188,31 +190,31 @@ public struct Pendulum: Env {
             return nil
         }
     }
-    
+
     public var unwrapped: any Env { self }
-    
+
     public var currentSnapshot: PendulumSnapshot? {
         guard let state = state else { return nil }
         return PendulumSnapshot(theta: state.theta, thetaDot: state.thetaDot, torque: lastTorque)
     }
-    
+
     private func getObservation() throws -> MLXArray {
         guard let state = state else {
             throw GymnazoError.invalidState("State is nil - call reset() first")
         }
         return MLXArray([cos(state.theta), sin(state.theta), state.thetaDot] as [Float32])
     }
-    
+
     private func angleNormalize(_ x: Float) -> Float {
         let twoPi = 2 * Float.pi
         return ((x + Float.pi).truncatingRemainder(dividingBy: twoPi) + twoPi)
             .truncatingRemainder(dividingBy: twoPi) - Float.pi
     }
-    
+
     private func clip(_ value: Float, min minVal: Float, max maxVal: Float) -> Float {
         Swift.min(Swift.max(value, minVal), maxVal)
     }
-    
+
     private func splitKey3(_ key: MLXArray) -> (MLXArray, MLXArray, MLXArray) {
         let (k1, rest) = MLX.split(key: key)
         let (k2, k3) = MLX.split(key: rest)
@@ -221,92 +223,99 @@ public struct Pendulum: Env {
 }
 
 #if canImport(SwiftUI)
-public struct PendulumView: View {
-    let snapshot: PendulumSnapshot?
-    
-    private let viewSize: CGFloat = 400
-    private let pendulumLength: CGFloat = 150
-    private let bobRadius: CGFloat = 20
-    private let pivotRadius: CGFloat = 8
-    
-    public init(snapshot: PendulumSnapshot?) {
-        self.snapshot = snapshot
-    }
-    
-    public var body: some View {
-        Canvas { context, size in
-            let center = CGPoint(x: size.width / 2, y: size.height / 2)
-            
-            let rangePath = Path(ellipseIn: CGRect(
-                x: center.x - pendulumLength,
-                y: center.y - pendulumLength,
-                width: pendulumLength * 2,
-                height: pendulumLength * 2
-            ))
-            context.stroke(rangePath, with: .color(.gray.opacity(0.3)), lineWidth: 1)
-            
-            let theta = CGFloat(snapshot?.theta ?? Float.pi)
-            
-            let bobX = center.x + pendulumLength * sin(theta)
-            let bobY = center.y - pendulumLength * cos(theta)
-            let bobCenter = CGPoint(x: bobX, y: bobY)
-            
-            var rodPath = Path()
-            rodPath.move(to: center)
-            rodPath.addLine(to: bobCenter)
-            context.stroke(rodPath, with: .color(.brown), style: StrokeStyle(lineWidth: 6, lineCap: .round))
-            
-            let bobRect = CGRect(
-                x: bobCenter.x - bobRadius,
-                y: bobCenter.y - bobRadius,
-                width: bobRadius * 2,
-                height: bobRadius * 2
-            )
-            context.fill(Path(ellipseIn: bobRect), with: .color(.red))
-            context.stroke(Path(ellipseIn: bobRect), with: .color(.gray), lineWidth: 2)
-            
-            let pivotRect = CGRect(
-                x: center.x - pivotRadius,
-                y: center.y - pivotRadius,
-                width: pivotRadius * 2,
-                height: pivotRadius * 2
-            )
-            context.fill(Path(ellipseIn: pivotRect), with: .color(.gray))
-            
-            if let torque = snapshot?.torque {
-                let indicatorY = size.height - 30
-                let indicatorWidth = CGFloat(abs(torque) / 2.0) * 100
-                let indicatorColor: Color = torque > 0 ? .green : .orange
-                
-                let indicatorRect = CGRect(
-                    x: center.x - indicatorWidth / 2,
-                    y: indicatorY - 5,
-                    width: indicatorWidth,
-                    height: 10
-                )
-                context.fill(Path(roundedRect: indicatorRect, cornerRadius: 3), with: .color(indicatorColor))
-                
-                var arrowPath = Path()
-                if torque > 0 {
-                    arrowPath.move(to: CGPoint(x: center.x + indicatorWidth / 2, y: indicatorY))
-                    arrowPath.addLine(to: CGPoint(x: center.x + indicatorWidth / 2 + 10, y: indicatorY))
-                } else {
-                    arrowPath.move(to: CGPoint(x: center.x - indicatorWidth / 2, y: indicatorY))
-                    arrowPath.addLine(to: CGPoint(x: center.x - indicatorWidth / 2 - 10, y: indicatorY))
-                }
-                context.stroke(arrowPath, with: .color(indicatorColor), lineWidth: 3)
-            }
-        }
-        .frame(width: viewSize, height: viewSize)
-        .background(Color.white)
-    }
-}
+    public struct PendulumView: View {
+        let snapshot: PendulumSnapshot?
 
-#Preview {
-    VStack {
-        PendulumView(snapshot: PendulumSnapshot(theta: 0, thetaDot: 0, torque: 1.0))
-        PendulumView(snapshot: PendulumSnapshot(theta: Float.pi / 4, thetaDot: 0, torque: -0.5))
-        PendulumView(snapshot: PendulumSnapshot(theta: Float.pi, thetaDot: 0, torque: nil))
+        private let viewSize: CGFloat = 400
+        private let pendulumLength: CGFloat = 150
+        private let bobRadius: CGFloat = 20
+        private let pivotRadius: CGFloat = 8
+
+        public init(snapshot: PendulumSnapshot?) {
+            self.snapshot = snapshot
+        }
+
+        public var body: some View {
+            Canvas { context, size in
+                let center = CGPoint(x: size.width / 2, y: size.height / 2)
+
+                let rangePath = Path(
+                    ellipseIn: CGRect(
+                        x: center.x - pendulumLength,
+                        y: center.y - pendulumLength,
+                        width: pendulumLength * 2,
+                        height: pendulumLength * 2
+                    ))
+                context.stroke(rangePath, with: .color(.gray.opacity(0.3)), lineWidth: 1)
+
+                let theta = CGFloat(snapshot?.theta ?? Float.pi)
+
+                let bobX = center.x + pendulumLength * sin(theta)
+                let bobY = center.y - pendulumLength * cos(theta)
+                let bobCenter = CGPoint(x: bobX, y: bobY)
+
+                var rodPath = Path()
+                rodPath.move(to: center)
+                rodPath.addLine(to: bobCenter)
+                context.stroke(
+                    rodPath, with: .color(.brown), style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                )
+
+                let bobRect = CGRect(
+                    x: bobCenter.x - bobRadius,
+                    y: bobCenter.y - bobRadius,
+                    width: bobRadius * 2,
+                    height: bobRadius * 2
+                )
+                context.fill(Path(ellipseIn: bobRect), with: .color(.red))
+                context.stroke(Path(ellipseIn: bobRect), with: .color(.gray), lineWidth: 2)
+
+                let pivotRect = CGRect(
+                    x: center.x - pivotRadius,
+                    y: center.y - pivotRadius,
+                    width: pivotRadius * 2,
+                    height: pivotRadius * 2
+                )
+                context.fill(Path(ellipseIn: pivotRect), with: .color(.gray))
+
+                if let torque = snapshot?.torque {
+                    let indicatorY = size.height - 30
+                    let indicatorWidth = CGFloat(abs(torque) / 2.0) * 100
+                    let indicatorColor: Color = torque > 0 ? .green : .orange
+
+                    let indicatorRect = CGRect(
+                        x: center.x - indicatorWidth / 2,
+                        y: indicatorY - 5,
+                        width: indicatorWidth,
+                        height: 10
+                    )
+                    context.fill(
+                        Path(roundedRect: indicatorRect, cornerRadius: 3),
+                        with: .color(indicatorColor))
+
+                    var arrowPath = Path()
+                    if torque > 0 {
+                        arrowPath.move(to: CGPoint(x: center.x + indicatorWidth / 2, y: indicatorY))
+                        arrowPath.addLine(
+                            to: CGPoint(x: center.x + indicatorWidth / 2 + 10, y: indicatorY))
+                    } else {
+                        arrowPath.move(to: CGPoint(x: center.x - indicatorWidth / 2, y: indicatorY))
+                        arrowPath.addLine(
+                            to: CGPoint(x: center.x - indicatorWidth / 2 - 10, y: indicatorY))
+                    }
+                    context.stroke(arrowPath, with: .color(indicatorColor), lineWidth: 3)
+                }
+            }
+            .frame(width: viewSize, height: viewSize)
+            .background(Color.white)
+        }
     }
-}
+
+    #Preview {
+        VStack {
+            PendulumView(snapshot: PendulumSnapshot(theta: 0, thetaDot: 0, torque: 1.0))
+            PendulumView(snapshot: PendulumSnapshot(theta: Float.pi / 4, thetaDot: 0, torque: -0.5))
+            PendulumView(snapshot: PendulumSnapshot(theta: Float.pi, thetaDot: 0, torque: nil))
+        }
+    }
 #endif

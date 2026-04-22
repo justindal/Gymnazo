@@ -14,7 +14,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
     private let actionDim: Int
     private var logits: MLXArray
     private var probs: MLXArray
-    
+
     /// Creates a BernoulliDistribution.
     ///
     /// - Parameter actionDim: Number of binary actions.
@@ -23,7 +23,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
         self.logits = MLXArray([])
         self.probs = MLXArray([])
     }
-    
+
     /// Creates the network for producing action logits.
     ///
     /// - Parameters:
@@ -36,7 +36,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
     ) -> (any UnaryLayer, MLXArray?) {
         fatalError("Use probaDistributionNet(latentDim:actionDim:) instead.")
     }
-    
+
     /// Creates the network for this distribution with the correct action dim.
     ///
     /// - Parameters:
@@ -49,7 +49,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
     ) -> Linear {
         return Linear(latentDim, actionDim)
     }
-    
+
     /// Sets the distribution parameters from logits.
     ///
     /// - Parameter actionLogits: Unnormalized log probabilities.
@@ -60,7 +60,7 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
         self.probs = MLX.sigmoid(actionLogits)
         return self
     }
-    
+
     public func logProb(_ actions: MLXArray) -> MLXArray {
         let actionsFloat = actions.asType(.float32)
         let logP1 = -MLX.log(1.0 + MLX.exp(-logits))
@@ -68,22 +68,21 @@ public final class BernoulliDistribution: Distribution, DistributionWithNet {
         let logP = actionsFloat * logP1 + (1.0 - actionsFloat) * logP0
         return MLX.sum(logP, axis: -1)
     }
-    
+
     public func entropy() -> MLXArray? {
         let p = probs
         let entropy = -(p * MLX.log(p + 1e-10) + (1.0 - p) * MLX.log(1.0 - p + 1e-10))
         return MLX.sum(entropy, axis: -1)
     }
-    
+
     public func sample(key: MLXArray? = nil) -> MLXArray {
         if let key = key {
             return MLX.bernoulli(probs, key: key).asType(.float32)
         }
         return MLX.bernoulli(probs).asType(.float32)
     }
-    
+
     public func mode() -> MLXArray {
         return MLX.where(probs .>= 0.5, 1.0, 0.0)
     }
 }
-

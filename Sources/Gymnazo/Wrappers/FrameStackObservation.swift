@@ -169,4 +169,3 @@ public struct FrameStackObservation: Wrapper {
         return stacked.asType(observationSpace.dtype ?? .uint8)
     }
 }
-

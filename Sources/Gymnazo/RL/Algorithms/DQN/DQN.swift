@@ -219,7 +219,8 @@ public actor DQN {
             case .step:
                 shouldTrain = collectedSteps % config.trainFrequency.frequency == 0
             case .episode:
-                shouldTrain = (terminated || truncated)
+                shouldTrain =
+                    (terminated || truncated)
                     && collectedEpisodes % config.trainFrequency.frequency == 0
             }
 
@@ -229,7 +230,8 @@ public actor DQN {
                 case .fixed(let steps): gradSteps = steps
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
-                let didTrain = await train(gradientSteps: gradSteps, batchSize: config.batchSize, callbacks: callbacks)
+                let didTrain = await train(
+                    gradientSteps: gradSteps, batchSize: config.batchSize, callbacks: callbacks)
                 if didTrain { stepsSinceTrain = 0 }
             }
         }
@@ -361,7 +363,8 @@ public actor DQN {
             1.0,
             Double(timesteps) / (Double(totalTimesteps) * config.explorationFraction)
         )
-        explorationRate = config.explorationInitialEps
+        explorationRate =
+            config.explorationInitialEps
             + fraction * (config.explorationFinalEps - config.explorationInitialEps)
     }
 
@@ -388,7 +391,8 @@ public actor DQN {
     }
 
     @discardableResult
-    private func train(gradientSteps: Int, batchSize: Int, callbacks: LearnCallbacks?) async -> Bool {
+    private func train(gradientSteps: Int, batchSize: Int, callbacks: LearnCallbacks?) async -> Bool
+    {
         guard var buf = buffer, buf.count >= batchSize else { return false }
 
         let lr = Float(learningRate.value(at: progressRemaining))
@@ -521,7 +525,9 @@ public actor DQN {
         return (loss, meanAbsTD, meanQ)
     }
 
-    private static func clipGradients(_ gradients: ModuleParameters, maxNorm: Float) -> ModuleParameters {
+    private static func clipGradients(_ gradients: ModuleParameters, maxNorm: Float)
+        -> ModuleParameters
+    {
         let flattened = Dictionary(uniqueKeysWithValues: gradients.flattened())
         var totalNormSq = MLXArray(0.0)
         for (_, grad) in flattened {

@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 @Suite("FrozenLake environment")
@@ -26,7 +27,7 @@ struct FrozenLakeTests {
         #expect(MLX.arrayEqual(r1.obs, r2.obs).item(Bool.self))
         #expect(r1.info["prob"]?.double == 1.0)
     }
-    
+
     @Test
     func testStepRightNonSlippery() async throws {
         let env = try await makeFrozenLake(isSlippery: false)
@@ -36,7 +37,7 @@ struct FrozenLakeTests {
         #expect(result.terminated == false)
         #expect(result.truncated == false)
     }
-    
+
     @Test
     @MainActor
     func testGymnazoMakeFrozenLake() async throws {
@@ -50,4 +51,3 @@ struct FrozenLakeTests {
         #expect(s.obs.item(Int.self) == 1)
     }
 }
-

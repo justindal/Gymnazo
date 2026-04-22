@@ -1,5 +1,5 @@
-import Testing
 import MLX
+import Testing
 
 @testable import Gymnazo
 
@@ -12,14 +12,14 @@ struct DiscreteSpaceTests {
         #expect(space.contains(MLXArray(Int32(4))))
         #expect(space.contains(MLXArray(Int32(-1))) == false)
         #expect(space.contains(MLXArray(Int32(5))) == false)
-        
+
         let shifted = Discrete(n: 3, start: 2)
         #expect(shifted.contains(MLXArray(Int32(1))) == false)
         #expect(shifted.contains(MLXArray(Int32(2))))
         #expect(shifted.contains(MLXArray(Int32(4))))
         #expect(shifted.contains(MLXArray(Int32(5))) == false)
     }
-    
+
     @Test
     func testSampleWithMask() async throws {
         var key = MLX.key(123)
@@ -33,7 +33,7 @@ struct DiscreteSpaceTests {
             #expect(v.item(Int.self) == 3)
         }
     }
-    
+
     @Test
     func testSampleWithProbability() async throws {
         var key = MLX.key(456)

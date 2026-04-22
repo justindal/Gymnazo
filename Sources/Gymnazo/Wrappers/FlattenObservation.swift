@@ -52,4 +52,3 @@ public struct FlattenObservation: Wrapper {
         )
     }
 }
-

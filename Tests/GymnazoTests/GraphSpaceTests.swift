@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 @Suite("Graph space sampling and membership")

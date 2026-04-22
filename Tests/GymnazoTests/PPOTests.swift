@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 private actor PPOTrainMetricCollector {
@@ -77,7 +78,8 @@ struct PPOTests {
             let approxKL = latest[LogKey.Train.approxKL],
             let clipFraction = latest[LogKey.Train.clipFraction]
         else {
-            Issue.record("Expected PPO train metrics to include loss, approx_kl, and clip_fraction.")
+            Issue.record(
+                "Expected PPO train metrics to include loss, approx_kl, and clip_fraction.")
             return
         }
 
@@ -124,7 +126,8 @@ struct PPOTests {
         ppo.setEnv(env)
 
         try await ppo.learn(totalTimesteps: 32, callbacks: nil as LearnCallbacks?)
-        try await ppo.evaluate(episodes: 1, deterministic: true, callbacks: nil as EvaluateCallbacks?)
+        try await ppo.evaluate(
+            episodes: 1, deterministic: true, callbacks: nil as EvaluateCallbacks?)
 
         var evalEnv = try await Gymnazo.make("CartPole")
         let observation = try evalEnv.reset(seed: 77).obs

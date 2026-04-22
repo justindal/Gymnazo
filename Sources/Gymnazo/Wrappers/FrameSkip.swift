@@ -27,10 +27,10 @@ import MLX
 /// ```
 public struct FrameSkip: Wrapper {
     public var env: any Env
-    
+
     /// Number of frames to skip (repeat the action for).
     public let skip: Int
-    
+
     /// Creates a frame skip wrapper.
     ///
     /// - Parameters:
@@ -43,24 +43,24 @@ public struct FrameSkip: Wrapper {
         self.env = env
         self.skip = skip
     }
-    
+
     public init(env: any Env) throws {
         try self.init(env: env, skip: 2)
     }
-    
+
     public mutating func step(_ action: MLXArray) throws -> Step {
         var totalReward: Double = 0
         var lastResult: Step!
-        
+
         for _ in 0..<skip {
             lastResult = try env.step(action)
             totalReward += lastResult.reward
-            
+
             if lastResult.terminated || lastResult.truncated {
                 break
             }
         }
-        
+
         return Step(
             obs: lastResult.obs,
             reward: totalReward,
@@ -70,5 +70,3 @@ public struct FrameSkip: Wrapper {
         )
     }
 }
-
-

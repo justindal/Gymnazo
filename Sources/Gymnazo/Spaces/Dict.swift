@@ -9,34 +9,34 @@ import MLX
 /// Samples are concatenated MLXArrays from each sub-space (sorted by key).
 public struct Dict: Space {
     public let spaces: [String: any Space]
-    
+
     public init(_ spaces: [String: any Space]) {
         self.spaces = spaces
     }
-    
+
     public var shape: [Int]? {
         nil
     }
-    
+
     public var dtype: DType? {
         nil
     }
-    
+
     /// Samples from each sub-space and concatenates the results (sorted by key).
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
         let sortedKeys = spaces.keys.sorted()
         let keys = MLX.split(key: key, into: sortedKeys.count)
         var samples: [MLXArray] = []
-        
+
         for (i, k) in sortedKeys.enumerated() {
             let space = spaces[k]!
             let s = space.sample(key: keys[i], mask: nil, probability: nil)
             samples.append(s.flattened())
         }
-        
+
         return MLX.concatenated(samples)
     }
-    
+
     /// Returns `true` if the concatenated array can be split into valid sub-space samples.
     public func contains(_ x: MLXArray) -> Bool {
         let sortedKeys = spaces.keys.sorted()
@@ -52,7 +52,7 @@ public struct Dict: Space {
         }
         return offset == x.size
     }
-    
+
     public subscript(key: String) -> (any Space)? {
         return spaces[key]
     }

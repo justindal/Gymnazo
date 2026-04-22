@@ -11,11 +11,11 @@ public enum AutoresetMode: String, Sendable {
     /// Reset happens on the step after termination/truncation.
     /// The final observation is stored in the info dict under "final_observation".
     case nextStep = "next_step"
-    
+
     /// Reset happens immediately in the same step.
     /// The observation returned is from the new episode.
     case sameStep = "same_step"
-    
+
     /// No automatic reset. User must handle resets manually.
     case disabled = "disabled"
 }
@@ -24,19 +24,19 @@ public enum AutoresetMode: String, Sendable {
 public struct VectorStepResult {
     /// Batched observations from all sub-environments with shape `[num_envs, ...obs_shape]`.
     public let observations: MLXArray
-    
+
     /// Rewards from all sub-environments with shape `[num_envs]`.
     public let rewards: MLXArray
-    
+
     /// Termination flags for all sub-environments with shape `[num_envs]`.
     public let terminations: MLXArray
-    
+
     /// Truncation flags for all sub-environments with shape `[num_envs]`.
     public let truncations: MLXArray
-    
+
     /// Per-environment info dictionaries.
     public let infos: [Info]
-    
+
     public init(
         observations: MLXArray,
         rewards: MLXArray,
@@ -56,10 +56,10 @@ public struct VectorStepResult {
 public struct VectorResetResult {
     /// Batched observations from all sub-environments with shape `[num_envs, ...obs_shape]`.
     public let observations: MLXArray
-    
+
     /// Per-environment info dictionaries.
     public let infos: [Info]
-    
+
     public init(observations: MLXArray, infos: [Info]) {
         self.observations = observations
         self.infos = infos
@@ -75,37 +75,37 @@ public struct VectorResetResult {
 public protocol VectorEnv: AnyObject {
     /// The number of sub-environments in the vector environment.
     var numEnvs: Int { get }
-    
+
     /// The observation space of a single sub-environment.
     var singleObservationSpace: any Space { get }
-    
+
     /// The action space of a single sub-environment.
     var singleActionSpace: any Space { get }
-    
+
     /// The batched observation space for all sub-environments.
     var observationSpace: any Space { get }
-    
+
     /// The batched action space for all sub-environments.
     var actionSpace: any Space { get }
-    
+
     /// The environment specification, if available.
     var spec: EnvSpec? { get set }
-    
+
     /// The render mode for all sub-environments.
     var renderMode: RenderMode? { get }
-    
+
     /// The autoreset mode used by this vector environment.
     var autoresetMode: AutoresetMode { get }
-    
+
     /// Whether the vector environment has been closed.
     var closed: Bool { get }
-    
+
     /// Take an action for each parallel environment.
     ///
     /// - Parameter actions: Array of actions, one for each sub-environment.
     /// - Returns: Batched results containing observations, rewards, terminations, truncations, and infos.
     func step(_ actions: [MLXArray]) throws -> VectorStepResult
-    
+
     /// Reset all parallel environments and return a batch of initial observations and info.
     ///
     /// - Parameters:
@@ -113,18 +113,17 @@ public protocol VectorEnv: AnyObject {
     ///   - options: Optional dictionary of reset options.
     /// - Returns: Batched observations and info from all sub-environments.
     func reset(seed: UInt64?, options: EnvOptions?) throws -> VectorResetResult
-    
+
     /// Close all parallel environments and release resources.
     func close()
 }
 
-public extension VectorEnv {
-    func reset(seed: UInt64? = nil) throws -> VectorResetResult {
+extension VectorEnv {
+    public func reset(seed: UInt64? = nil) throws -> VectorResetResult {
         try reset(seed: seed, options: nil)
     }
 
-    func reset() throws -> VectorResetResult {
+    public func reset() throws -> VectorResetResult {
         try reset(seed: nil, options: nil)
     }
 }
-

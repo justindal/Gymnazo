@@ -63,7 +63,8 @@ extension DQN {
             throw PersistenceError.invalidCheckpoint("DQN requires a Discrete action space")
         }
 
-        let schedule = checkpoint.learningRateSchedule?.makeSchedule()
+        let schedule =
+            checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(1e-4)
 
         let networks = try DQNNetworks(

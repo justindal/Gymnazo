@@ -10,47 +10,47 @@ import MLX
 public struct CarRacingDiscrete: Env {
     public let actionSpace: any Space
     public let observationSpace: any Space
-    
+
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
-    
+
     public let lapCompletePercent: Float
     public let domainRandomize: Bool
-    
+
     private var worldId: b2WorldId?
     private var car: Car?
     private var trackData: TrackData?
-    
+
     private var roadColor: (Float, Float, Float) = (102, 102, 102)
     private var bgColor: (Float, Float, Float) = (102, 204, 102)
     private var grassColor: (Float, Float, Float) = (102, 230, 102)
-    
+
     private var reward: Float = 0
     private var prevReward: Float = 0
     private var tileVisitedCount: Int = 0
     private var t: Float = 0
     private var newLap: Bool = false
-    
+
     private var currentSteer: Float = 0
     private var currentGas: Float = 0
     private var currentBrake: Float = 0
-    
+
     private var _key: MLXArray?
-    
+
     private static let fallbackObservation: MLXArray = {
         let pixels = [UInt8](repeating: 128, count: 96 * 96 * 3)
         let arr = MLXArray(pixels).reshaped([96, 96, 3]).asType(.uint8)
         eval(arr)
         return arr
     }()
-    
+
     public static var metadata: [String: Any] {
         [
             "render_modes": ["human", "rgb_array", "state_pixels"],
-            "render_fps": Int(TrackConstants.fps)
+            "render_fps": Int(TrackConstants.fps),
         ]
     }
-    
+
     public init(
         renderMode: RenderMode? = nil,
         lapCompletePercent: Float = 0.95,
@@ -59,39 +59,39 @@ public struct CarRacingDiscrete: Env {
         self.renderMode = renderMode
         self.lapCompletePercent = lapCompletePercent
         self.domainRandomize = domainRandomize
-        
+
         self.actionSpace = Discrete(n: 5)
-        
+
         self.observationSpace = Box(
             low: 0,
             high: 255,
             shape: [96, 96, 3],
             dtype: .uint8
         )
-        
+
         initColors()
     }
-    
+
     private func toInt(_ action: MLXArray) -> Int {
         Int(action.singletonValue(Int32.self))
     }
-    
+
     private mutating func initColors() {
         if domainRandomize {
             let (colorKey, nextKey) = MLX.split(key: _key ?? MLX.key(0))
             _key = nextKey
             let (idxKey, finalKey) = MLX.split(key: nextKey)
             _key = finalKey
-            
+
             let colorArray = MLX.uniform(low: 0, high: 210, [6], key: colorKey)
             let idxArray = MLX.randInt(low: 0, high: 3, key: idxKey)
             eval(colorArray, idxArray)
-            
+
             let colors = colorArray.asArray(Float.self)
             roadColor = (colors[0], colors[1], colors[2])
             bgColor = (colors[3], colors[4], colors[5])
             grassColor = bgColor
-            
+
             let idx = Int(idxArray.item(Int32.self))
             switch idx {
             case 0: grassColor.0 += 20
@@ -104,25 +104,25 @@ public struct CarRacingDiscrete: Env {
             grassColor = (102, 230, 102)
         }
     }
-    
+
     private mutating func reinitColors(randomize: Bool) {
         guard domainRandomize else { return }
         guard randomize else { return }
-        
+
         let (colorKey, nextKey) = MLX.split(key: _key ?? MLX.key(0))
         _key = nextKey
         let (idxKey, finalKey) = MLX.split(key: nextKey)
         _key = finalKey
-        
+
         let colorArray = MLX.uniform(low: 0, high: 210, [6], key: colorKey)
         let idxArray = MLX.randInt(low: 0, high: 3, key: idxKey)
         eval(colorArray, idxArray)
-        
+
         let colors = colorArray.asArray(Float.self)
         roadColor = (colors[0], colors[1], colors[2])
         bgColor = (colors[3], colors[4], colors[5])
         grassColor = bgColor
-        
+
         let idx = Int(idxArray.item(Int32.self))
         switch idx {
         case 0: grassColor.0 += 20
@@ -130,7 +130,7 @@ public struct CarRacingDiscrete: Env {
         default: grassColor.2 += 20
         }
     }
-    
+
     public mutating func step(_ action: MLXArray) throws -> Step {
         let a = toInt(action)
         guard var car = car, let worldId = worldId, let trackData = trackData else {
@@ -140,7 +140,7 @@ public struct CarRacingDiscrete: Env {
         guard actionSpace.contains(MLXArray([Int32(a)])) else {
             throw GymnazoError.invalidAction("Invalid action: \(a)")
         }
-        
+
         switch a {
         case 0:
             currentSteer = 0
@@ -159,54 +159,54 @@ public struct CarRacingDiscrete: Env {
         default:
             break
         }
-        
+
         car.steer(currentSteer)
         car.gas(currentGas)
         car.brake(currentBrake)
-        
+
         var tileFrictions: [Int: Float] = [:]
         for tile in trackData.tiles {
             tileFrictions[tile.idx] = tile.roadFriction
         }
-        
+
         car.step(dt: 1.0 / TrackConstants.fps, tileFrictions: tileFrictions)
         self.car = car
-        
+
         b2World_Step(worldId, 1.0 / TrackConstants.fps, 8)
-        
+
         t += 1.0 / TrackConstants.fps
-        
+
         let vel = b2Body_GetLinearVelocity(car.hullId)
         let trueSpeed = sqrt(vel.x * vel.x + vel.y * vel.y)
         updateWheelTileContacts(awardReward: trueSpeed > 0.1)
-        
+
         let state = renderStatePixels()
-        
+
         var stepReward: Float = 0
         var terminated = false
         var info = Info()
-        
+
         reward -= 0.1
-        
+
         stepReward = reward - prevReward
         prevReward = reward
-        
+
         if tileVisitedCount == trackData.tiles.count || newLap {
             terminated = true
             info["lap_finished"] = .bool(true)
         }
-        
+
         let pos = b2Body_GetPosition(car.hullId)
         if abs(pos.x) > TrackConstants.playfield || abs(pos.y) > TrackConstants.playfield {
             terminated = true
             stepReward = -100
             info["lap_finished"] = .bool(false)
         }
-        
+
         if renderMode == .human {
             _ = try render()
         }
-        
+
         return Step(
             obs: state,
             reward: Double(stepReward),
@@ -215,53 +215,54 @@ public struct CarRacingDiscrete: Env {
             info: info
         )
     }
-    
+
     private mutating func updateWheelTileContacts(awardReward: Bool) {
         guard var car = car, let trackData = trackData else { return }
-        
+
         for i in 0..<car.wheels.count {
             car.wheels[i].tiles.removeAll()
         }
-        
+
         var wheelBodyToIndex: [Int32: Int] = [:]
         for i in 0..<car.wheels.count {
             wheelBodyToIndex[car.wheels[i].bodyId.index1] = i
         }
-        
+
         for k in 0..<trackData.tiles.count {
             guard let tileShape = trackData.tiles[k].shapeId else { continue }
-            
+
             let capacity = b2Shape_GetSensorCapacity(tileShape)
             guard capacity > 0 else { continue }
-            
+
             var overlaps = [b2ShapeId](repeating: b2ShapeId(), count: Int(capacity))
             let overlapCount = overlaps.withUnsafeMutableBufferPointer { ptr in
                 b2Shape_GetSensorOverlaps(tileShape, ptr.baseAddress, capacity)
             }
-            
+
             for j in 0..<Int(overlapCount) {
                 let overlappingShape = overlaps[j]
                 guard b2Shape_IsValid(overlappingShape) else { continue }
-                
+
                 let bodyId = b2Shape_GetBody(overlappingShape)
-                
+
                 if let wheelIndex = wheelBodyToIndex[bodyId.index1] {
                     let wheelBodyId = car.wheels[wheelIndex].bodyId
-                    if bodyId.index1 == wheelBodyId.index1 && 
-                       bodyId.world0 == wheelBodyId.world0 && 
-                       bodyId.generation == wheelBodyId.generation {
-                        
+                    if bodyId.index1 == wheelBodyId.index1 && bodyId.world0 == wheelBodyId.world0
+                        && bodyId.generation == wheelBodyId.generation
+                    {
+
                         car.wheels[wheelIndex].tiles.insert(k)
-                        
+
                         if !trackData.tiles[k].roadVisited {
                             trackData.tiles[k].roadVisited = true
                             tileVisitedCount += 1
                             if awardReward {
                                 reward += 1000.0 / Float(trackData.tiles.count)
                             }
-                            
+
                             if trackData.tiles[k].idx == 0 {
-                                let visitRatio = Float(tileVisitedCount) / Float(trackData.tiles.count)
+                                let visitRatio =
+                                    Float(tileVisitedCount) / Float(trackData.tiles.count)
                                 if visitRatio > lapCompletePercent {
                                     newLap = true
                                 }
@@ -271,28 +272,28 @@ public struct CarRacingDiscrete: Env {
                 }
             }
         }
-        
+
         self.car = car
     }
-    
+
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
             _key = MLX.key(seed)
         } else if _key == nil {
             _key = MLX.key(UInt64.random(in: 0..<UInt64.max))
         }
-        
+
         destroy()
-        
+
         if domainRandomize {
             let shouldRandomize = (options?["randomize"] as? Bool) ?? true
             reinitColors(randomize: shouldRandomize)
         }
-        
+
         var worldDef = b2DefaultWorldDef()
         worldDef.gravity = b2Vec2(x: 0, y: 0)
         worldId = b2CreateWorld(&worldDef)
-        
+
         reward = 0
         prevReward = 0
         tileVisitedCount = 0
@@ -301,7 +302,7 @@ public struct CarRacingDiscrete: Env {
         currentSteer = 0
         currentGas = 0
         currentBrake = 0
-        
+
         var attempts = 0
         while true {
             guard _key != nil else {
@@ -316,9 +317,9 @@ public struct CarRacingDiscrete: Env {
                 throw GymnazoError.operationFailed("Failed to generate track after 100 attempts")
             }
         }
-        
+
         TrackGenerator.createTileBodies(worldId: worldId!, tiles: &trackData!.tiles)
-        
+
         let startTrack = trackData!.track[0]
         car = Car(
             worldId: worldId!,
@@ -326,45 +327,45 @@ public struct CarRacingDiscrete: Env {
             initX: startTrack.x,
             initY: startTrack.y
         )
-        
+
         let state = renderStatePixels()
-        
+
         if renderMode == .human {
             _ = try render()
         }
-        
+
         return Reset(obs: state, info: [:])
     }
-    
+
     private final class UnsafeBox<T>: @unchecked Sendable {
         var value: T?
     }
-    
+
     private func renderStatePixels() -> MLXArray {
         #if canImport(SwiftUI)
-        if let snapshot = currentSnapshot {
-            let box = UnsafeBox<MLXArray>()
-            if Thread.isMainThread {
-                MainActor.assumeIsolated {
-                    box.value = CarRacingRenderer.renderObservation(snapshot: snapshot)
+            if let snapshot = currentSnapshot {
+                let box = UnsafeBox<MLXArray>()
+                if Thread.isMainThread {
+                    MainActor.assumeIsolated {
+                        box.value = CarRacingRenderer.renderObservation(snapshot: snapshot)
+                    }
+                } else {
+                    DispatchQueue.main.sync {
+                        box.value = CarRacingRenderer.renderObservation(snapshot: snapshot)
+                    }
                 }
-            } else {
-                DispatchQueue.main.sync {
-                    box.value = CarRacingRenderer.renderObservation(snapshot: snapshot)
+                if let obs = box.value {
+                    return obs
                 }
             }
-            if let obs = box.value {
-                return obs
-            }
-        }
         #endif
         return Self.fallbackObservation
     }
-    
+
     @discardableResult
     public func render() throws -> RenderOutput? {
         guard let mode = renderMode else { return nil }
-        
+
         switch mode {
         case .human:
             if let snapshot = currentSnapshot {
@@ -373,65 +374,65 @@ public struct CarRacingDiscrete: Env {
             return nil
         case .rgbArray:
             #if canImport(SwiftUI)
-            if let snapshot = currentSnapshot {
-                let box = UnsafeBox<CGImage>()
-                if Thread.isMainThread {
-                    MainActor.assumeIsolated {
-                        box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
+                if let snapshot = currentSnapshot {
+                    let box = UnsafeBox<CGImage>()
+                    if Thread.isMainThread {
+                        MainActor.assumeIsolated {
+                            box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
+                        }
+                    } else {
+                        DispatchQueue.main.sync {
+                            box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
+                        }
                     }
-                } else {
-                    DispatchQueue.main.sync {
-                        box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
+                    if let image = box.value {
+                        return .rgbArray(image)
                     }
                 }
-                if let image = box.value {
-                    return .rgbArray(image)
-                }
-            }
             #endif
             return nil
         case .statePixels:
             #if canImport(SwiftUI)
-            if let snapshot = currentSnapshot {
-                let box = UnsafeBox<CGImage>()
-                if Thread.isMainThread {
-                    MainActor.assumeIsolated {
-                        box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
+                if let snapshot = currentSnapshot {
+                    let box = UnsafeBox<CGImage>()
+                    if Thread.isMainThread {
+                        MainActor.assumeIsolated {
+                            box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
+                        }
+                    } else {
+                        DispatchQueue.main.sync {
+                            box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
+                        }
                     }
-                } else {
-                    DispatchQueue.main.sync {
-                        box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
+                    if let image = box.value {
+                        return .statePixels(image)
                     }
                 }
-                if let image = box.value {
-                    return .statePixels(image)
-                }
-            }
             #endif
             return nil
         case .ansi:
             return nil
         }
     }
-    
+
     public var currentSnapshot: CarRacingSnapshot? {
         guard let car = car else { return nil }
-        
+
         let hullPos = b2Body_GetPosition(car.hullId)
         let hullRot = b2Body_GetRotation(car.hullId)
         let hullAngle = b2Rot_GetAngle(hullRot)
-        
+
         var wheelPositions: [(x: Float, y: Float, angle: Float, phase: Float, omega: Float)] = []
         for wheel in car.wheels {
             let pos = b2Body_GetPosition(wheel.bodyId)
             let rot = b2Body_GetRotation(wheel.bodyId)
             wheelPositions.append((pos.x, pos.y, b2Rot_GetAngle(rot), wheel.phase, wheel.omega))
         }
-        
+
         var roadPolyX: [[Float]] = []
         var roadPolyY: [[Float]] = []
         var roadColors: [(Float, Float, Float)] = []
-        
+
         if let trackData = trackData {
             for (vertices, color) in trackData.roadPoly {
                 roadPolyX.append(vertices.map { $0.0 })
@@ -439,19 +440,21 @@ public struct CarRacingDiscrete: Env {
                 roadColors.append(color)
             }
         }
-        
+
         let vel = b2Body_GetLinearVelocity(car.hullId)
         let trueSpeed = sqrt(vel.x * vel.x + vel.y * vel.y)
         let steeringAngle = b2RevoluteJoint_GetAngle(car.wheels[0].jointId)
         let gyro = b2Body_GetAngularVelocity(car.hullId)
-        
-        let zoom = 0.1 * TrackConstants.scale * max(1 - t, 0) + TrackConstants.zoom * TrackConstants.scale * min(t, 1)
+
+        let zoom =
+            0.1 * TrackConstants.scale * max(1 - t, 0) + TrackConstants.zoom * TrackConstants.scale
+            * min(t, 1)
         let cameraAngle = -hullAngle
         let rawScrollX = -hullPos.x * zoom
         let rawScrollY = -hullPos.y * zoom
         let scrollX = rawScrollX * cos(cameraAngle) - rawScrollY * sin(cameraAngle)
         let scrollY = rawScrollX * sin(cameraAngle) + rawScrollY * cos(cameraAngle)
-        
+
         return CarRacingSnapshot(
             carX: hullPos.x,
             carY: hullPos.y,
@@ -470,17 +473,17 @@ public struct CarRacingDiscrete: Env {
             t: t
         )
     }
-    
+
     public var unwrapped: any Env { self }
-    
+
     public mutating func close() {
         destroy()
     }
-    
+
     private mutating func destroy() {
         car?.destroy()
         car = nil
-        
+
         if let worldId = worldId, b2World_IsValid(worldId) {
             b2DestroyWorld(worldId)
         }

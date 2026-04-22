@@ -143,7 +143,8 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     /// - Returns: Q-values for all actions.
     public func callAsFunction(obs: [String: MLXArray]) -> MLXArray {
         guard let dictExtractor = featuresExtractor as? any DictFeaturesExtractor else {
-            preconditionFailure("callAsFunction(obs: [String: MLXArray]) requires a DictFeaturesExtractor")
+            preconditionFailure(
+                "callAsFunction(obs: [String: MLXArray]) requires a DictFeaturesExtractor")
         }
         let features = extractFeatures(obs: obs, featuresExtractor: dictExtractor)
         return qNet(features)
@@ -171,7 +172,8 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     public func predict(observation: [String: MLXArray], deterministic: Bool = true) -> MLXArray {
         setTrainingMode(false)
         guard let dictExtractor = featuresExtractor as? any DictFeaturesExtractor else {
-            preconditionFailure("predict(observation: [String: MLXArray]) requires a DictFeaturesExtractor")
+            preconditionFailure(
+                "predict(observation: [String: MLXArray]) requires a DictFeaturesExtractor")
         }
         let features = extractFeatures(obs: observation, featuresExtractor: dictExtractor)
         let qValues = qNet(features)

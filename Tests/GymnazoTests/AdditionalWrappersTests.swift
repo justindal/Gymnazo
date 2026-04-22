@@ -1,29 +1,32 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 final class FrozenLakeInfoTagWrapper: Wrapper {
     var env: any Env
     let tagKey: String
     let tagValue: InfoValue
-    
+
     init(env: any Env) {
         self.env = env
         self.tagKey = "wrapped"
         self.tagValue = .bool(true)
     }
-    
+
     init(env: any Env, tagKey: String, tagValue: InfoValue) {
         self.env = env
         self.tagKey = tagKey
         self.tagValue = tagValue
     }
-    
+
     func step(_ action: MLXArray) throws -> Step {
         let r = try env.step(action)
         var info = r.info
         info[tagKey] = tagValue
-        return Step(obs: r.obs, reward: r.reward, terminated: r.terminated, truncated: r.truncated, info: info)
+        return Step(
+            obs: r.obs, reward: r.reward, terminated: r.terminated, truncated: r.truncated,
+            info: info)
     }
 }
 
@@ -42,7 +45,7 @@ struct AdditionalWrappersTests {
             #expect(Bool(false), "FrozenLake spec missing")
             return
         }
-        
+
         let wrapperSpec = WrapperSpec(
             id: "info-tag",
             entryPoint: { env, kwargs in
@@ -66,16 +69,17 @@ struct AdditionalWrappersTests {
             },
             options: ["key": "extra", "value": "ok"]
         )
-        
+
         baseSpec.additionalWrappers = [wrapperSpec]
-        
+
         let env = try await Gymnazo.make(
             baseSpec,
             recordEpisodeStatistics: false,
             options: ["is_slippery": false]
         )
-        
-        let hasWrapper = env.spec?.additionalWrappers.contains(where: { $0.id == "info-tag" }) ?? false
+
+        let hasWrapper =
+            env.spec?.additionalWrappers.contains(where: { $0.id == "info-tag" }) ?? false
         #expect(hasWrapper)
     }
 }

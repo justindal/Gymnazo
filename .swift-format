@@ -2,6 +2,5 @@
     "version": 1,
     "indentation": {
         "spaces": 4
-    },
-    "spacesAroundRangeFormationOperators": true,
+    }
 }

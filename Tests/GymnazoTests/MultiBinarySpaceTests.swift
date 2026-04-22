@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 @Suite("MultiBinary space sampling and membership")
@@ -26,4 +27,3 @@ struct MultiBinarySpaceTests {
         #expect(space.contains(bad) == false)
     }
 }
-

@@ -61,4 +61,3 @@ public struct EvaluateCallbacks: Sendable {
         self.onSnapshot = onSnapshot
     }
 }
-

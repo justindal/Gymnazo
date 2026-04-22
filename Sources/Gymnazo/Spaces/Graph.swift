@@ -26,7 +26,10 @@ public struct GraphSample {
     ///   - edgeLinks: Edge endpoints of shape `[maxEdges, 2]` with `-1` for padded edges.
     ///   - nodeMask: Boolean vector of shape `[maxNodes]`.
     ///   - edgeMask: Boolean vector of shape `[maxEdges]`.
-    public init(nodes: MLXArray, edges: MLXArray, edgeLinks: MLXArray, nodeMask: MLXArray, edgeMask: MLXArray) {
+    public init(
+        nodes: MLXArray, edges: MLXArray, edgeLinks: MLXArray, nodeMask: MLXArray,
+        edgeMask: MLXArray
+    ) {
         self.nodes = nodes
         self.edges = edges
         self.edgeLinks = edgeLinks
@@ -100,7 +103,7 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
             g.edges.flattened(),
             g.edgeLinks.flattened(),
             g.nodeMask.asType(.int32).flattened(),
-            g.edgeMask.asType(.int32).flattened()
+            g.edgeMask.asType(.int32).flattened(),
         ])
     }
 
@@ -114,8 +117,12 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
         let nodeKey = keys[2]
         let edgeKey = keys[3]
 
-        let sampledNodes = maxNodes == 0 ? 0 : Int(MLX.randInt(low: 1, high: maxNodes + 1, key: nodeCountKey).item(Int32.self))
-        let sampledEdges = maxEdges == 0 ? 0 : Int(MLX.randInt(low: 0, high: maxEdges + 1, key: edgeCountKey).item(Int32.self))
+        let sampledNodes =
+            maxNodes == 0
+            ? 0 : Int(MLX.randInt(low: 1, high: maxNodes + 1, key: nodeCountKey).item(Int32.self))
+        let sampledEdges =
+            maxEdges == 0
+            ? 0 : Int(MLX.randInt(low: 0, high: maxEdges + 1, key: edgeCountKey).item(Int32.self))
 
         let nodes = nodeSpace.sampleBatch(key: nodeKey, count: maxNodes)
         let edges = edgeSpace.sampleBatch(key: edgeKey, count: maxEdges)
@@ -140,7 +147,8 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
 
         if sampledEdges > 0 && sampledNodes > 0 {
             let linkKey = MLX.split(key: nodeKey, into: 2)[1]
-            let rand = MLX.uniform(low: 0, high: 1, [sampledEdges, 2], key: linkKey).asType(.float32)
+            let rand = MLX.uniform(low: 0, high: 1, [sampledEdges, 2], key: linkKey).asType(
+                .float32)
             let idx = (rand * Float(sampledNodes)).asType(.int32).asArray(Int32.self)
 
             for e in 0..<sampledEdges {
@@ -167,7 +175,8 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
 
     /// Returns `true` if the array matches expected flattened size.
     public func contains(_ x: MLXArray) -> Bool {
-        let expectedSize = maxNodes * nodeCount + maxEdges * edgeCount + maxEdges * 2 + maxNodes + maxEdges
+        let expectedSize =
+            maxNodes * nodeCount + maxEdges * edgeCount + maxEdges * 2 + maxNodes + maxEdges
         return x.size == expectedSize
     }
 

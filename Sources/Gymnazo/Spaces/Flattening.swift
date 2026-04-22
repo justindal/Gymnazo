@@ -2,7 +2,7 @@ import Foundation
 import MLX
 
 /// Returns the name of a space.
-/// 
+///
 /// - Parameter space: The space to get the name of.
 /// - Returns: The name of the space.
 private func spaceTypeName(_ space: any Space) -> String {
@@ -40,7 +40,9 @@ public func flatten_space(_ space: any Space) throws -> any Space {
         return Box(low: lowArr, high: highArr, dtype: dtype)
     }
 
-    if space is Discrete || space is MultiDiscrete || space is MultiBinary || space is Tuple || space is Dict || space is TextSpace {
+    if space is Discrete || space is MultiDiscrete || space is MultiBinary || space is Tuple
+        || space is Dict || space is TextSpace
+    {
         let (low, high, dtype) = try flattenBoxBounds(space)
         let lowArr = MLXArray(low).asType(dtype)
         let highArr = MLXArray(high).asType(dtype)
@@ -188,7 +190,9 @@ public func unflatten(space: any Space, flattened: Any) throws -> Any {
     )
 }
 
-private func flattenBoxBounds(_ space: any Space) throws -> (low: [Float], high: [Float], dtype: DType) {
+private func flattenBoxBounds(_ space: any Space) throws -> (
+    low: [Float], high: [Float], dtype: DType
+) {
     if let box = space as? Box {
         return flattenBoxBounds(box)
     }
@@ -553,7 +557,8 @@ private func flattenSequence(space: any Space, sample: SequenceSample) throws ->
         let cols = nvec.count
         let total = nvec.reduce(0, +)
 
-        let xs = sample.values.asType(.int32).reshaped([seq.maxLength * cols]).asArray(Int32.self).map { Int($0) }
+        let xs = sample.values.asType(.int32).reshaped([seq.maxLength * cols]).asArray(Int32.self)
+            .map { Int($0) }
         var out = [Float](repeating: 0, count: seq.maxLength * total)
 
         for i in 0..<seq.maxLength {
@@ -579,19 +584,23 @@ private func flattenSequence(space: any Space, sample: SequenceSample) throws ->
     return SequenceSample(values: values, mask: sample.mask)
 }
 
-private func unflattenSequence(space: any AnySequenceSpace, flattened: SequenceSample) -> SequenceSample {
+private func unflattenSequence(space: any AnySequenceSpace, flattened: SequenceSample)
+    -> SequenceSample
+{
     let elementSpace = space.elementSpace
 
     if let box = elementSpace as? Box {
         let elementShape = box.shape ?? []
-        let values = flattened.values.asType(box.dtype ?? .float32).reshaped([space.maxLength] + elementShape)
+        let values = flattened.values.asType(box.dtype ?? .float32).reshaped(
+            [space.maxLength] + elementShape)
         return SequenceSample(values: values, mask: flattened.mask)
     }
 
     if let mb = elementSpace as? MultiBinary {
         let elementShape = mb.shape ?? []
         let elementCount = elementShape.reduce(1, *)
-        let vals = flattened.values.asType(.float32).reshaped([space.maxLength * elementCount]).asArray(Float.self)
+        let vals = flattened.values.asType(.float32).reshaped([space.maxLength * elementCount])
+            .asArray(Float.self)
         let out = vals.map { $0 >= 0.5 ? Int32(1) : Int32(0) }
         let values = MLXArray(out).asType(.int32).reshaped([space.maxLength] + elementShape)
         return SequenceSample(values: values, mask: flattened.mask)
@@ -602,7 +611,8 @@ private func unflattenSequence(space: any AnySequenceSpace, flattened: SequenceS
         let cols = nvec.count
         let total = nvec.reduce(0, +)
 
-        let vals = flattened.values.asType(.float32).reshaped([space.maxLength * total]).asArray(Float.self)
+        let vals = flattened.values.asType(.float32).reshaped([space.maxLength * total]).asArray(
+            Float.self)
         var out: [Int32] = []
         out.reserveCapacity(space.maxLength * cols)
 
@@ -653,8 +663,10 @@ private func flattenGraph(space: any Space, sample: GraphSample) throws -> Graph
 }
 
 private func unflattenGraph(space: any AnyGraphSpace, flattened: GraphSample) -> GraphSample {
-    let nodes = unflattenGraphValues(space: space.nodeSpaceAny, values: flattened.nodes, count: space.maxNodes)
-    let edges = unflattenGraphValues(space: space.edgeSpaceAny, values: flattened.edges, count: space.maxEdges)
+    let nodes = unflattenGraphValues(
+        space: space.nodeSpaceAny, values: flattened.nodes, count: space.maxNodes)
+    let edges = unflattenGraphValues(
+        space: space.edgeSpaceAny, values: flattened.edges, count: space.maxEdges)
 
     return GraphSample(
         nodes: nodes,
@@ -707,7 +719,8 @@ private func flattenGraphValues(space: any TensorSpace, values: MLXArray, count:
     return values.asType(.float32).reshaped([count, elementCount])
 }
 
-private func unflattenGraphValues(space: any TensorSpace, values: MLXArray, count: Int) -> MLXArray {
+private func unflattenGraphValues(space: any TensorSpace, values: MLXArray, count: Int) -> MLXArray
+{
     if let box = space as? Box {
         let elementShape = box.shape ?? []
         return values.asType(box.dtype ?? .float32).reshaped([count] + elementShape)

@@ -602,8 +602,7 @@ public actor SAC {
             actorLossArrays.append(values[1])
 
             if !includeTargetUpdate {
-                if gradientStep % targetUpdateInterval == 0
-                {
+                if gradientStep % targetUpdateInterval == 0 {
                     softUpdate()
                     eval(criticTarget.parameters())
                 }
@@ -615,12 +614,10 @@ public actor SAC {
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
         let totalActorLoss = actorLossArrays.reduce(MLXArray(0.0), +)
         eval(totalCriticLoss, totalActorLoss)
-        let avgCriticLoss = (
-            totalCriticLoss / Float(max(1, criticLossArrays.count))
-        ).scalarValue(Float.self)
-        let avgActorLoss = (
-            totalActorLoss / Float(max(1, actorLossArrays.count))
-        ).scalarValue(Float.self)
+        let avgCriticLoss = (totalCriticLoss / Float(max(1, criticLossArrays.count))).scalarValue(
+            Float.self)
+        let avgActorLoss = (totalActorLoss / Float(max(1, actorLossArrays.count))).scalarValue(
+            Float.self)
         let entCoefValue = logEntCoefModule.entCoef.scalarValue(Float.self)
 
         var metrics: [String: Double] = [

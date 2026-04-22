@@ -2,8 +2,8 @@
 //  AsyncVectorEnv.swift
 //
 
-import MLX
 import Foundation
+import MLX
 import os
 
 /// Sendable result type for step operations crossing actor boundaries.
@@ -228,7 +228,8 @@ public final class AsyncVectorEnv: VectorEnv {
         self.copyObservations = copyObservations
 
         let actors = wrappedEnvs.enumerated().map { index, env in
-            EnvironmentActor(index: index, envBox: UnsafeEnvBox(env: env), autoresetMode: autoresetMode)
+            EnvironmentActor(
+                index: index, envBox: UnsafeEnvBox(env: env), autoresetMode: autoresetMode)
         }
         self.actors = actors
 
@@ -263,7 +264,8 @@ public final class AsyncVectorEnv: VectorEnv {
         self.copyObservations = copyObservations
 
         let actors = envs.enumerated().map { index, env in
-            EnvironmentActor(index: index, envBox: UnsafeEnvBox(env: env), autoresetMode: autoresetMode)
+            EnvironmentActor(
+                index: index, envBox: UnsafeEnvBox(env: env), autoresetMode: autoresetMode)
         }
         self.actors = actors
 
@@ -467,14 +469,16 @@ public final class AsyncVectorEnv: VectorEnv {
     ///   - seed: Optional seed. If provided, seeds are `[seed, seed+1, ..., seed+n-1]`.
     ///   - options: Optional reset options dictionary.
     /// - Returns: Batched observations and info from all sub-environments.
-    public func resetAsync(seed: UInt64? = nil, options: EnvOptions? = nil) async
+    public func resetAsync(seed: UInt64? = nil, options: EnvOptions? = nil)
+        async
         throws -> VectorResetResult
     {
         guard !closed else {
             throw GymnazoError.vectorEnvClosed
         }
 
-        let results = try await Self.resetActorsParallel(actors: actors, seed: seed, options: options)
+        let results = try await Self.resetActorsParallel(
+            actors: actors, seed: seed, options: options)
 
         var observations: [[Float]] = Array(repeating: [], count: numEnvs)
         var infos: [Info] = Array(repeating: Info(), count: numEnvs)
@@ -583,4 +587,3 @@ private func sendableValue<Observation>(_ value: Observation) -> InfoValue? {
         return nil
     }
 }
-

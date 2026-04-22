@@ -24,7 +24,7 @@ public struct Box: Space {
     public let high: MLXArray
     public let shape: [Int]?
     public let dtype: DType?
-    
+
     /// Tracks which dimensions are bounded below (not -inf)
     public let boundedBelow: [Bool]
     /// Tracks which dimensions are bounded above (not +inf)
@@ -40,11 +40,11 @@ public struct Box: Space {
         self.high = Box.full(shape: shape, value: high, dtype: dtype)
         self.shape = shape
         self.dtype = dtype
-        
+
         let count = shape.reduce(1, *)
         self.boundedBelow = [Bool](repeating: !low.isInfinite, count: count)
         self.boundedAbove = [Bool](repeating: !high.isInfinite, count: count)
-        
+
         let flatLow = [Float](repeating: low, count: count)
         let flatHigh = [Float](repeating: high, count: count)
         let (effLow, effHigh) = Box.computeEffectiveBounds(
@@ -68,12 +68,12 @@ public struct Box: Space {
         self.high = highC
         self.shape = ls
         self.dtype = dtype
-        
+
         let flatLow = lowC.reshaped([-1]).asArray(Float.self)
         let flatHigh = highC.reshaped([-1]).asArray(Float.self)
         self.boundedBelow = flatLow.map { !$0.isInfinite }
         self.boundedAbove = flatHigh.map { !$0.isInfinite }
-        
+
         let (effLow, effHigh) = Box.computeEffectiveBounds(
             flatLow: flatLow,
             flatHigh: flatHigh,
@@ -83,7 +83,7 @@ public struct Box: Space {
         self.effectiveLow = MLXArray(effLow).reshaped(ls).asType(dtype)
         self.effectiveHigh = MLXArray(effHigh).reshaped(ls).asType(dtype)
     }
-    
+
     /// Returns whether the space is bounded in all dimensions.
     ///
     /// - Parameter manner: How to check boundedness:
@@ -112,7 +112,7 @@ public struct Box: Space {
             guard shp == xs else { return false }
         }
         let xC = x.asType(dtype ?? .float32)
-        
+
         let geLow = xC .>= low
         let leHigh = xC .<= high
         let mask = MLX.logicalAnd(geLow.asType(.bool), leHigh.asType(.bool))
@@ -131,8 +131,8 @@ public struct Box: Space {
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
         let shp = shape ?? low.shape
         let (k, _) = MLX.split(key: key)
-        let u01 = MLX.uniform(0 ..< 1, shp, key: k).asType(dtype ?? .float32)
-        
+        let u01 = MLX.uniform(0..<1, shp, key: k).asType(dtype ?? .float32)
+
         let span = effectiveHigh - effectiveLow
         return effectiveLow + u01 * span
     }
@@ -143,23 +143,23 @@ extension Box: TensorSpace {
         precondition(count >= 0, "count must be non-negative")
         let elementShape = shape ?? low.shape
         let batchShape = [count] + elementShape
-        let u01 = MLX.uniform(0 ..< 1, batchShape, key: key).asType(dtype ?? .float32)
+        let u01 = MLX.uniform(0..<1, batchShape, key: key).asType(dtype ?? .float32)
 
         let span = effectiveHigh - effectiveLow
         return effectiveLow + u01 * span
     }
 }
 
-private extension Box {
-    static func full(shape: [Int], value: Float, dtype: DType) -> MLXArray {
+extension Box {
+    fileprivate static func full(shape: [Int], value: Float, dtype: DType) -> MLXArray {
         let count = shape.reduce(1, *)
         let flat = MLXArray([Float](repeating: value, count: count))
         let reshaped = flat.reshaped(shape)
         return reshaped.asType(dtype)
     }
-    
+
     /// Computes effective bounds for sampling, handling unbounded dimensions.
-    static func computeEffectiveBounds(
+    fileprivate static func computeEffectiveBounds(
         flatLow: [Float],
         flatHigh: [Float],
         boundedBelow: [Bool],
@@ -168,11 +168,11 @@ private extension Box {
         let defaultRange: Float = 1e6
         var effectiveLow = [Float](repeating: 0, count: flatLow.count)
         var effectiveHigh = [Float](repeating: 0, count: flatHigh.count)
-        
+
         for i in 0..<flatLow.count {
             let bBelow = boundedBelow[i]
             let bAbove = boundedAbove[i]
-            
+
             if bBelow && bAbove {
                 effectiveLow[i] = flatLow[i]
                 effectiveHigh[i] = flatHigh[i]
@@ -187,8 +187,7 @@ private extension Box {
                 effectiveHigh[i] = defaultRange
             }
         }
-        
+
         return (effectiveLow, effectiveHigh)
     }
 }
-

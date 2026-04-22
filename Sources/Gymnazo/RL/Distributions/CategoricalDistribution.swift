@@ -14,7 +14,7 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
     private let actionDim: Int
     private var logits: MLXArray
     private var probs: MLXArray
-    
+
     /// Creates a CategoricalDistribution.
     ///
     /// - Parameter actionDim: Number of discrete actions.
@@ -23,7 +23,7 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
         self.logits = MLXArray([])
         self.probs = MLXArray([])
     }
-    
+
     /// Creates the network for producing action logits.
     ///
     /// - Parameters:
@@ -36,7 +36,7 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
     ) -> (any UnaryLayer, MLXArray?) {
         fatalError("Use probaDistributionNet(latentDim:actionDim:) instead.")
     }
-    
+
     /// Creates the network for this distribution with the correct action dim.
     ///
     /// - Parameters:
@@ -49,7 +49,7 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
     ) -> Linear {
         return Linear(latentDim, actionDim)
     }
-    
+
     /// Sets the distribution parameters from logits.
     ///
     /// - Parameter actionLogits: Unnormalized log probabilities.
@@ -60,26 +60,27 @@ public final class CategoricalDistribution: Distribution, DistributionWithNet {
         self.probs = MLX.softmax(actionLogits, axis: -1)
         return self
     }
-    
+
     public func logProb(_ actions: MLXArray) -> MLXArray {
         let logProbs = logSoftmax(logits, axis: -1)
         let actionIndices = actions.asType(.int32)
-        return MLX.takeAlong(logProbs, actionIndices.expandedDimensions(axis: -1), axis: -1).squeezed(axis: -1)
+        return MLX.takeAlong(logProbs, actionIndices.expandedDimensions(axis: -1), axis: -1)
+            .squeezed(axis: -1)
     }
-    
+
     public func entropy() -> MLXArray? {
         let logProbs = logSoftmax(logits, axis: -1)
         let entropy = -MLX.sum(probs * logProbs, axis: -1)
         return entropy
     }
-    
+
     public func sample(key: MLXArray? = nil) -> MLXArray {
         if let key = key {
             return MLX.categorical(logits, axis: -1, key: key)
         }
         return MLX.categorical(logits, axis: -1)
     }
-    
+
     public func mode() -> MLXArray {
         return MLX.argMax(logits, axis: -1)
     }
@@ -99,7 +100,7 @@ private func logSoftmax(_ x: MLXArray, axis: Int) -> MLXArray {
 public final class MultiCategoricalDistribution: Distribution {
     private let actionDims: [Int]
     private var distributions: [CategoricalDistribution]
-    
+
     /// Creates a MultiCategoricalDistribution.
     ///
     /// - Parameter actionDims: Array of sizes for each discrete dimension.
@@ -107,7 +108,7 @@ public final class MultiCategoricalDistribution: Distribution {
         self.actionDims = actionDims
         self.distributions = actionDims.map { CategoricalDistribution(actionDim: $0) }
     }
-    
+
     /// Creates the network for producing all action logits.
     ///
     /// - Parameters:
@@ -121,7 +122,7 @@ public final class MultiCategoricalDistribution: Distribution {
         let totalDim = actionDims.reduce(0, +)
         return Linear(latentDim, totalDim)
     }
-    
+
     /// Sets the distribution parameters from concatenated logits.
     ///
     /// - Parameter actionLogits: Flattened logits for all dimensions.
@@ -136,7 +137,7 @@ public final class MultiCategoricalDistribution: Distribution {
         }
         return self
     }
-    
+
     public func logProb(_ actions: MLXArray) -> MLXArray {
         var totalLogProb = MLXArray(0.0)
         for (i, dist) in distributions.enumerated() {
@@ -145,7 +146,7 @@ public final class MultiCategoricalDistribution: Distribution {
         }
         return totalLogProb
     }
-    
+
     public func entropy() -> MLXArray? {
         var totalEntropy = MLXArray(0.0)
         for dist in distributions {
@@ -155,7 +156,7 @@ public final class MultiCategoricalDistribution: Distribution {
         }
         return totalEntropy
     }
-    
+
     public func sample(key: MLXArray? = nil) -> MLXArray {
         if let key = key {
             var currentKey = key
@@ -169,10 +170,9 @@ public final class MultiCategoricalDistribution: Distribution {
         }
         return MLX.stacked(distributions.map { $0.sample() }, axis: -1)
     }
-    
+
     public func mode() -> MLXArray {
         let modes = distributions.map { $0.mode() }
         return MLX.stacked(modes, axis: -1)
     }
 }
-

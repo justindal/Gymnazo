@@ -1,11 +1,12 @@
-import Testing
 import MLX
+import Testing
 
 @testable import Gymnazo
 
 @Suite("Gymnazo wrappers and env basics")
 struct GymnazoTests {
-    func makeFrozenLake(isSlippery: Bool, renderMode: RenderMode? = nil) async throws -> FrozenLake {
+    func makeFrozenLake(isSlippery: Bool, renderMode: RenderMode? = nil) async throws -> FrozenLake
+    {
         var options: EnvOptions = ["is_slippery": isSlippery]
         if let renderMode {
             options["render_mode"] = renderMode.rawValue

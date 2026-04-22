@@ -122,7 +122,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         case .box(let actionDim):
             diagLogStdShape = useSDE ? [1] : [actionDim]
             if useSDE {
-                sdeLogStdShape = fullStd
+                sdeLogStdShape =
+                    fullStd
                     ? [mlp.latentDimPi, actionDim]
                     : [mlp.latentDimPi, 1]
             } else {
@@ -222,7 +223,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
     ///   - obs: The current observation.
     ///   - deterministic: If `true`, returns the mode action.
     /// - Returns: A tuple of `(actions, values, logProbs)`.
-    public func callAsFunction(obs: MLXArray, deterministic: Bool) -> (MLXArray, MLXArray, MLXArray) {
+    public func callAsFunction(obs: MLXArray, deterministic: Bool) -> (MLXArray, MLXArray, MLXArray)
+    {
         let output = forward(obs: obs, deterministic: deterministic, key: nil)
         return (output.actions, output.values, output.logProb)
     }
@@ -233,7 +235,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
     ///   - obs: The observations at which actions were taken.
     ///   - actions: The actions to evaluate.
     /// - Returns: A tuple of `(values, logProbs, entropy)` where `entropy` may be `nil`.
-    public func evaluateActions(obs: MLXArray, actions: MLXArray) -> (MLXArray, MLXArray, MLXArray?) {
+    public func evaluateActions(obs: MLXArray, actions: MLXArray) -> (MLXArray, MLXArray, MLXArray?)
+    {
         let (latentPi, latentVf) = latentFeatures(obs: obs)
         let distribution = prepareDistribution(latentPi: latentPi)
         let preparedActions = prepareActionsForDistribution(actions)
@@ -377,7 +380,9 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         config: FeaturesExtractorConfig,
         normalizeImages: Bool,
         shareFeatureExtractor: Bool
-    ) throws -> (shared: any FeaturesExtractor, pi: any FeaturesExtractor, vf: any FeaturesExtractor) {
+    ) throws -> (
+        shared: any FeaturesExtractor, pi: any FeaturesExtractor, vf: any FeaturesExtractor
+    ) {
         let shared = try config.make(
             observationSpace: observationSpace,
             normalizeImages: normalizeImages
@@ -431,7 +436,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
             return .discrete(actionDim: discrete.n)
         }
         if let multiDiscrete = actionSpace as? MultiDiscrete {
-            let dims = multiDiscrete.nvec.asType(.int32).reshaped([-1]).asArray(Int32.self).map(Int.init)
+            let dims = multiDiscrete.nvec.asType(.int32).reshaped([-1]).asArray(Int32.self).map(
+                Int.init)
             return .multiDiscrete(actionDims: dims, actionDim: dims.reduce(0, +))
         }
         if let multiBinary = actionSpace as? MultiBinary {

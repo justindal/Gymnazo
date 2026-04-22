@@ -21,7 +21,7 @@ import MLX
 /// ```
 public struct ShapeReward: Wrapper {
     public var env: any Env
-    
+
     /// A closure that receives the original reward, observation, and termination status,
     /// and returns the shaped reward.
     public let shaper: (Double, MLXArray, Bool) -> Double
@@ -53,4 +53,3 @@ public struct ShapeReward: Wrapper {
         try env.reset(seed: seed, options: options)
     }
 }
-

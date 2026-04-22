@@ -41,7 +41,7 @@ public struct ResizeObservation: Wrapper {
     public let targetHeight: Int
     public let targetWidth: Int
     public let observationSpace: any Space
-    
+
     public var spec: EnvSpec? {
         get { env.spec }
         set { env.spec = newValue }
@@ -50,7 +50,7 @@ public struct ResizeObservation: Wrapper {
         get { env.renderMode }
         set { env.renderMode = newValue }
     }
-    
+
     /// Creates a resize observation wrapper.
     ///
     /// - Parameters:
@@ -60,18 +60,19 @@ public struct ResizeObservation: Wrapper {
         self.env = env
         self.targetHeight = shape.0
         self.targetWidth = shape.1
-        
+
         guard let innerBox = env.observationSpace as? Box,
-              let innerShape = innerBox.shape,
-              innerShape.count >= 2 else {
+            let innerShape = innerBox.shape,
+            innerShape.count >= 2
+        else {
             throw GymnazoError.invalidResizeShape
         }
-        
+
         var newShape = [targetHeight, targetWidth]
         if innerShape.count > 2 {
             newShape.append(contentsOf: innerShape[2...])
         }
-        
+
         self.observationSpace = Box(
             low: 0,
             high: 255,
@@ -79,7 +80,7 @@ public struct ResizeObservation: Wrapper {
             dtype: innerBox.dtype ?? .uint8
         )
     }
-    
+
     public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
@@ -90,54 +91,53 @@ public struct ResizeObservation: Wrapper {
             info: result.info
         )
     }
-    
+
     public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
         return Reset(obs: resize(result.obs), info: result.info)
     }
-    
+
     private func resize(_ obs: MLXArray) -> MLXArray {
         let originalShape = obs.shape
-        
+
         let inputNdim = originalShape.count
-        
+
         var input = obs.asType(.float32)
-        
+
         if inputNdim == 2 {
             input = input.expandedDimensions(axis: 0).expandedDimensions(axis: -1)
         } else if inputNdim == 3 {
             input = input.expandedDimensions(axis: 0)
         }
-        
+
         let scaleH = Float(originalShape[0]) / Float(targetHeight)
         let scaleW = Float(originalShape[1]) / Float(targetWidth)
-        
+
         var indices_h = [Int32]()
         var indices_w = [Int32]()
-        
+
         for h in 0..<targetHeight {
             let srcH = min(Int(Float(h) * scaleH), originalShape[0] - 1)
             indices_h.append(Int32(srcH))
         }
-        
+
         for w in 0..<targetWidth {
             let srcW = min(Int(Float(w) * scaleW), originalShape[1] - 1)
             indices_w.append(Int32(srcW))
         }
-        
+
         let indicesHArray = MLXArray(indices_h)
         let indicesWArray = MLXArray(indices_w)
-        
+
         var resized = input.take(indicesHArray, axis: 1)
         resized = resized.take(indicesWArray, axis: 2)
-        
+
         resized = resized.squeezed(axis: 0)
-        
+
         if inputNdim == 2 {
             resized = resized.squeezed(axis: -1)
         }
-        
+
         return resized.asType(observationSpace.dtype ?? .uint8)
     }
 }
-

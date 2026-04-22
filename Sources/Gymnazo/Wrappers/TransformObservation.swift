@@ -8,7 +8,7 @@ public struct TransformObservation: Wrapper {
     public var env: any Env
     public let transform: (MLXArray) -> MLXArray
     public let observationSpace: any Space
-    
+
     public init(
         env: any Env,
         transform: @escaping (MLXArray) -> MLXArray,
@@ -18,8 +18,7 @@ public struct TransformObservation: Wrapper {
         self.transform = transform
         self.observationSpace = observationSpace ?? env.observationSpace
     }
-    
-    
+
     public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
         return Step(
@@ -36,4 +35,3 @@ public struct TransformObservation: Wrapper {
         return Reset(obs: transform(result.obs), info: result.info)
     }
 }
-

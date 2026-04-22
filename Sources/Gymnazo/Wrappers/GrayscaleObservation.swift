@@ -114,4 +114,3 @@ public struct GrayscaleObservation: Wrapper {
         return result.asType(observationSpace.dtype ?? .uint8)
     }
 }
-

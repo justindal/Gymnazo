@@ -174,7 +174,8 @@ extension GymnazoRegistry {
         registerIfNeeded(
             id: "FrozenLake8x8",
             displayName: "Frozen Lake 8x8",
-            description: "Navigate a larger frozen lake from start to goal without falling into holes.",
+            description:
+                "Navigate a larger frozen lake from start to goal without falling into holes.",
             category: .toyText,
             entryPoint: { options in
                 try RegistrationSupport.createFrozenLake(options: options, defaultMap: "8x8")
@@ -202,7 +203,8 @@ extension GymnazoRegistry {
         registerIfNeeded(
             id: "Taxi",
             displayName: "Taxi",
-            description: "Navigate a taxi to pick up and drop off passengers at designated locations.",
+            description:
+                "Navigate a taxi to pick up and drop off passengers at designated locations.",
             category: .toyText,
             entryPoint: { options in
                 let renderMode = RegistrationSupport.renderMode(from: options)

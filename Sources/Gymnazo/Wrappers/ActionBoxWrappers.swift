@@ -53,5 +53,3 @@ public final class RescaleAction: ActionWrapper {
         return clipped
     }
 }
-
-

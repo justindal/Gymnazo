@@ -59,15 +59,16 @@ struct TD3Tests {
         #expect(sanitized.targetPolicyNoise == 0.0)
         #expect(sanitized.targetNoiseClip == 0.0)
 
-        guard case
-            .some(
-                .ornsteinUhlenbeck(
-                    std: let std,
-                    theta: let theta,
-                    dt: let dt,
-                    initialNoise: let initialNoise
-                )
-            ) = sanitized.actionNoise
+        guard
+            case
+                .some(
+                    .ornsteinUhlenbeck(
+                        std: let std,
+                        theta: let theta,
+                        dt: let dt,
+                        initialNoise: let initialNoise
+                    )
+                ) = sanitized.actionNoise
         else {
             Issue.record("Expected sanitized OU action noise config.")
             return
@@ -134,8 +135,10 @@ struct TD3Tests {
 
         let sharedActorExtractorID = ObjectIdentifier(shared.actor.featuresExtractor as AnyObject)
         let sharedCriticExtractorID = ObjectIdentifier(sharedCriticExtractor as AnyObject)
-        let sharedActorTargetExtractorID = ObjectIdentifier(shared.actorTarget.featuresExtractor as AnyObject)
-        let sharedCriticTargetExtractorID = ObjectIdentifier(sharedCriticTargetExtractor as AnyObject)
+        let sharedActorTargetExtractorID = ObjectIdentifier(
+            shared.actorTarget.featuresExtractor as AnyObject)
+        let sharedCriticTargetExtractorID = ObjectIdentifier(
+            sharedCriticTargetExtractor as AnyObject)
 
         #expect(sharedActorExtractorID == sharedCriticExtractorID)
         #expect(sharedActorTargetExtractorID == sharedCriticTargetExtractorID)
@@ -166,10 +169,13 @@ struct TD3Tests {
             return
         }
 
-        let unsharedActorExtractorID = ObjectIdentifier(unshared.actor.featuresExtractor as AnyObject)
+        let unsharedActorExtractorID = ObjectIdentifier(
+            unshared.actor.featuresExtractor as AnyObject)
         let unsharedCriticExtractorID = ObjectIdentifier(unsharedCriticExtractor as AnyObject)
-        let unsharedActorTargetExtractorID = ObjectIdentifier(unshared.actorTarget.featuresExtractor as AnyObject)
-        let unsharedCriticTargetExtractorID = ObjectIdentifier(unsharedCriticTargetExtractor as AnyObject)
+        let unsharedActorTargetExtractorID = ObjectIdentifier(
+            unshared.actorTarget.featuresExtractor as AnyObject)
+        let unsharedCriticTargetExtractorID = ObjectIdentifier(
+            unsharedCriticTargetExtractor as AnyObject)
 
         #expect(unsharedActorExtractorID != unsharedCriticExtractorID)
         #expect(unsharedActorTargetExtractorID != unsharedCriticTargetExtractorID)

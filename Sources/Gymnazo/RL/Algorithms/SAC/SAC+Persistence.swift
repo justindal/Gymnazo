@@ -63,7 +63,8 @@ extension SAC {
             throw PersistenceError.invalidCheckpoint("Missing off-policy config")
         }
 
-        let schedule = checkpoint.learningRateSchedule?.makeSchedule()
+        let schedule =
+            checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(3e-4)
         let entCoef = checkpoint.entCoefConfig ?? .auto()
         let networksConfig = checkpoint.sacNetworksConfig ?? SACNetworksConfig()

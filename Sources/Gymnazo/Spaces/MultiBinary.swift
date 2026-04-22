@@ -56,4 +56,3 @@ extension MultiBinary: TensorSpace {
         return (u01 .>= 0.5).asType(.int32)
     }
 }
-

@@ -98,4 +98,3 @@ public final class RecordEpisodeStatistics: Wrapper {
         return (value * precision).rounded() / precision
     }
 }
-

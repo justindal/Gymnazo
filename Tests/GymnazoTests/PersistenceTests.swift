@@ -1,7 +1,8 @@
-import Testing
 import Foundation
 import MLX
 import MLXNN
+import Testing
+
 @testable import Gymnazo
 
 @Suite("Persistence Tests", .serialized)
@@ -118,12 +119,15 @@ struct PersistenceTests {
 
         try await dqn.save(to: dir)
 
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("metadata.json").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("policy.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("target.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("metadata.json").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("policy.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("target.safetensors").path))
 
         let loaded = try DQN.load(from: dir, env: env)
 
@@ -186,16 +190,21 @@ struct PersistenceTests {
 
         try await sac.save(to: dir)
 
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("metadata.json").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("policy.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("critic.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("critic_target.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("entropy.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("metadata.json").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("policy.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("critic.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("critic_target.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("entropy.safetensors").path))
 
         let loaded = try SAC.load(from: dir, env: env)
 
@@ -275,16 +284,21 @@ struct PersistenceTests {
 
         try await td3.save(to: dir)
 
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("metadata.json").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("policy.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("target.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("critic.safetensors").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("critic_target.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("metadata.json").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("policy.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("target.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("critic.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("critic_target.safetensors").path))
 
         let loaded = try TD3.load(from: dir, env: env)
 
@@ -298,7 +312,9 @@ struct PersistenceTests {
         #expect(loaded.offPolicyConfig.batchSize == offPolicyConfig.batchSize)
         #expect(abs(loaded.offPolicyConfig.tau - offPolicyConfig.tau) < 1e-9)
         #expect(abs(loaded.offPolicyConfig.gamma - offPolicyConfig.gamma) < 1e-9)
-        #expect(loaded.offPolicyConfig.trainFrequency.frequency == offPolicyConfig.trainFrequency.frequency)
+        #expect(
+            loaded.offPolicyConfig.trainFrequency.frequency
+                == offPolicyConfig.trainFrequency.frequency)
     }
 
     @Test @MainActor
@@ -352,10 +368,12 @@ struct PersistenceTests {
 
         try await ppo.save(to: dir)
 
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("metadata.json").path))
-        #expect(FileManager.default.fileExists(
-            atPath: dir.appendingPathComponent("policy.safetensors").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("metadata.json").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: dir.appendingPathComponent("policy.safetensors").path))
 
         let loaded = try PPO.load(from: dir, env: env)
         #expect(await loaded.numTimesteps == 60)
@@ -429,8 +447,9 @@ struct PersistenceTests {
         let dir = tempDir()
         defer { cleanup(dir) }
 
-        let obsSpace = Box(low: MLXArray([-1.0, -1.0] as [Float]),
-                           high: MLXArray([1.0, 1.0] as [Float]))
+        let obsSpace = Box(
+            low: MLXArray([-1.0, -1.0] as [Float]),
+            high: MLXArray([1.0, 1.0] as [Float]))
         let actSpace = Discrete(n: 4)
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: 100,

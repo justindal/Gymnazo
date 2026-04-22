@@ -73,4 +73,3 @@ open class ActionWrapper: Wrapper {
         try env.step(self.action(action))
     }
 }
-

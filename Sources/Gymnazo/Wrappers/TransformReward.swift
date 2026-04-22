@@ -30,4 +30,3 @@ public struct TransformReward: Wrapper {
         try env.reset(seed: seed, options: options)
     }
 }
-

@@ -17,7 +17,8 @@ extension TD3 {
         try actor.saveWeights(to: directory.appendingPathComponent(CheckpointFiles.policy))
         try targetActor.saveWeights(to: directory.appendingPathComponent(CheckpointFiles.target))
         try critic.saveWeights(to: directory.appendingPathComponent(CheckpointFiles.critic))
-        try targetCritic.saveWeights(to: directory.appendingPathComponent(CheckpointFiles.criticTarget))
+        try targetCritic.saveWeights(
+            to: directory.appendingPathComponent(CheckpointFiles.criticTarget))
 
         if let buffer {
             let bufferDir = directory.appendingPathComponent(CheckpointFiles.bufferDirectory)
@@ -62,7 +63,8 @@ extension TD3 {
             )
         }
 
-        let schedule = checkpoint.learningRateSchedule?.makeSchedule()
+        let schedule =
+            checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(1e-3)
         let policyConfig = checkpoint.td3PolicyConfig ?? TD3PolicyConfig()
         let algorithmConfig = checkpoint.td3AlgorithmConfig ?? TD3AlgorithmConfig()

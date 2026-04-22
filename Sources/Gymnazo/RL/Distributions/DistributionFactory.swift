@@ -11,7 +11,7 @@ public struct SDEConfig {
     public let fullStd: Bool
     public let squashOutput: Bool
     public let learnFeatures: Bool
-    
+
     public init(
         fullStd: Bool = true,
         squashOutput: Bool = false,
@@ -48,7 +48,7 @@ public enum DistributionFactory {
     ) throws -> any Distribution {
         if let box = boxSpace(from: actionSpace) {
             let actionDim = box.shape?.reduce(1, *) ?? 1
-            
+
             if useSDE {
                 let config = sdeConfig ?? SDEConfig()
                 return StateDependentNoiseDistribution(
@@ -58,29 +58,29 @@ public enum DistributionFactory {
                     learnFeatures: config.learnFeatures
                 )
             }
-            
+
             return DiagGaussianDistribution(actionDim: actionDim)
         }
-        
+
         if let discrete = actionSpace as? Discrete {
             return CategoricalDistribution(actionDim: discrete.n)
         }
-        
+
         if let multiDiscrete = actionSpace as? MultiDiscrete {
             let dims = multiDiscrete.nvec.asArray(Int32.self).map(Int.init)
             return MultiCategoricalDistribution(actionDims: dims)
         }
-        
+
         if let multiBinary = actionSpace as? MultiBinary {
             let actionDim = multiBinary.shape?.reduce(1, *) ?? 1
             return BernoulliDistribution(actionDim: actionDim)
         }
-        
+
         throw GymnazoError.unsupportedDistributionSpace(
             spaceType: String(describing: type(of: actionSpace))
         )
     }
-    
+
     /// Creates a distribution from an explicit type specification.
     ///
     /// - Parameter distType: The distribution type to create.
@@ -89,16 +89,16 @@ public enum DistributionFactory {
         switch distType {
         case .diagGaussian(let actionDim):
             return DiagGaussianDistribution(actionDim: actionDim)
-            
+
         case .categorical(let actionDim):
             return CategoricalDistribution(actionDim: actionDim)
-            
+
         case .multiCategorical(let actionDims):
             return MultiCategoricalDistribution(actionDims: actionDims)
-            
+
         case .bernoulli(let actionDim):
             return BernoulliDistribution(actionDim: actionDim)
-            
+
         case .stateDependentNoise(let actionDim, let config):
             return StateDependentNoiseDistribution(
                 actionDim: actionDim,
@@ -109,4 +109,3 @@ public enum DistributionFactory {
         }
     }
 }
-

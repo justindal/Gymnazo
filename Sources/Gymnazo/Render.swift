@@ -1,5 +1,5 @@
 #if canImport(CoreGraphics)
-import CoreGraphics
+    import CoreGraphics
 #endif
 
 public enum RenderMode: String, Sendable {
@@ -11,16 +11,16 @@ public enum RenderMode: String, Sendable {
 
 public enum RenderOutput {
     case ansi(String)
-#if canImport(CoreGraphics)
-    case rgbArray(CGImage)
-    case statePixels(CGImage)
-#endif
+    #if canImport(CoreGraphics)
+        case rgbArray(CGImage)
+        case statePixels(CGImage)
+    #endif
     case other(any Sendable)
 }
 
-public extension Env {
+extension Env {
     @discardableResult
-    mutating func render(mode: RenderMode) throws -> RenderOutput? {
+    public mutating func render(mode: RenderMode) throws -> RenderOutput? {
         renderMode = mode
         return try render()
     }

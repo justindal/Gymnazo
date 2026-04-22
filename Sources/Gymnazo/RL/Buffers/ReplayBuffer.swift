@@ -196,7 +196,8 @@ public struct ReplayBuffer: Buffer {
         let actionDim = bufferActionDim(for: actionSpace)
 
         let obs = MLX.zeros([bufferSize] + obsShape, dtype: obsDtype)
-        let nextObs = optimizeMemory
+        let nextObs =
+            optimizeMemory
             ? nil : MLX.zeros([bufferSize] + obsShape, dtype: obsDtype)
         let acts = MLX.zeros([bufferSize, actionDim])
         let rews = MLX.zeros([bufferSize])
@@ -212,7 +213,8 @@ public struct ReplayBuffer: Buffer {
 
         if !config.optimizeMemoryUsage || !isBufferFull {
             let upper = count
-            indices.append(contentsOf: randomIndices(batchSize: batchSize, upperBound: upper, key: key))
+            indices.append(
+                contentsOf: randomIndices(batchSize: batchSize, upperBound: upper, key: key))
             return indices
         }
 
@@ -238,4 +240,3 @@ public struct ReplayBuffer: Buffer {
 private func bufferActionDim(for actionSpace: any Space) -> Int {
     (actionSpace as? Box)?.shape?.reduce(1, *) ?? 1
 }
-

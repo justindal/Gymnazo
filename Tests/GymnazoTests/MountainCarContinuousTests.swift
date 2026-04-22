@@ -1,10 +1,12 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 @Suite("MountainCarContinuous environment", .serialized)
 struct MountainCarContinuousTests {
-    func makeMountainCarContinuous(goalVelocity: Float? = nil) async throws -> MountainCarContinuous {
+    func makeMountainCarContinuous(goalVelocity: Float? = nil) async throws -> MountainCarContinuous
+    {
         let options: EnvOptions = goalVelocity.map { ["goal_velocity": $0] } ?? [:]
         let env = try await Gymnazo.make(
             "MountainCarContinuous",
@@ -56,7 +58,7 @@ struct MountainCarContinuousTests {
         #expect((lowGoal.terminatedStep ?? .max) <= (highGoal.terminatedStep ?? .max))
         #expect((highGoal.terminalVelocity ?? 0.0) >= 0.04 - 1e-4)
     }
-    
+
     @Test
     @MainActor
     func testGymnazoMakeMountainCarContinuousWithKwargs() async throws {
@@ -86,5 +88,3 @@ struct MountainCarContinuousTests {
         #expect(terminalVelocity >= mc.goalVelocity - 1e-4)
     }
 }
-
-

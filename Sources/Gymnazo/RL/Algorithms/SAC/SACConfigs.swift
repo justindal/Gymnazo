@@ -12,7 +12,9 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
     case natureCNN(featuresDim: Int = 512)
     case combined(featuresDim: Int = 256, cnnOutputDim: Int = 256)
 
-    public func make(observationSpace: any Space, normalizeImages: Bool) throws -> any FeaturesExtractor {
+    public func make(observationSpace: any Space, normalizeImages: Bool) throws
+        -> any FeaturesExtractor
+    {
         let normalizedImage = normalizeImages
         if let dict = observationSpace as? Dict {
             switch self {

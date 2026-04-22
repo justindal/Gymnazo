@@ -1,5 +1,6 @@
-import Testing
 import MLX
+import Testing
+
 @testable import Gymnazo
 
 private actor DQNTrainMetricCollector {
@@ -76,7 +77,9 @@ struct DQNTests {
             let meanQValue = latest["meanQValue"],
             let learningRate = latest["learningRate"]
         else {
-            Issue.record("Expected DQN train metrics to include loss, tdError, meanQValue, and learningRate.")
+            Issue.record(
+                "Expected DQN train metrics to include loss, tdError, meanQValue, and learningRate."
+            )
             return
         }
 

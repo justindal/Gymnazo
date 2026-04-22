@@ -16,13 +16,13 @@ public protocol FlattenableSpace {
 /// - Parameter featuresDim: The number of features that the extractor outputs.
 public class FlattenExtractor: Module, UnaryLayer, FeaturesExtractor {
     public let featuresDim: Int
-    
+
     public init(featuresDim: Int) {
         precondition(featuresDim > 0)
         self.featuresDim = featuresDim
         super.init()
     }
-    
+
     public convenience init<S: FlattenableSpace>(_ observationSpace: S) {
         guard let shape = observationSpace.shape, !shape.isEmpty else {
             preconditionFailure("")
@@ -31,7 +31,7 @@ public class FlattenExtractor: Module, UnaryLayer, FeaturesExtractor {
         precondition(dim > 0)
         self.init(featuresDim: dim)
     }
-    
+
     public func callAsFunction(_ x: MLXArray) -> MLXArray {
         let shape = x.shape
 
@@ -47,6 +47,5 @@ public class FlattenExtractor: Module, UnaryLayer, FeaturesExtractor {
         let rest = shape.dropFirst().reduce(1, *)
         return x.reshaped([batch, rest])
     }
-    
-    
+
 }

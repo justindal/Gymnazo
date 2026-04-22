@@ -28,7 +28,7 @@ public protocol ContinuousCritic: Model {
     var nCritics: Int { get }
     var shareFeaturesExtractor: Bool { get }
     var qNetworks: [Sequential] { get }
-    
+
     /// Computes Q-values from all critic networks.
     ///
     /// - Parameters:
@@ -36,7 +36,7 @@ public protocol ContinuousCritic: Model {
     ///   - actions: Action tensor.
     /// - Returns: Q-values from each critic network.
     func callAsFunction(obs: MLXArray, actions: MLXArray) -> [MLXArray]
-    
+
     /// Computes Q-value from a single critic network.
     ///
     /// Reduces computation when only one estimate is needed
@@ -53,26 +53,26 @@ public protocol ContinuousCritic: Model {
 extension ContinuousCritic {
     public var nCritics: Int { 2 }
     public var shareFeaturesExtractor: Bool { false }
-    
+
     public func callAsFunction(obs: MLXArray, actions: MLXArray) -> [MLXArray] {
         guard let extractor = featuresExtractor else {
             preconditionFailure("ContinuousCritic requires a features extractor")
         }
-        
+
         let features = extractFeatures(obs: obs, featuresExtractor: extractor)
         let qvalueInput = MLX.concatenated([features, actions], axis: -1)
-        
+
         return qNetworks.map { $0(qvalueInput) }
     }
-    
+
     public func callAsFunction(obs: MLXArray, actions: MLXArray, criticIndex: Int) -> MLXArray {
         guard let extractor = featuresExtractor else {
             preconditionFailure("ContinuousCritic requires a features extractor")
         }
-        
+
         let features = extractFeatures(obs: obs, featuresExtractor: extractor)
         let qvalueInput = MLX.concatenated([features, actions], axis: -1)
-        
+
         return qNetworks[criticIndex](qvalueInput)
     }
 }
@@ -94,7 +94,7 @@ public func createQNetworks(
     activation: @escaping () -> any UnaryLayer = { ReLU() }
 ) -> [Sequential] {
     let inputDim = featuresDim + actionDim
-    
+
     return (0..<nCritics).map { _ in
         MLPFactory.make(
             inputDim: inputDim,

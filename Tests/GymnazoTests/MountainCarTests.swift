@@ -6,7 +6,9 @@ import Testing
 
 @Suite("MountainCar environment")
 struct MountainCarTests {
-    func makeMountainCar(renderMode: RenderMode? = nil, goalVelocity: Float? = nil) async throws -> MountainCar {
+    func makeMountainCar(renderMode: RenderMode? = nil, goalVelocity: Float? = nil) async throws
+        -> MountainCar
+    {
         var options: EnvOptions = [:]
         if let renderMode {
             options["render_mode"] = renderMode.rawValue

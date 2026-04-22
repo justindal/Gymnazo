@@ -78,7 +78,8 @@ struct SACTests {
 
         let sharedActorExtractorID = ObjectIdentifier(shared.actor.featuresExtractor as AnyObject)
         let sharedCriticExtractorID = ObjectIdentifier(sharedCriticExtractor as AnyObject)
-        let sharedCriticTargetExtractorID = ObjectIdentifier(sharedCriticTargetExtractor as AnyObject)
+        let sharedCriticTargetExtractorID = ObjectIdentifier(
+            sharedCriticTargetExtractor as AnyObject)
 
         #expect(sharedActorExtractorID == sharedCriticExtractorID)
         #expect(sharedActorExtractorID != sharedCriticTargetExtractorID)

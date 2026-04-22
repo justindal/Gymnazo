@@ -52,7 +52,7 @@ public struct Discrete: Space {
             return MLXArray([Int32(self.start) + sampledItem])
         }
         let randomInt: MLXArray = MLX.randInt(low: 0, high: self.n, key: key)
-        
+
         return MLXArray([Int32(self.start) + randomInt.scalarValue(Int32.self)])
     }
 }
