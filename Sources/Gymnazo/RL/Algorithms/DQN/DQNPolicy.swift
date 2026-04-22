@@ -30,14 +30,14 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         observationSpace: any Space,
         nActions: Int,
         config: DQNPolicyConfig = DQNPolicyConfig()
-    ) {
+    ) throws {
         self.observationSpace = observationSpace
         self.actionSpace = Discrete(n: nActions)
         self.normalizeImages = config.normalizeImages
         self.netArch = config.netArch
         self.nActions = nActions
 
-        let extractor = config.featuresExtractor.make(
+        let extractor = try config.featuresExtractor.make(
             observationSpace: observationSpace,
             normalizeImages: config.normalizeImages
         )
@@ -65,8 +65,8 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         observationSpace: any Space,
         actionSpace: Discrete,
         config: DQNPolicyConfig = DQNPolicyConfig()
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             observationSpace: observationSpace,
             nActions: actionSpace.n,
             config: config
@@ -89,19 +89,22 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         featuresExtractor: (any FeaturesExtractor)? = nil,
         normalizeImages: Bool = true,
         activation: @escaping () -> any UnaryLayer = { ReLU() }
-    ) {
+    ) throws {
         self.observationSpace = observationSpace
         self.actionSpace = Discrete(n: nActions)
         self.normalizeImages = normalizeImages
         self.netArch = netArch
         self.nActions = nActions
 
-        let extractor =
-            featuresExtractor
-            ?? FeaturesExtractorConfig.auto.make(
+        let extractor: any FeaturesExtractor
+        if let featuresExtractor {
+            extractor = featuresExtractor
+        } else {
+            extractor = try FeaturesExtractorConfig.auto.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             )
+        }
         self._featuresExtractor = extractor
 
         let featureDim = extractor.featuresDim

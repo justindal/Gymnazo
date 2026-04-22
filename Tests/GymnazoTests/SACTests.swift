@@ -44,8 +44,8 @@ struct SACTests {
 
     @Test
     @MainActor
-    func targetEntropyDefaultsToNegativeActionDim() async {
-        let sac = SAC(
+    func targetEntropyDefaultsToNegativeActionDim() async throws {
+        let sac = try SAC(
             observationSpace: observationSpace(),
             actionSpace: actionSpace(),
             networksConfig: SACNetworksConfig(
@@ -58,8 +58,8 @@ struct SACTests {
     }
 
     @Test
-    func policyFeatureExtractorSharingAndTargetSync() {
-        let shared = SACNetworks(
+    func policyFeatureExtractorSharingAndTargetSync() throws {
+        let shared = try SACNetworks(
             observationSpace: observationSpace(),
             actionSpace: actionSpace(),
             config: SACNetworksConfig(
@@ -94,7 +94,7 @@ struct SACTests {
     @MainActor
     func targetUpdateIntervalMatchesSB3Behavior() async throws {
         let env = try await Gymnazo.make("Pendulum")
-        let sac = SAC(
+        let sac = try SAC(
             env: env,
             networksConfig: SACNetworksConfig(
                 actor: SACActorConfig(featuresExtractor: .flatten),
@@ -129,7 +129,7 @@ struct SACTests {
     @MainActor
     func learnSmoke() async throws {
         let trainingEnv = try await Gymnazo.make("Pendulum")
-        let sac = SAC(
+        let sac = try SAC(
             env: trainingEnv,
             networksConfig: SACNetworksConfig(
                 actor: SACActorConfig(featuresExtractor: .flatten),

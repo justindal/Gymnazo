@@ -65,7 +65,7 @@ open class ActionWrapper: Wrapper {
     }
 
     /// override to transform the incoming action before delegating to the inner environment.
-    open func action(_ action: MLXArray) -> MLXArray {
+    open func action(_ action: MLXArray) throws -> MLXArray {
         action
     }
 

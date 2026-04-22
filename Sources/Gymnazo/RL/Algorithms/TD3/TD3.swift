@@ -63,8 +63,8 @@ public actor TD3 {
         algorithmConfig: TD3AlgorithmConfig = TD3AlgorithmConfig(),
         config: OffPolicyConfig = OffPolicyConfig(sdeSupported: false),
         seed: UInt64? = nil
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             observationSpace: env.observationSpace,
             actionSpace: env.actionSpace,
             env: env,
@@ -96,13 +96,13 @@ public actor TD3 {
         algorithmConfig: TD3AlgorithmConfig = TD3AlgorithmConfig(),
         config: OffPolicyConfig = OffPolicyConfig(sdeSupported: false),
         seed: UInt64? = nil
-    ) {
+    ) throws {
         let resolvedOffPolicyConfig = Self.sanitizeOffPolicyConfig(config)
         self.env = env
         self.offPolicyConfig = resolvedOffPolicyConfig
         self.policyConfig = policyConfig
         self.algorithmConfig = algorithmConfig
-        self.policy = TD3Policy(
+        self.policy = try TD3Policy(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             learningRateSchedule: learningRate,
@@ -198,7 +198,7 @@ public actor TD3 {
                     probability: nil
                 )
                 envAction = try actionToMLXArray(sampledAction)
-                bufferAction = policy.scaleAction(envAction)
+                bufferAction = try policy.scaleAction(envAction)
             } else {
                 let (actionKey, nextKey) = MLX.split(key: key, stream: .cpu)
                 key = nextKey
@@ -207,7 +207,7 @@ public actor TD3 {
                     key: actionKey,
                     deterministic: false
                 )
-                envAction = policy.unscaleAction(bufferAction)
+                envAction = try policy.unscaleAction(bufferAction)
             }
 
             let step = try environment.step(envAction)
@@ -377,7 +377,7 @@ public actor TD3 {
             )
         }
 
-        let action = policy.unscaleAction(scaledAction)
+        let action = (try? policy.unscaleAction(scaledAction)) ?? scaledAction
         eval(action)
         return action
     }

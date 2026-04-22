@@ -90,7 +90,7 @@ public actor PPO {
         self.env = env
         self.config = config
         self.policyConfig = policyConfig
-        self.policy = PPOPolicy(
+        self.policy = try PPOPolicy(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             config: policyConfig,
@@ -592,7 +592,7 @@ public actor PPO {
         if let box = boxSpace(from: policy.actionSpace) {
             var clipped = action.asType(.float32)
             if policy.squashOutput {
-                clipped = policy.unscaleAction(clipped)
+                clipped = (try? policy.unscaleAction(clipped)) ?? clipped
             }
             clipped = MLX.clip(clipped, min: box.low, max: box.high)
             return clipped

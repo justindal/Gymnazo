@@ -79,7 +79,7 @@ struct TD3Tests {
     }
 
     @Test
-    func td3SanitizesUnsupportedOffPolicyFields() {
+    func td3SanitizesUnsupportedOffPolicyFields() throws {
         let provided = OffPolicyConfig(
             bufferSize: 1234,
             learningStarts: 5,
@@ -96,7 +96,7 @@ struct TD3Tests {
             sdeSupported: true
         )
 
-        let td3 = TD3(
+        let td3 = try TD3(
             observationSpace: observationSpace(),
             actionSpace: actionSpace(),
             config: provided,
@@ -116,8 +116,8 @@ struct TD3Tests {
     }
 
     @Test
-    func policyFeatureExtractorSharingAndTargetSync() {
-        let shared = TD3Policy(
+    func policyFeatureExtractorSharingAndTargetSync() throws {
+        let shared = try TD3Policy(
             observationSpace: observationSpace(),
             actionSpace: actionSpace(),
             featuresExtractor: .flatten,
@@ -152,7 +152,7 @@ struct TD3Tests {
         #expect(actorDiff < 1e-6)
         #expect(criticDiff < 1e-6)
 
-        let unshared = TD3Policy(
+        let unshared = try TD3Policy(
             observationSpace: observationSpace(),
             actionSpace: actionSpace(),
             featuresExtractor: .flatten,
@@ -179,7 +179,7 @@ struct TD3Tests {
     @MainActor
     func policyDelayDefersFirstActorUpdate() async throws {
         let env = try await Gymnazo.make("Pendulum")
-        let td3 = TD3(
+        let td3 = try TD3(
             env: env,
             policyConfig: TD3PolicyConfig(
                 featuresExtractor: .flatten,
@@ -219,7 +219,7 @@ struct TD3Tests {
     @MainActor
     func learnEvaluateAndActionBoundsSmoke() async throws {
         let trainingEnv = try await Gymnazo.make("Pendulum")
-        let td3 = TD3(
+        let td3 = try TD3(
             env: trainingEnv,
             policyConfig: TD3PolicyConfig(
                 featuresExtractor: .flatten,

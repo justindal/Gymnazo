@@ -27,4 +27,11 @@ public enum GymnazoError: Error, Sendable, Equatable {
     case invalidResizeShape
     case invalidStatsKey(String)
     case invalidMap(String)
+    case unsupportedSpaceOperation(operation: String, spaceType: String)
+    case invalidSampleType(operation: String, expected: String, actual: String)
+    case invalidSampleCount(operation: String, expected: Int, actual: Int)
+    case missingSampleKey(String)
+    case invalidFeatureExtractorConfiguration(config: String, observationSpace: String)
+    case unsupportedDistributionSpace(spaceType: String)
+    case invalidPolicyActionSpace(operation: String, expected: String, actual: String)
 }

@@ -43,16 +43,20 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
         logStdInit: Float = -3.0,
         fullStd: Bool = true,
         clipMean: Float = 2.0
-    ) {
+    ) throws {
         self.observationSpace = observationSpace
         self._actionSpace = actionSpace
         self.netArch = netArch
-        self.featuresExtractor =
-            featuresExtractor
-            ?? FeaturesExtractorConfig.auto.make(
+        let resolvedExtractor: any FeaturesExtractor
+        if let featuresExtractor {
+            resolvedExtractor = featuresExtractor
+        } else {
+            resolvedExtractor = try FeaturesExtractorConfig.auto.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             )
+        }
+        self.featuresExtractor = resolvedExtractor
         self.normalizeImages = normalizeImages
         self.useSDE = useSDE
         self.fullStd = fullStd
@@ -60,7 +64,7 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
 
         self.actionDim = getActionDim(actionSpace)
 
-        let featureDim = self.featuresExtractor.featuresDim
+        let featureDim = resolvedExtractor.featuresDim
         let hidden = netArch.actor
         let lastLayerDim = hidden.last ?? featureDim
 
@@ -93,13 +97,13 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
         observationSpace: any Space,
         actionSpace: any Space,
         config: SACActorConfig = SACActorConfig()
-    ) {
-        let extractor = config.featuresExtractor.make(
+    ) throws {
+        let extractor = try config.featuresExtractor.make(
             observationSpace: observationSpace,
             normalizeImages: config.normalizeImages
         )
 
-        self.init(
+        try self.init(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             netArch: config.netArch,

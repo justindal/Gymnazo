@@ -45,7 +45,7 @@ public enum DistributionFactory {
         actionSpace: any Space,
         useSDE: Bool = false,
         sdeConfig: SDEConfig? = nil
-    ) -> any Distribution {
+    ) throws -> any Distribution {
         if let box = boxSpace(from: actionSpace) {
             let actionDim = box.shape?.reduce(1, *) ?? 1
             
@@ -76,7 +76,9 @@ public enum DistributionFactory {
             return BernoulliDistribution(actionDim: actionDim)
         }
         
-        fatalError("Unsupported action space type: \(type(of: actionSpace))")
+        throw GymnazoError.unsupportedDistributionSpace(
+            spaceType: String(describing: type(of: actionSpace))
+        )
     }
     
     /// Creates a distribution from an explicit type specification.

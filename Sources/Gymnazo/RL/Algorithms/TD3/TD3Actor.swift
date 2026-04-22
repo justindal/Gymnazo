@@ -21,18 +21,21 @@ public final class TD3Actor: Module, Policy, @unchecked Sendable {
         featuresExtractor: (any FeaturesExtractor)? = nil,
         normalizeImages: Bool = true,
         activation: @escaping () -> any UnaryLayer = { ReLU() }
-    ) {
+    ) throws {
         self.observationSpace = observationSpace
         self.actionSpace = actionSpace
         self.netArch = netArch
         self.normalizeImages = normalizeImages
 
-        let extractor =
-            featuresExtractor
-            ?? FeaturesExtractorConfig.auto.make(
+        let extractor: any FeaturesExtractor
+        if let featuresExtractor {
+            extractor = featuresExtractor
+        } else {
+            extractor = try FeaturesExtractorConfig.auto.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             )
+        }
         self.featuresExtractor = extractor
         self.featuresDim = extractor.featuresDim
         let actionDim = getActionDim(actionSpace)
@@ -51,12 +54,12 @@ public final class TD3Actor: Module, Policy, @unchecked Sendable {
         observationSpace: any Space,
         actionSpace: any Space,
         config: TD3ActorConfig = TD3ActorConfig()
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             netArch: config.netArch,
-            featuresExtractor: config.featuresExtractor.make(
+            featuresExtractor: try config.featuresExtractor.make(
                 observationSpace: observationSpace,
                 normalizeImages: config.normalizeImages
             ),

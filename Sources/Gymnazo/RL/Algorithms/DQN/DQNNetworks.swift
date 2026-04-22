@@ -37,14 +37,14 @@ public struct DQNNetworks {
         observationSpace: any Space,
         nActions: Int,
         config: DQNPolicyConfig = DQNPolicyConfig()
-    ) {
-        self.qNet = DQNPolicy(
+    ) throws {
+        self.qNet = try DQNPolicy(
             observationSpace: observationSpace,
             nActions: nActions,
             config: config
         )
 
-        self.qNetTarget = DQNPolicy(
+        self.qNetTarget = try DQNPolicy(
             observationSpace: observationSpace,
             nActions: nActions,
             config: config
@@ -63,8 +63,8 @@ public struct DQNNetworks {
         observationSpace: any Space,
         actionSpace: Discrete,
         config: DQNPolicyConfig = DQNPolicyConfig()
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             observationSpace: observationSpace,
             nActions: actionSpace.n,
             config: config
@@ -74,10 +74,10 @@ public struct DQNNetworks {
     /// Creates DQN networks from an existing Q-network.
     ///
     /// - Parameter qNet: The Q-network to use and create a target from.
-    public init(qNet: DQNPolicy) {
+    public init(qNet: DQNPolicy) throws {
         self.qNet = qNet
 
-        self.qNetTarget = DQNPolicy(
+        self.qNetTarget = try DQNPolicy(
             observationSpace: qNet.observationSpace,
             nActions: qNet.nActions,
             netArch: qNet.netArch,

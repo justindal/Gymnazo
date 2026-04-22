@@ -86,7 +86,7 @@ extension SAC {
             actionSpace = try actionDescriptor.makeSpace()
         }
 
-        let networks = SACNetworks(
+        let networks = try SACNetworks(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             config: networksConfig

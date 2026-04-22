@@ -63,8 +63,8 @@ public actor SAC {
         entCoef: EntropyCoef = .auto(),
         targetEntropy: Float? = nil,
         seed: UInt64? = nil
-    ) {
-        let setup = Self.buildSetup(
+    ) throws {
+        let setup = try Self.buildSetup(
             observationSpace: env.observationSpace,
             actionSpace: env.actionSpace,
             networksConfig: networksConfig,
@@ -118,8 +118,8 @@ public actor SAC {
         entCoef: EntropyCoef = .auto(),
         targetEntropy: Float? = nil,
         seed: UInt64? = nil
-    ) {
-        let setup = Self.buildSetup(
+    ) throws {
+        let setup = try Self.buildSetup(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             networksConfig: networksConfig,
@@ -247,7 +247,7 @@ public actor SAC {
                     probability: nil
                 )
                 envAction = try actionToMLXArray(sampledAction)
-                bufferAction = policy.scaleAction(envAction)
+                bufferAction = try policy.scaleAction(envAction)
             } else {
                 if offPolicyConfig.sdeSupported && policy.useSDE
                     && offPolicyConfig.sdeSampleFreq > 0
@@ -265,7 +265,7 @@ public actor SAC {
                 let (actionKey, nextKey) = MLX.split(key: key, stream: .cpu)
                 key = nextKey
                 bufferAction = selectAction(obs: lastObs, key: actionKey)
-                envAction = policy.unscaleAction(bufferAction)
+                envAction = try policy.unscaleAction(bufferAction)
             }
 
             let step = try environment.step(envAction)
@@ -484,8 +484,8 @@ public actor SAC {
         entCoef: EntropyCoef,
         lr: Float,
         targetEntropy: Float?
-    ) -> NetworkSetup {
-        let networks = SACNetworks(
+    ) throws -> NetworkSetup {
+        let networks = try SACNetworks(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             config: networksConfig

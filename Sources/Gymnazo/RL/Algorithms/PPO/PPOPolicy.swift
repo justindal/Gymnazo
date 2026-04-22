@@ -82,16 +82,18 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         useSDE: Bool = false,
         logStdInit: Float = 0.0,
         fullStd: Bool = true
-    ) {
-        let resolvedKind = Self.makeActionSpaceKind(actionSpace)
+    ) throws {
+        let resolvedKind = try Self.makeActionSpaceKind(actionSpace)
         if useSDE {
             if case .box = resolvedKind {
             } else {
-                preconditionFailure("PPOPolicy useSDE requires a Box action space.")
+                throw GymnazoError.invalidConfiguration(
+                    "PPOPolicy useSDE requires a Box action space."
+                )
             }
         }
 
-        let extractors = Self.makeFeatureExtractors(
+        let extractors = try Self.makeFeatureExtractors(
             observationSpace: observationSpace,
             config: featuresExtractor,
             normalizeImages: normalizeImages,
@@ -99,10 +101,11 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         )
         let piFeaturesDim = extractors.pi.featuresDim
         let vfFeaturesDim = extractors.vf.featuresDim
-        precondition(
-            piFeaturesDim == vfFeaturesDim,
-            "PPOPolicy requires equal actor/critic feature dimensions."
-        )
+        guard piFeaturesDim == vfFeaturesDim else {
+            throw GymnazoError.invalidConfiguration(
+                "PPOPolicy requires equal actor/critic feature dimensions."
+            )
+        }
 
         let mlp = MLPExtractor(
             featureDim: piFeaturesDim,
@@ -164,31 +167,23 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
 
         if orthoInit {
             if shareFeatureExtractor {
-                do {
-                    try applyActorCriticOrthoInit(
-                        featuresExtractor: self.featuresExtractor,
-                        mlpExtractor: mlpExtractorModule,
-                        actionNet: actionLinear,
-                        valueNet: valueLinear,
-                        shareFeatureExtractor: true
-                    )
-                } catch {
-                    preconditionFailure("Failed to apply orthogonal init for PPOPolicy: \(error)")
-                }
+                try applyActorCriticOrthoInit(
+                    featuresExtractor: self.featuresExtractor,
+                    mlpExtractor: mlpExtractorModule,
+                    actionNet: actionLinear,
+                    valueNet: valueLinear,
+                    shareFeatureExtractor: true
+                )
             } else {
-                do {
-                    try applyActorCriticOrthoInit(
-                        featuresExtractor: self.piFeatureExtractor,
-                        mlpExtractor: mlpExtractorModule,
-                        actionNet: actionLinear,
-                        valueNet: valueLinear,
-                        shareFeatureExtractor: false,
-                        piFeatureExtractor: self.piFeatureExtractor,
-                        vfFeatureExtractor: self.vfFeatureExtractor
-                    )
-                } catch {
-                    preconditionFailure("Failed to apply orthogonal init for PPOPolicy: \(error)")
-                }
+                try applyActorCriticOrthoInit(
+                    featuresExtractor: self.piFeatureExtractor,
+                    mlpExtractor: mlpExtractorModule,
+                    actionNet: actionLinear,
+                    valueNet: valueLinear,
+                    shareFeatureExtractor: false,
+                    piFeatureExtractor: self.piFeatureExtractor,
+                    vfFeatureExtractor: self.vfFeatureExtractor
+                )
             }
         }
     }
@@ -198,8 +193,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         actionSpace: any Space,
         config: PPOPolicyConfig,
         useSDE: Bool
-    ) {
-        self.init(
+    ) throws {
+        try self.init(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             netArch: config.netArch,
@@ -215,10 +210,10 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
     }
 
     public func makeFeatureExtractor() -> any FeaturesExtractor {
-        featuresExtractorConfig.make(
+        (try? featuresExtractorConfig.make(
             observationSpace: observationSpace,
             normalizeImages: normalizeImages
-        )
+        )) ?? FlattenExtractor(featuresDim: observationSpace.shape?.reduce(1, *) ?? 1)
     }
 
     /// Runs a forward pass and returns actions, values, and log-probabilities.
@@ -382,19 +377,19 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         config: FeaturesExtractorConfig,
         normalizeImages: Bool,
         shareFeatureExtractor: Bool
-    ) -> (shared: any FeaturesExtractor, pi: any FeaturesExtractor, vf: any FeaturesExtractor) {
-        let shared = config.make(
+    ) throws -> (shared: any FeaturesExtractor, pi: any FeaturesExtractor, vf: any FeaturesExtractor) {
+        let shared = try config.make(
             observationSpace: observationSpace,
             normalizeImages: normalizeImages
         )
         if shareFeatureExtractor {
             return (shared, shared, shared)
         }
-        let pi = config.make(
+        let pi = try config.make(
             observationSpace: observationSpace,
             normalizeImages: normalizeImages
         )
-        let vf = config.make(
+        let vf = try config.make(
             observationSpace: observationSpace,
             normalizeImages: normalizeImages
         )
@@ -428,7 +423,7 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         }
     }
 
-    private static func makeActionSpaceKind(_ actionSpace: any Space) -> ActionSpaceKind {
+    private static func makeActionSpaceKind(_ actionSpace: any Space) throws -> ActionSpaceKind {
         if let box = boxSpace(from: actionSpace) {
             return .box(actionDim: box.shape?.reduce(1, *) ?? 1)
         }
@@ -442,7 +437,10 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         if let multiBinary = actionSpace as? MultiBinary {
             return .multiBinary(actionDim: multiBinary.shape?.reduce(1, *) ?? 1)
         }
-        preconditionFailure("Unsupported action space type for PPOPolicy: \(type(of: actionSpace))")
+        throw GymnazoError.invalidActionType(
+            expected: "Box | Discrete | MultiDiscrete | MultiBinary",
+            actual: String(describing: type(of: actionSpace))
+        )
     }
 }
 

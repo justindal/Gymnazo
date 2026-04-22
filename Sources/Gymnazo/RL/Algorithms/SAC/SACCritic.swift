@@ -41,7 +41,7 @@ public final class SACCritic: Module, ContinuousCritic, @unchecked Sendable {
         nCritics: Int = 2,
         shareFeaturesExtractor: Bool = false,
         activation: @escaping () -> any UnaryLayer = { ReLU() }
-    ) {
+    ) throws {
         self.observationSpace = observationSpace
         self._actionSpace = actionSpace
         self.normalizeImages = normalizeImages
@@ -49,12 +49,15 @@ public final class SACCritic: Module, ContinuousCritic, @unchecked Sendable {
         self.nCritics = nCritics
         self.shareFeaturesExtractor = shareFeaturesExtractor
 
-        let extractor =
-            featuresExtractor
-            ?? FeaturesExtractorConfig.auto.make(
+        let extractor: any FeaturesExtractor
+        if let featuresExtractor {
+            extractor = featuresExtractor
+        } else {
+            extractor = try FeaturesExtractorConfig.auto.make(
                 observationSpace: observationSpace,
                 normalizeImages: normalizeImages
             )
+        }
         self.featuresExtractor = extractor
         self.featuresDim = extractor.featuresDim
 

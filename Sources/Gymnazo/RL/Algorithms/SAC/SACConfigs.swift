@@ -12,7 +12,7 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
     case natureCNN(featuresDim: Int = 512)
     case combined(featuresDim: Int = 256, cnnOutputDim: Int = 256)
 
-    public func make(observationSpace: any Space, normalizeImages: Bool) -> any FeaturesExtractor {
+    public func make(observationSpace: any Space, normalizeImages: Bool) throws -> any FeaturesExtractor {
         let normalizedImage = normalizeImages
         if let dict = observationSpace as? Dict {
             switch self {
@@ -38,7 +38,10 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
                     cnnOutputDim: 256
                 )
             case .natureCNN:
-                preconditionFailure("NatureCNN requires a Box observation space, got Dict.")
+                throw GymnazoError.invalidFeatureExtractorConfiguration(
+                    config: "natureCNN",
+                    observationSpace: String(describing: type(of: observationSpace))
+                )
             }
         }
 
@@ -57,15 +60,22 @@ public enum FeaturesExtractorConfig: Sendable, Codable, Equatable {
             case .flatten:
                 return FlattenExtractor(featuresDim: box.shape?.reduce(1, *) ?? 1)
             case .natureCNN(let featuresDim):
-                precondition(
-                    isImage, "NatureCNN requires a Box observation space with 3 dims [H,W,C].")
+                guard isImage else {
+                    throw GymnazoError.invalidFeatureExtractorConfiguration(
+                        config: "natureCNN",
+                        observationSpace: String(describing: type(of: observationSpace))
+                    )
+                }
                 return NatureCNN(
                     observationSpace: box,
                     featuresDim: featuresDim,
                     normalizedImage: normalizedImage
                 )
             case .combined:
-                preconditionFailure("CombinedExtractor requires a Dict observation space, got Box.")
+                throw GymnazoError.invalidFeatureExtractorConfiguration(
+                    config: "combined",
+                    observationSpace: String(describing: type(of: observationSpace))
+                )
             }
         }
 

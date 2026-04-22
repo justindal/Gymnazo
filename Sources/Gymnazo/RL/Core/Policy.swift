@@ -43,7 +43,10 @@ extension Policy {
 
         if let box = boxSpace(from: actionSpace) {
             if squashOutput {
-                actions = unscaleAction(actions)
+                let low = box.low
+                let high = box.high
+                let unscaled = low + (0.5 * (actions + 1.0) * (high - low))
+                actions = MLX.clip(unscaled, min: low, max: high)
             } else {
                 actions = MLX.clip(actions, min: box.low, max: box.high)
             }
@@ -75,7 +78,10 @@ extension Policy {
 
         if let box = boxSpace(from: actionSpace) {
             if squashOutput {
-                actions = unscaleAction(actions)
+                let low = box.low
+                let high = box.high
+                let unscaled = low + (0.5 * (actions + 1.0) * (high - low))
+                actions = MLX.clip(unscaled, min: low, max: high)
             } else {
                 actions = MLX.clip(actions, min: box.low, max: box.high)
             }
@@ -88,28 +94,40 @@ extension Policy {
     ///
     /// - Parameter action: Action to scale.
     /// - Returns: Scaled action in [-1, 1].
-    public func scaleAction(_ action: MLXArray) -> MLXArray {
+    public func scaleAction(_ action: MLXArray) throws -> MLXArray {
         guard let box = boxSpace(from: actionSpace) else {
-            preconditionFailure(
-                "scaleAction requires a Box action space, got \(type(of: actionSpace))")
+            throw GymnazoError.invalidPolicyActionSpace(
+                operation: "scaleAction",
+                expected: "Box",
+                actual: String(describing: type(of: actionSpace))
+            )
         }
         let low = box.low
         let high = box.high
-        return 2.0 * ((action - low) / (high - low)) - 1.0
+        let scaled = 2.0 * ((action - low) / (high - low)) - 1.0
+        return MLX.clip(scaled, min: -1.0, max: 1.0)
     }
 
     /// Rescale the action from [-1, 1] to [low, high].
     ///
     /// - Parameter scaledAction: Action in [-1, 1] to unscale.
     /// - Returns: Unscaled action in [low, high].
-    public func unscaleAction(_ scaledAction: MLXArray) -> MLXArray {
+    public func unscaleAction(_ scaledAction: MLXArray) throws -> MLXArray {
         guard let box = boxSpace(from: actionSpace) else {
-            preconditionFailure(
-                "unscaleAction requires a Box action space, got \(type(of: actionSpace))")
+            throw GymnazoError.invalidPolicyActionSpace(
+                operation: "unscaleAction",
+                expected: "Box",
+                actual: String(describing: type(of: actionSpace))
+            )
         }
         let low = box.low
         let high = box.high
-        return low + (0.5 * (scaledAction + 1.0) * (high - low))
+        let unscaled = low + (0.5 * (scaledAction + 1.0) * (high - low))
+        var clipped = MLX.clip(unscaled, min: low, max: high)
+        if let shape = box.shape, clipped.size == shape.reduce(1, *) {
+            clipped = clipped.reshaped(shape)
+        }
+        return clipped
     }
 }
 
