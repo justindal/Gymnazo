@@ -1,11 +1,38 @@
 import Foundation
 import MLX
 
+/// Returns the name of a space.
+/// 
+/// - Parameter space: The space to get the name of.
+/// - Returns: The name of the space.
+private func spaceTypeName(_ space: any Space) -> String {
+    String(describing: type(of: space))
+}
+
+/// Creates a ``GymnazoError.invalidSampleType`` error.
+///
+/// - Parameters:
+///   - operation: The operation that caused the error.
+///   - expected: The expected type of the sample.
+///   - actual: The actual type of the sample.
+/// - Returns: A ``GymnazoError.invalidSampleType`` error.
+private func makeSampleTypeError(
+    operation: String,
+    expected: String,
+    actual: Any
+) -> GymnazoError {
+    GymnazoError.invalidSampleType(
+        operation: operation,
+        expected: expected,
+        actual: String(describing: type(of: actual))
+    )
+}
+
 /// Returns a space equivalent to `space` with its leaf components flattened where possible.
 ///
 /// Spaces like ``Box``, ``Discrete``, ``MultiBinary``, ``MultiDiscrete``, ``Tuple``, ``Dict``, and ``TextSpace`` flatten to a single ``Box``.
 /// - ``SequenceSpace`` and ``Graph`` preserve their structure and flatten their element/node/edge spaces.
-public func flatten_space(_ space: any Space) -> any Space {
+public func flatten_space(_ space: any Space) throws -> any Space {
     if let box = space as? Box {
         let (low, high, dtype) = flattenBoxBounds(box)
         let lowArr = MLXArray(low).asType(dtype)
@@ -14,28 +41,37 @@ public func flatten_space(_ space: any Space) -> any Space {
     }
 
     if space is Discrete || space is MultiDiscrete || space is MultiBinary || space is Tuple || space is Dict || space is TextSpace {
-        let (low, high, dtype) = flattenBoxBounds(space)
+        let (low, high, dtype) = try flattenBoxBounds(space)
         let lowArr = MLXArray(low).asType(dtype)
         let highArr = MLXArray(high).asType(dtype)
         return Box(low: lowArr, high: highArr, dtype: dtype)
     }
 
     if let seq = space as? any AnySequenceSpace {
-        let flattenedElement = flatten_space(seq.elementSpace)
+        let flattenedElement = try flatten_space(seq.elementSpace)
         guard let elementBox = flattenedElement as? Box else {
-            fatalError("flatten_space for SequenceSpace requires box-flattenable element space")
+            throw GymnazoError.unsupportedSpaceOperation(
+                operation: "flatten_space.sequence_element",
+                spaceType: spaceTypeName(seq.elementSpace)
+            )
         }
         return SequenceSpace(space: elementBox, minLength: seq.minLength, maxLength: seq.maxLength)
     }
 
     if let graph = space as? any AnyGraphSpace {
-        let flattenedNode = flatten_space(graph.nodeSpaceAny)
-        let flattenedEdge = flatten_space(graph.edgeSpaceAny)
+        let flattenedNode = try flatten_space(graph.nodeSpaceAny)
+        let flattenedEdge = try flatten_space(graph.edgeSpaceAny)
         guard let nodeBox = flattenedNode as? Box else {
-            fatalError("flatten_space for Graph requires box-flattenable node space")
+            throw GymnazoError.unsupportedSpaceOperation(
+                operation: "flatten_space.graph_node",
+                spaceType: spaceTypeName(graph.nodeSpaceAny)
+            )
         }
         guard let edgeBox = flattenedEdge as? Box else {
-            fatalError("flatten_space for Graph requires box-flattenable edge space")
+            throw GymnazoError.unsupportedSpaceOperation(
+                operation: "flatten_space.graph_edge",
+                spaceType: spaceTypeName(graph.edgeSpaceAny)
+            )
         }
         return Graph(
             nodeSpace: nodeBox,
@@ -47,20 +83,26 @@ public func flatten_space(_ space: any Space) -> any Space {
         )
     }
 
-    fatalError("flatten_space not implemented for space \(type(of: space))")
+    throw GymnazoError.unsupportedSpaceOperation(
+        operation: "flatten_space",
+        spaceType: spaceTypeName(space)
+    )
 }
 
 /// Returns a flattened ``Box`` if and only if `flatten_space(space)` is a ``Box``.
-public func flattenSpaceToBox(_ space: any Space) -> Box? {
-    flatten_space(space) as? Box
+public func flattenSpaceToBox(_ space: any Space) throws -> Box? {
+    try flatten_space(space) as? Box
 }
 
 /// Returns the dimensionality of a space that flattens to a ``Box``.
 ///
 /// - Note: This is only defined when `flatten_space(space)` returns a ``Box``.
-public func flatdim(_ space: any Space) -> Int {
-    guard let box = flattenSpaceToBox(space) else {
-        fatalError("flatdim requires a space that flattens to Box")
+public func flatdim(_ space: any Space) throws -> Int {
+    guard let box = try flattenSpaceToBox(space) else {
+        throw GymnazoError.unsupportedSpaceOperation(
+            operation: "flatdim",
+            spaceType: spaceTypeName(space)
+        )
     }
     guard let shape = box.shape else { return 0 }
     return shape.reduce(1, *)
@@ -72,55 +114,81 @@ public func flatdim(_ space: any Space) -> Int {
 ///   - `MLXArray` when `flatten_space(space)` is a ``Box``.
 ///   - ``SequenceSample`` when `space` is a ``SequenceSpace``.
 ///   - ``GraphSample`` when `space` is a ``Graph``.
-public func flatten(space: any Space, sample: Any) -> Any {
-    if flattenSpaceToBox(space) != nil {
-        return flattenToBox(space: space, sample: sample)
+public func flatten(space: any Space, sample: Any) throws -> Any {
+    if try flattenSpaceToBox(space) != nil {
+        return try flattenToBox(space: space, sample: sample)
     }
 
     if space is any AnySequenceSpace {
         guard let seqSample = sample as? SequenceSample else {
-            fatalError("Expected SequenceSample")
+            throw makeSampleTypeError(
+                operation: "flatten.sequence",
+                expected: String(describing: SequenceSample.self),
+                actual: sample
+            )
         }
-        return flattenSequence(space: space, sample: seqSample)
+        return try flattenSequence(space: space, sample: seqSample)
     }
 
     if space is any AnyGraphSpace {
         guard let gSample = sample as? GraphSample else {
-            fatalError("Expected GraphSample")
+            throw makeSampleTypeError(
+                operation: "flatten.graph",
+                expected: String(describing: GraphSample.self),
+                actual: sample
+            )
         }
-        return flattenGraph(space: space, sample: gSample)
+        return try flattenGraph(space: space, sample: gSample)
     }
 
-    fatalError("flatten not implemented for space \(type(of: space))")
+    throw GymnazoError.unsupportedSpaceOperation(
+        operation: "flatten",
+        spaceType: spaceTypeName(space)
+    )
 }
 
 /// Inverse of ``flatten(space:sample:)``.
-public func unflatten(space: any Space, flattened: Any) -> Any {
-    if flattenSpaceToBox(space) != nil {
+public func unflatten(space: any Space, flattened: Any) throws -> Any {
+    if try flattenSpaceToBox(space) != nil {
         guard let flat = flattened as? MLXArray else {
-            fatalError("Expected MLXArray for box-flattened sample")
+            throw makeSampleTypeError(
+                operation: "unflatten.box",
+                expected: String(describing: MLXArray.self),
+                actual: flattened
+            )
         }
-        return unflattenFromBox(space: space, flat: flat)
+        return try unflattenFromBox(space: space, flat: flat)
     }
 
     if let seq = space as? any AnySequenceSpace {
         guard let seqSample = flattened as? SequenceSample else {
-            fatalError("Expected SequenceSample")
+            throw makeSampleTypeError(
+                operation: "unflatten.sequence",
+                expected: String(describing: SequenceSample.self),
+                actual: flattened
+            )
         }
         return unflattenSequence(space: seq, flattened: seqSample)
     }
 
     if let graph = space as? any AnyGraphSpace {
         guard let gSample = flattened as? GraphSample else {
-            fatalError("Expected GraphSample")
+            throw makeSampleTypeError(
+                operation: "unflatten.graph",
+                expected: String(describing: GraphSample.self),
+                actual: flattened
+            )
         }
         return unflattenGraph(space: graph, flattened: gSample)
     }
 
-    fatalError("unflatten not implemented for space \(type(of: space))")
+    throw GymnazoError.unsupportedSpaceOperation(
+        operation: "unflatten",
+        spaceType: spaceTypeName(space)
+    )
 }
 
-private func flattenBoxBounds(_ space: any Space) -> (low: [Float], high: [Float], dtype: DType) {
+private func flattenBoxBounds(_ space: any Space) throws -> (low: [Float], high: [Float], dtype: DType) {
     if let box = space as? Box {
         return flattenBoxBounds(box)
     }
@@ -167,9 +235,12 @@ private func flattenBoxBounds(_ space: any Space) -> (low: [Float], high: [Float
         var low: [Float] = []
         var high: [Float] = []
         for s in tuple.spaces {
-            let b = flattenSpaceToBox(s)
+            let b = try flattenSpaceToBox(s)
             guard let box = b else {
-                fatalError("Tuple contains a space that does not flatten to Box")
+                throw GymnazoError.unsupportedSpaceOperation(
+                    operation: "flattenBoxBounds.tuple_element",
+                    spaceType: spaceTypeName(s)
+                )
             }
             let (l, h, _) = flattenBoxBounds(box)
             low.append(contentsOf: l)
@@ -184,9 +255,12 @@ private func flattenBoxBounds(_ space: any Space) -> (low: [Float], high: [Float
         let keys = dict.spaces.keys.sorted()
         for k in keys {
             let s = dict.spaces[k]!
-            let b = flattenSpaceToBox(s)
+            let b = try flattenSpaceToBox(s)
             guard let box = b else {
-                fatalError("Dict contains a space that does not flatten to Box")
+                throw GymnazoError.unsupportedSpaceOperation(
+                    operation: "flattenBoxBounds.dict_value",
+                    spaceType: spaceTypeName(s)
+                )
             }
             let (l, h, _) = flattenBoxBounds(box)
             low.append(contentsOf: l)
@@ -195,7 +269,10 @@ private func flattenBoxBounds(_ space: any Space) -> (low: [Float], high: [Float
         return (low: low, high: high, dtype: .float32)
     }
 
-    fatalError("flattenBoxBounds not implemented for space \(type(of: space))")
+    throw GymnazoError.unsupportedSpaceOperation(
+        operation: "flattenBoxBounds",
+        spaceType: spaceTypeName(space)
+    )
 }
 
 private func flattenBoxBounds(_ box: Box) -> (low: [Float], high: [Float], dtype: DType) {
@@ -205,17 +282,25 @@ private func flattenBoxBounds(_ box: Box) -> (low: [Float], high: [Float], dtype
     return (low: low, high: high, dtype: dtype)
 }
 
-private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
+private func flattenToBox(space: any Space, sample: Any) throws -> MLXArray {
     if let box = space as? Box {
         guard let x = sample as? MLXArray else {
-            fatalError("Expected MLXArray sample for Box")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.box",
+                expected: String(describing: MLXArray.self),
+                actual: sample
+            )
         }
         return x.reshaped([-1]).asType(box.dtype ?? .float32)
     }
 
     if let discrete = space as? Discrete {
         guard let x = sample as? MLXArray else {
-            fatalError("Expected MLXArray sample for Discrete")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.discrete",
+                expected: String(describing: MLXArray.self),
+                actual: sample
+            )
         }
         let idx = Int(x.singletonValue(Int32.self)) - discrete.start
         var onehot = [Float](repeating: 0, count: discrete.n)
@@ -227,11 +312,21 @@ private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
 
     if let multiDiscrete = space as? MultiDiscrete {
         guard let x = sample as? MLXArray else {
-            fatalError("Expected MLXArray sample for MultiDiscrete")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.multiDiscrete",
+                expected: String(describing: MLXArray.self),
+                actual: sample
+            )
         }
         let nvec = multiDiscrete.nvec.asType(.int32).asArray(Int32.self).map { Int($0) }
         let xs = x.asType(.int32).reshaped([-1]).asArray(Int32.self).map { Int($0) }
-        precondition(xs.count == nvec.count)
+        guard xs.count == nvec.count else {
+            throw GymnazoError.invalidSampleCount(
+                operation: "flattenToBox.multiDiscrete",
+                expected: nvec.count,
+                actual: xs.count
+            )
+        }
 
         var out: [Float] = []
         out.reserveCapacity(nvec.reduce(0, +))
@@ -248,29 +343,51 @@ private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
 
     if space is MultiBinary {
         guard let x = sample as? MLXArray else {
-            fatalError("Expected MLXArray sample for MultiBinary")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.multiBinary",
+                expected: String(describing: MLXArray.self),
+                actual: sample
+            )
         }
         return x.reshaped([-1]).asType(.float32)
     }
 
     if space is TextSpace {
         guard let x = sample as? MLXArray else {
-            fatalError("Expected MLXArray sample for TextSpace")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.text",
+                expected: String(describing: MLXArray.self),
+                actual: sample
+            )
         }
         return x.reshaped([-1]).asType(.float32)
     }
 
     if let tuple = space as? Tuple {
         guard let xs = sample as? [Any] else {
-            fatalError("Expected [Any] sample for Tuple")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.tuple",
+                expected: String(describing: [Any].self),
+                actual: sample
+            )
         }
-        precondition(xs.count == tuple.spaces.count)
+        guard xs.count == tuple.spaces.count else {
+            throw GymnazoError.invalidSampleCount(
+                operation: "flattenToBox.tuple",
+                expected: tuple.spaces.count,
+                actual: xs.count
+            )
+        }
         var parts: [MLXArray] = []
         parts.reserveCapacity(tuple.spaces.count)
         for i in 0..<tuple.spaces.count {
-            let part = flatten(space: tuple.spaces[i], sample: xs[i])
+            let part = try flatten(space: tuple.spaces[i], sample: xs[i])
             guard let arr = part as? MLXArray else {
-                fatalError("Tuple part did not flatten to MLXArray")
+                throw makeSampleTypeError(
+                    operation: "flattenToBox.tuple_part",
+                    expected: String(describing: MLXArray.self),
+                    actual: part
+                )
             }
             parts.append(arr)
         }
@@ -279,28 +396,39 @@ private func flattenToBox(space: any Space, sample: Any) -> MLXArray {
 
     if let dict = space as? Dict {
         guard let x = sample as? [String: Any] else {
-            fatalError("Expected [String: Any] sample for Dict")
+            throw makeSampleTypeError(
+                operation: "flattenToBox.dict",
+                expected: String(describing: [String: Any].self),
+                actual: sample
+            )
         }
         let keys = dict.spaces.keys.sorted()
         var parts: [MLXArray] = []
         parts.reserveCapacity(keys.count)
         for k in keys {
             guard let value = x[k] else {
-                fatalError("Missing key \(k) in Dict sample")
+                throw GymnazoError.missingSampleKey(k)
             }
-            let part = flatten(space: dict.spaces[k]!, sample: value)
+            let part = try flatten(space: dict.spaces[k]!, sample: value)
             guard let arr = part as? MLXArray else {
-                fatalError("Dict value did not flatten to MLXArray")
+                throw makeSampleTypeError(
+                    operation: "flattenToBox.dict_value",
+                    expected: String(describing: MLXArray.self),
+                    actual: part
+                )
             }
             parts.append(arr)
         }
         return concatenateFlat(parts)
     }
 
-    fatalError("flattenToBox not implemented for space \(type(of: space))")
+    throw GymnazoError.unsupportedSpaceOperation(
+        operation: "flattenToBox",
+        spaceType: spaceTypeName(space)
+    )
 }
 
-private func unflattenFromBox(space: any Space, flat: MLXArray) -> Any {
+private func unflattenFromBox(space: any Space, flat: MLXArray) throws -> Any {
     if let box = space as? Box {
         guard let shape = box.shape else { return flat }
         return flat.asType(box.dtype ?? .float32).reshaped(shape)
@@ -367,9 +495,9 @@ private func unflattenFromBox(space: any Space, flat: MLXArray) -> Any {
         var out: [Any] = []
         out.reserveCapacity(tuple.spaces.count)
         for s in tuple.spaces {
-            let d = flatdim(s)
+            let d = try flatdim(s)
             let part = MLXArray(Array(vals[offset..<(offset + d)])).asType(.float32)
-            out.append(unflatten(space: s, flattened: part))
+            out.append(try unflatten(space: s, flattened: part))
             offset += d
         }
         return out
@@ -382,20 +510,26 @@ private func unflattenFromBox(space: any Space, flat: MLXArray) -> Any {
         var out: [String: Any] = [:]
         for k in keys {
             let s = dict.spaces[k]!
-            let d = flatdim(s)
+            let d = try flatdim(s)
             let part = MLXArray(Array(vals[offset..<(offset + d)])).asType(.float32)
-            out[k] = unflatten(space: s, flattened: part)
+            out[k] = try unflatten(space: s, flattened: part)
             offset += d
         }
         return out
     }
 
-    fatalError("unflattenFromBox not implemented for space \(type(of: space))")
+    throw GymnazoError.unsupportedSpaceOperation(
+        operation: "unflattenFromBox",
+        spaceType: spaceTypeName(space)
+    )
 }
 
-private func flattenSequence(space: any Space, sample: SequenceSample) -> SequenceSample {
+private func flattenSequence(space: any Space, sample: SequenceSample) throws -> SequenceSample {
     guard let seq = space as? any AnySequenceSpace else {
-        fatalError("Expected SequenceSpace")
+        throw GymnazoError.unsupportedSpaceOperation(
+            operation: "flattenSequence",
+            spaceType: spaceTypeName(space)
+        )
     }
 
     let elementSpace = seq.elementSpace
@@ -498,9 +632,12 @@ private func unflattenSequence(space: any AnySequenceSpace, flattened: SequenceS
     return SequenceSample(values: values, mask: flattened.mask)
 }
 
-private func flattenGraph(space: any Space, sample: GraphSample) -> GraphSample {
+private func flattenGraph(space: any Space, sample: GraphSample) throws -> GraphSample {
     guard let g = space as? any AnyGraphSpace else {
-        fatalError("Expected Graph")
+        throw GymnazoError.unsupportedSpaceOperation(
+            operation: "flattenGraph",
+            spaceType: spaceTypeName(space)
+        )
     }
 
     let nodes = flattenGraphValues(space: g.nodeSpaceAny, values: sample.nodes, count: g.maxNodes)

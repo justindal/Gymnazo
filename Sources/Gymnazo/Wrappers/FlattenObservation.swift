@@ -16,7 +16,7 @@ public struct FlattenObservation: Wrapper {
         self.env = env
         let s = env.observationSpace
         self.baseSpace = s
-        guard let box = flattenSpaceToBox(s) else {
+        guard let box = try flattenSpaceToBox(s) else {
             throw GymnazoError.invalidObservationSpace
         }
         self.observationSpace = box
@@ -24,7 +24,7 @@ public struct FlattenObservation: Wrapper {
 
     public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
-        let flattened = flatten(space: baseSpace, sample: result.obs)
+        let flattened = try flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
             throw GymnazoError.invalidObservationType(
                 expected: String(describing: MLXArray.self),
@@ -36,7 +36,7 @@ public struct FlattenObservation: Wrapper {
 
     public mutating func step(_ action: MLXArray) throws -> Step {
         let result = try env.step(action)
-        let flattened = flatten(space: baseSpace, sample: result.obs)
+        let flattened = try flatten(space: baseSpace, sample: result.obs)
         guard let flatObs = flattened as? MLXArray else {
             throw GymnazoError.invalidObservationType(
                 expected: String(describing: MLXArray.self),
