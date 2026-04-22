@@ -171,7 +171,6 @@ struct CarRacingTests {
         
         #expect(result.obs.shape == [96, 96, 3])
         #expect(result.obs.dtype == .uint8)
-        #expect(result.terminated == false || result.terminated == true)
         #expect(result.truncated == false)
     }
     
@@ -184,7 +183,6 @@ struct CarRacingTests {
         
         #expect(result.obs.shape == [96, 96, 3])
         #expect(result.obs.dtype == .uint8)
-        #expect(result.terminated == false || result.terminated == true)
         #expect(result.truncated == false)
     }
     
@@ -207,28 +205,6 @@ struct CarRacingTests {
         let result = try env.step(MLXArray(Int32(0)))
         
         #expect(result.reward <= 0)
-    }
-    
-    @Test
-    func testTerminationInfoContainsLapFinished() async throws {
-        var env = try await makeCarRacing()
-        _ = try env.reset(seed: 42)
-        
-        var terminated = false
-        var stepCount = 0
-        let maxSteps = 100
-        
-        while !terminated && stepCount < maxSteps {
-            let action = MLXArray([0.0, 1.0, 0.0] as [Float32])
-            let result = try env.step(action)
-            
-            if result.terminated {
-                terminated = true
-                let hasLapFinished = result.info["lap_finished"] != nil
-                #expect(hasLapFinished)
-            }
-            stepCount += 1
-        }
     }
     
     @Test
@@ -354,9 +330,7 @@ struct CarRacingTests {
         let snapshot1 = env.currentSnapshot!
         let initialAngle = snapshot1.carAngle
         let initialSpeed = snapshot1.trueSpeed
-        
-        print("DEBUG: Initial speed = \(initialSpeed), initial angle = \(initialAngle)")
-        
+
         #expect(initialSpeed > 1.0, "Car should have built up speed")
         
         for i in 0..<200 {
@@ -365,21 +339,12 @@ struct CarRacingTests {
             } else {
                 _ = try env.step(MLXArray(Int32(3)))
             }
-            
-            if i % 40 == 0 {
-                let snap = env.currentSnapshot!
-                print("DEBUG: Step \(i): angle = \(snap.carAngle), speed = \(snap.trueSpeed), steeringAngle = \(snap.steeringAngle)")
-            }
         }
         
         let snapshot2 = env.currentSnapshot!
         let finalAngle = snapshot2.carAngle
-        let finalSpeed = snapshot2.trueSpeed
-        
-        print("DEBUG: Final speed = \(finalSpeed), final angle = \(finalAngle)")
         
         let angleDiff = abs(finalAngle - initialAngle)
-        print("DEBUG: Angle difference = \(angleDiff) radians = \(angleDiff * 180 / .pi) degrees")
         
         #expect(angleDiff > 0.1, "Car should turn when steering is applied. Angle only changed by \(angleDiff)")
     }

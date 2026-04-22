@@ -220,6 +220,158 @@ struct PersistenceTests {
         #expect(action.size > 0)
     }
 
+    @Test @MainActor
+    func td3SaveLoad() async throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let env = try await Gymnazo.make("Pendulum")
+        let offPolicyConfig = OffPolicyConfig(
+            bufferSize: 500,
+            learningStarts: 10,
+            batchSize: 32,
+            tau: 0.005,
+            gamma: 0.99,
+            trainFrequency: TrainFrequency(frequency: 1, unit: .step),
+            gradientSteps: .fixed(1),
+            targetUpdateInterval: 1,
+            optimizeMemoryUsage: false,
+            handleTimeoutTermination: true,
+            useSDEAtWarmup: false,
+            sdeSampleFreq: -1,
+            sdeSupported: false
+        )
+        let policyConfig = TD3PolicyConfig(
+            netArch: .shared([128, 64]),
+            featuresExtractor: .flatten,
+            activation: .relu,
+            normalizeImages: true,
+            nCritics: 2,
+            shareFeaturesExtractor: false
+        )
+        let algorithmConfig = TD3AlgorithmConfig(
+            policyDelay: 2,
+            targetPolicyNoise: 0.2,
+            targetNoiseClip: 0.5,
+            actionNoise: .normal(std: 0.1)
+        )
+        let td3 = try TD3(
+            observationSpace: env.observationSpace,
+            actionSpace: env.actionSpace,
+            learningRate: ConstantLearningRate(1e-3),
+            policyConfig: policyConfig,
+            algorithmConfig: algorithmConfig,
+            config: offPolicyConfig,
+            seed: 42
+        )
+        td3.setEnv(env)
+
+        await td3.restore(
+            timesteps: 90,
+            totalTimesteps: 400,
+            progressRemaining: 0.6,
+            gradientSteps: 45
+        )
+
+        try await td3.save(to: dir)
+
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("metadata.json").path))
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("policy.safetensors").path))
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("target.safetensors").path))
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("critic.safetensors").path))
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("critic_target.safetensors").path))
+
+        let loaded = try TD3.load(from: dir, env: env)
+
+        #expect(await loaded.numTimesteps == 90)
+        #expect(await loaded.totalTimesteps == 400)
+        #expect(abs(await loaded.progressRemaining - 0.6) < 1e-6)
+        #expect(await loaded.gradientSteps == 45)
+        #expect(loaded.policyConfig == policyConfig)
+        #expect(loaded.algorithmConfig == algorithmConfig)
+        #expect(loaded.offPolicyConfig.bufferSize == offPolicyConfig.bufferSize)
+        #expect(loaded.offPolicyConfig.batchSize == offPolicyConfig.batchSize)
+        #expect(abs(loaded.offPolicyConfig.tau - offPolicyConfig.tau) < 1e-9)
+        #expect(abs(loaded.offPolicyConfig.gamma - offPolicyConfig.gamma) < 1e-9)
+        #expect(loaded.offPolicyConfig.trainFrequency.frequency == offPolicyConfig.trainFrequency.frequency)
+    }
+
+    @Test @MainActor
+    func ppoSaveLoad() async throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let env = try await Gymnazo.make("CartPole")
+        let policyConfig = PPOPolicyConfig(
+            netArch: .shared([64, 32]),
+            featuresExtractor: .flatten,
+            activation: .tanh,
+            normalizeImages: true,
+            shareFeaturesExtractor: true,
+            orthoInit: false,
+            logStdInit: 0.0,
+            fullStd: true
+        )
+        let config = PPOConfig(
+            nSteps: 32,
+            batchSize: 8,
+            nEpochs: 2,
+            gamma: 0.99,
+            gaeLambda: 0.95,
+            clipRange: 0.2,
+            clipRangeVf: nil,
+            normalizeAdvantage: true,
+            entCoef: 0.0,
+            vfCoef: 0.5,
+            maxGradNorm: 0.5,
+            targetKL: 0.03,
+            useSDE: false,
+            sdeSampleFreq: -1
+        )
+        let ppo = try PPO(
+            observationSpace: env.observationSpace,
+            actionSpace: env.actionSpace,
+            learningRate: ConstantLearningRate(3e-4),
+            policyConfig: policyConfig,
+            config: config,
+            seed: 13
+        )
+        ppo.setEnv(env)
+
+        await ppo.restore(
+            timesteps: 60,
+            totalTimesteps: 240,
+            progressRemaining: 0.75,
+            updates: 9
+        )
+
+        try await ppo.save(to: dir)
+
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("metadata.json").path))
+        #expect(FileManager.default.fileExists(
+            atPath: dir.appendingPathComponent("policy.safetensors").path))
+
+        let loaded = try PPO.load(from: dir, env: env)
+        #expect(await loaded.numTimesteps == 60)
+        #expect(await loaded.totalTimesteps == 240)
+        #expect(abs(await loaded.progressRemaining - 0.75) < 1e-6)
+        #expect(await loaded.nUpdates == 9)
+        #expect(loaded.config == config)
+        #expect(loaded.policyConfig == policyConfig)
+
+        let loadedNoEnv = try PPO.load(from: dir)
+        var evalEnv = try await Gymnazo.make("CartPole")
+        let obs = try evalEnv.reset(seed: 99).obs
+        let action = await loadedNoEnv(observation: obs, deterministic: true)
+        #expect(action.size > 0)
+    }
+
     @Test
     func checkpointMetadataRoundTrip() throws {
         let dir = tempDir()

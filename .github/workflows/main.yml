@@ -1,4 +1,4 @@
-name: Swift
+name: Swift Tests
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -23,8 +23,9 @@ jobs:
         run: |
           xcodebuild -list
 
-      - name: build with xcodebuild (macOS)
+      - name: build and test with xcodebuild (macOS)
         run: |
-          xcodebuild \
+          xcodebuild test \
             -scheme Gymnazo-Package \
-            -destination 'platform=macOS,arch=arm64'
+            -destination 'platform=macOS,arch=arm64' \
+            -parallel-testing-enabled NO
