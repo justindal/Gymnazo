@@ -55,8 +55,8 @@ public struct AutoReset: Wrapper {
         if mode == .nextStep {
             needsReset = true
             var info = result.info
-            info["final_observation"] = sendableValue(result.obs)
-            info["final_info"] = .object(result.info.storage)
+            info[EnvInfoKey.finalObservation] = sendableValue(result.obs)
+            info[EnvInfoKey.finalInfo] = .object(result.info.storage)
             return Step(
                 obs: result.obs,
                 reward: result.reward,
@@ -72,8 +72,8 @@ public struct AutoReset: Wrapper {
         needsReset = false
 
         var info = resetResult.info
-        info["final_observation"] = sendableValue(terminalObs)
-        info["final_info"] = .object(terminalInfo.storage)
+        info[EnvInfoKey.finalObservation] = sendableValue(terminalObs)
+        info[EnvInfoKey.finalInfo] = .object(terminalInfo.storage)
 
         return Step(
             obs: resetResult.obs,

@@ -134,7 +134,7 @@ public final class Blackjack: Env {
 
     private static func drawCard(key: MLXArray) -> Int {
         let index = MLX.randInt(low: 0, high: deck.count, key: key)
-        return deck[Int(index.item(Int32.self))]
+        return deck[Int(index.scalarValue(Int32.self))]
     }
 
     private static func drawHand(key: MLXArray) -> (hand: [Int], nextKey: MLXArray) {
@@ -181,7 +181,7 @@ public final class Blackjack: Env {
         valueStr: String, suit: String, nextKey: MLXArray
     ) {
         let (suitKey, temp) = MLX.split(key: key)
-        let suitIndex = MLX.randInt(low: 0, high: 4, key: suitKey).item(Int32.self)
+        let suitIndex = MLX.randInt(low: 0, high: 4, key: suitKey).scalarValue(Int32.self)
         let suit = Self.suits[Int(suitIndex)]
 
         let valueStr: String
@@ -189,7 +189,7 @@ public final class Blackjack: Env {
             valueStr = "A"
         } else if value == 10 {
             let (faceKey, nextKey) = MLX.split(key: temp)
-            let faceIndex = MLX.randInt(low: 0, high: 3, key: faceKey).item(Int32.self)
+            let faceIndex = MLX.randInt(low: 0, high: 3, key: faceKey).scalarValue(Int32.self)
             return (Self.faceCards[Int(faceIndex)], suit, nextKey)
         } else {
             valueStr = String(value)

@@ -133,8 +133,8 @@ public struct MountainCar: Env {
             throw GymnazoError.invalidAction("Invalid action: \(a). Must be 0, 1, or 2.")
         }
 
-        var position = currentState[0].item(Float.self)
-        var velocity = currentState[1].item(Float.self)
+        var position = currentState[0].scalarValue(Float.self)
+        var velocity = currentState[1].scalarValue(Float.self)
 
         velocity += Float(a - 1) * force + cos(3 * position) * (-gravity)
         velocity = min(max(velocity, -maxSpeed), maxSpeed)
@@ -177,8 +177,8 @@ public struct MountainCar: Env {
         let (stepKey, nextKey) = MLX.split(key: self._key!)
         self._key = nextKey
 
-        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(
-            Float.self)
+        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0]
+            .scalarValue(Float.self)
         let velocity: Float = 0.0
 
         self.state = MLXArray([position, velocity] as [Float32])
@@ -208,8 +208,8 @@ public struct MountainCar: Env {
 
     public var currentSnapshot: MountainCarSnapshot {
         guard let s = state else { return MountainCarSnapshot.zero }
-        let position = s[0].item(Float.self)
-        let velocity = s[1].item(Float.self)
+        let position = s[0].scalarValue(Float.self)
+        let velocity = s[1].scalarValue(Float.self)
         return MountainCarSnapshot(
             position: position,
             velocity: velocity,

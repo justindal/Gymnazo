@@ -92,7 +92,7 @@ public struct CarRacingDiscrete: Env {
             bgColor = (colors[3], colors[4], colors[5])
             grassColor = bgColor
 
-            let idx = Int(idxArray.item(Int32.self))
+            let idx = Int(idxArray.scalarValue(Int32.self))
             switch idx {
             case 0: grassColor.0 += 20
             case 1: grassColor.1 += 20
@@ -123,7 +123,7 @@ public struct CarRacingDiscrete: Env {
         bgColor = (colors[3], colors[4], colors[5])
         grassColor = bgColor
 
-        let idx = Int(idxArray.item(Int32.self))
+        let idx = Int(idxArray.scalarValue(Int32.self))
         switch idx {
         case 0: grassColor.0 += 20
         case 1: grassColor.1 += 20

@@ -75,7 +75,7 @@ public struct SequenceSpace<Inner: TensorSpace>: Space, AnySequenceSpace {
         let valKey = keys[1]
 
         let length = Int(
-            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
+            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).scalarValue(Int32.self))
         let values = space.sampleBatch(key: valKey, count: maxLength)
 
         var maskI32 = [Int32](repeating: 0, count: maxLength)

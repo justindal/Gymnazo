@@ -127,12 +127,9 @@ extension TD3 {
             totalTimesteps: checkpoint.totalTimesteps,
             progressRemaining: checkpoint.currentProgressRemaining,
             gradientSteps: checkpoint.numGradientSteps ?? 0,
-            buffer: replayBuffer
+            buffer: replayBuffer,
+            envBox: env.map(EnvBox.init)
         )
-
-        if let env {
-            agent.setEnv(env)
-        }
 
         return agent
     }

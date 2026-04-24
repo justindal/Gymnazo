@@ -19,7 +19,7 @@ public actor SAC {
     public nonisolated let networksConfig: SACNetworksConfig
     public nonisolated let optimizerConfig: SACOptimizerConfig
 
-    nonisolated(unsafe) private var env: (any Env)?
+    private var env: (any Env)?
     let policy: SACActor
     let critic: SACCritic
     let criticTarget: SACCritic
@@ -168,9 +168,10 @@ public actor SAC {
         totalTimesteps: Int,
         progressRemaining: Double,
         gradientSteps: Int,
-        buffer: ReplayBuffer?
+        buffer: ReplayBuffer?,
+        envBox: EnvBox? = nil
     ) {
-        self.env = nil
+        self.env = envBox?.env
         self.policy = policy
         self.critic = critic
         self.criticTarget = criticTarget
@@ -231,6 +232,7 @@ public actor SAC {
         }
 
         while timesteps < self.totalTimesteps {
+            try Task.checkCancellation()
             guard shouldContinue else { break }
 
             let isWarmup = timesteps < offPolicyConfig.learningStarts
@@ -277,7 +279,7 @@ public actor SAC {
             episodeLength += 1
 
             let bufferNextObs =
-                step.info["final_observation"]?.cast(MLXArray.self) ?? step.obs
+                step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
 
             buffer?.add(
                 obs: lastObs,
@@ -344,7 +346,7 @@ public actor SAC {
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
                 if gradSteps > 0 {
-                    let didTrain = await train(
+                    let didTrain = try await train(
                         gradientSteps: gradSteps,
                         batchSize: offPolicyConfig.batchSize,
                         callbacks: callbacks
@@ -375,12 +377,14 @@ public actor SAC {
         }
 
         for _ in 0..<episodes {
+            try Task.checkCancellation()
             var obs = try environment.reset().obs
             var done = false
             var episodeReward: Double = 0
             var episodeLength: Int = 0
 
             while !done {
+                try Task.checkCancellation()
                 let action = callAsFunction(
                     observation: obs,
                     deterministic: deterministic
@@ -442,14 +446,14 @@ public actor SAC {
     /// Attaches an environment to the agent.
     ///
     /// - Parameter env: The environment to attach.
-    nonisolated public func setEnv(_ env: any Env) {
-        self.env = env
+    public func setEnv(_ envBox: EnvBox) {
+        self.env = envBox.env
     }
 
     /// Detaches and returns the currently attached environment, leaving the slot empty.
     ///
     /// - Returns: The detached environment, or `nil` if none was attached.
-    nonisolated public func takeEnv() -> (any Env)? {
+    public func takeEnv() -> (any Env)? {
         let e = env
         env = nil
         return e
@@ -553,7 +557,7 @@ public actor SAC {
         gradientSteps: Int,
         batchSize: Int,
         callbacks: LearnCallbacks?
-    ) async -> Bool {
+    ) async throws -> Bool {
         guard gradientSteps > 0 else { return false }
         guard var buf = buffer, buf.count >= batchSize else { return false }
         let targetUpdateInterval = max(1, offPolicyConfig.targetUpdateInterval)
@@ -563,8 +567,7 @@ public actor SAC {
         criticOptimizer.learningRate = lr
         entropyOptimizer?.learningRate = lr
 
-        let includeTargetUpdate = targetUpdateInterval == 1
-        let step = buildCompiledStep(includeTargetUpdate: includeTargetUpdate)
+        let step = buildCompiledStep()
 
         var criticLossArrays: [MLXArray] = []
         var actorLossArrays: [MLXArray] = []
@@ -572,6 +575,7 @@ public actor SAC {
         actorLossArrays.reserveCapacity(gradientSteps)
 
         for gradientStep in 0..<gradientSteps {
+            try Task.checkCancellation()
             if policy.useSDE && offPolicyConfig.sdeSupported {
                 let (noiseKey, k1) = MLX.split(key: key, stream: .cpu)
                 key = k1
@@ -601,11 +605,9 @@ public actor SAC {
             criticLossArrays.append(values[0])
             actorLossArrays.append(values[1])
 
-            if !includeTargetUpdate {
-                if gradientStep % targetUpdateInterval == 0 {
-                    softUpdate()
-                    eval(criticTarget.parameters())
-                }
+            if gradientStep % targetUpdateInterval == 0 {
+                try softUpdate()
+                eval(criticTarget.parameters())
             }
         }
         self.gradientSteps += gradientSteps
@@ -640,13 +642,10 @@ public actor SAC {
         return true
     }
 
-    private func buildCompiledStep(
-        includeTargetUpdate: Bool
-    ) -> ([MLXArray]) -> [MLXArray] {
+    private func buildCompiledStep() -> ([MLXArray]) -> [MLXArray] {
         if let step = compiledStep { return step }
 
         let gamma = Float(offPolicyConfig.gamma)
-        let tau = Float(offPolicyConfig.tau)
         let p = policy
         let c = critic
         let ct = criticTarget
@@ -766,17 +765,6 @@ public actor SAC {
                 entOpt.update(model: entModule, gradients: entGrads)
             }
 
-            if includeTargetUpdate {
-                let criticParams = c.parameters()
-                let targetParams = ct.parameters()
-                let updated = polyakUpdate(
-                    target: targetParams,
-                    source: criticParams,
-                    tau: Double(tau)
-                )
-                _ = try? ct.update(parameters: updated, verify: .noUnusedKeys)
-            }
-
             return [criticLossArrays[0], actorValues[0]]
         }
 
@@ -790,9 +778,6 @@ public actor SAC {
             var compileOutputs: [any Updatable] = [
                 p, c, actOpt, critOpt, entModule,
             ]
-            if includeTargetUpdate {
-                compileOutputs.insert(ct, at: 2)
-            }
             if let entOpt {
                 compileInputs.append(entOpt)
                 compileOutputs.append(entOpt)
@@ -853,7 +838,7 @@ public actor SAC {
         return [loss, MLX.stopGradient(logProb)]
     }
 
-    private func softUpdate(tau: Double? = nil) {
+    private func softUpdate(tau: Double? = nil) throws {
         let t = tau ?? offPolicyConfig.tau
         let criticParams = critic.parameters()
         let targetParams = criticTarget.parameters()
@@ -862,7 +847,13 @@ public actor SAC {
             source: criticParams,
             tau: t
         )
-        _ = try? criticTarget.update(parameters: updated, verify: .noUnusedKeys)
+        do {
+            try criticTarget.update(parameters: updated, verify: .noUnusedKeys)
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to update SAC critic target network: \(error)"
+            )
+        }
         criticTarget.setTrainingMode(false)
     }
 }

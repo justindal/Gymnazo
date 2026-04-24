@@ -161,8 +161,9 @@ public struct Pendulum: Env {
         let (k1, k2, nextKey) = splitKey3(_key!)
         _key = nextKey
 
-        let theta = MLX.uniform(low: -xInit, high: xInit, [1], key: k1)[0].item(Float.self)
-        let thetaDot = MLX.uniform(low: -yInit, high: yInit, [1], key: k2)[0].item(Float.self)
+        let theta = MLX.uniform(low: -xInit, high: xInit, [1], key: k1)[0].scalarValue(Float.self)
+        let thetaDot = MLX.uniform(low: -yInit, high: yInit, [1], key: k2)[0].scalarValue(
+            Float.self)
 
         state = (theta: theta, thetaDot: thetaDot)
         lastTorque = nil

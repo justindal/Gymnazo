@@ -85,12 +85,9 @@ extension TabularAgent {
             stateStrides: savedStrides,
             qTable: qTable,
             timesteps: checkpoint.numTimesteps,
-            explorationRate: explorationRate
+            explorationRate: explorationRate,
+            envBox: env.map(EnvBox.init)
         )
-
-        if let env {
-            agent.setEnv(env)
-        }
 
         return agent
     }

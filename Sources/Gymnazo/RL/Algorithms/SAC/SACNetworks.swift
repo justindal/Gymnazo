@@ -12,8 +12,14 @@ public struct SACNetworks {
         self.criticTarget = criticTarget
     }
 
-    public func syncCriticTargetFromCritic() {
-        _ = try? criticTarget.update(parameters: critic.parameters(), verify: .noUnusedKeys)
+    public func syncCriticTargetFromCritic() throws {
+        do {
+            try criticTarget.update(parameters: critic.parameters(), verify: .noUnusedKeys)
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to synchronize SAC critic target network: \(error)"
+            )
+        }
         criticTarget.train(false)
     }
 
@@ -72,7 +78,7 @@ public struct SACNetworks {
         self.critic = critic
         self.criticTarget = criticTarget
 
-        syncCriticTargetFromCritic()
+        try syncCriticTargetFromCritic()
     }
 
     public init(
@@ -125,6 +131,6 @@ public struct SACNetworks {
         self.critic = critic
         self.criticTarget = criticTarget
 
-        syncCriticTargetFromCritic()
+        try syncCriticTargetFromCritic()
     }
 }

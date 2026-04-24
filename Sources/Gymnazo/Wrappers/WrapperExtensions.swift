@@ -55,7 +55,7 @@ extension Env {
     /// - Returns: The wrapped environment.
     public func recordingStatistics(
         bufferLength: Int = 100,
-        statsKey: String = "episode"
+        statsKey: String = EnvInfoKey.episode
     ) throws -> RecordEpisodeStatistics {
         try RecordEpisodeStatistics(env: self, bufferLength: bufferLength, statsKey: statsKey)
     }

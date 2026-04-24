@@ -118,12 +118,9 @@ extension DQN {
             progressRemaining: checkpoint.currentProgressRemaining,
             explorationRate: checkpoint.explorationRate ?? dqnConfig.explorationInitialEps,
             gradientSteps: checkpoint.numGradientSteps ?? 0,
-            buffer: buf
+            buffer: buf,
+            envBox: env.map(EnvBox.init)
         )
-
-        if let env {
-            agent.setEnv(env)
-        }
 
         return agent
     }

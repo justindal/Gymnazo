@@ -143,10 +143,10 @@ public struct CartPole: Env {
             throw GymnazoError.stepBeforeReset
         }
 
-        let x = currentState[0].item(Float.self)
-        let x_dot = currentState[1].item(Float.self)
-        let theta = currentState[2].item(Float.self)
-        let theta_dot = currentState[3].item(Float.self)
+        let x = currentState[0].scalarValue(Float.self)
+        let x_dot = currentState[1].scalarValue(Float.self)
+        let theta = currentState[2].scalarValue(Float.self)
+        let theta_dot = currentState[3].scalarValue(Float.self)
 
         let force = a == 1 ? force_mag : -force_mag
         let costheta = cos(theta)
@@ -258,8 +258,8 @@ public struct CartPole: Env {
 
     public var currentSnapshot: CartPoleSnapshot {
         guard let s = state else { return CartPoleSnapshot.zero }
-        let x = s[0].item(Float.self)
-        let theta = s[2].item(Float.self)
+        let x = s[0].scalarValue(Float.self)
+        let theta = s[2].scalarValue(Float.self)
         return CartPoleSnapshot(x: x, theta: theta, x_threshold: x_threshold)
     }
 }

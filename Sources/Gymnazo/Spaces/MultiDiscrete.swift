@@ -28,8 +28,8 @@ public struct MultiDiscrete: Space {
     public func contains(_ x: MLXArray) -> Bool {
         if x.shape != self.shape { return false }
 
-        let lower = (x .>= 0).all().item(Bool.self)
-        let upper = (x .< self.nvec).all().item(Bool.self)
+        let lower = (x .>= 0).all().scalarValue(Bool.self)
+        let upper = (x .< self.nvec).all().scalarValue(Bool.self)
         return lower && upper
     }
 }

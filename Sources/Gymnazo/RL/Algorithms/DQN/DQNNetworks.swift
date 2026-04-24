@@ -22,8 +22,14 @@ public struct DQNNetworks {
     }
 
     /// Synchronizes the target network parameters from the Q-network.
-    public func syncTargetFromQNet() {
-        _ = try? qNetTarget.update(parameters: qNet.parameters(), verify: .noUnusedKeys)
+    public func syncTargetFromQNet() throws {
+        do {
+            try qNetTarget.update(parameters: qNet.parameters(), verify: .noUnusedKeys)
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to synchronize DQN target network: \(error)"
+            )
+        }
         qNetTarget.train(false)
     }
 
@@ -50,7 +56,7 @@ public struct DQNNetworks {
             config: config
         )
 
-        syncTargetFromQNet()
+        try syncTargetFromQNet()
     }
 
     /// Creates DQN networks from observation space and Discrete action space.
@@ -85,6 +91,6 @@ public struct DQNNetworks {
             normalizeImages: qNet.normalizeImages
         )
 
-        syncTargetFromQNet()
+        try syncTargetFromQNet()
     }
 }

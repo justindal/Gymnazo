@@ -235,9 +235,11 @@ public struct LunarLanderContinuous: Env {
         let (k1, k2, nextKey) = splitKey3(key)
         _key = nextKey
         let dispersion0 =
-            MLX.uniform(low: -1.0, high: 1.0, [1], key: k1)[0].item(Float.self) / Self.scale
+            MLX.uniform(low: -1.0, high: 1.0, [1], key: k1)[0].scalarValue(Float.self)
+            / Self.scale
         let dispersion1 =
-            MLX.uniform(low: -1.0, high: 1.0, [1], key: k2)[0].item(Float.self) / Self.scale
+            MLX.uniform(low: -1.0, high: 1.0, [1], key: k2)[0].scalarValue(Float.self)
+            / Self.scale
 
         var mPower: Float = 0.0
         if mainAction > 0.0 {
@@ -370,7 +372,7 @@ public struct LunarLanderContinuous: Env {
         var heights = [Float](repeating: 0, count: Self.chunks + 1)
         let heightArray = MLX.uniform(low: 0, high: H / 2, [Self.chunks + 1], key: terrainKey)
         for i in 0...Self.chunks {
-            heights[i] = heightArray[i].item(Float.self)
+            heights[i] = heightArray[i].scalarValue(Float.self)
         }
 
         var chunkX = [Float](repeating: 0, count: Self.chunks)
@@ -409,10 +411,10 @@ public struct LunarLanderContinuous: Env {
         _key = finalKey
 
         let forceX = MLX.uniform(
-            low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey1)[0].item(
+            low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey1)[0].scalarValue(
                 Float.self)
         let forceY = MLX.uniform(
-            low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey2)[0].item(
+            low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey2)[0].scalarValue(
                 Float.self)
 
         if let landerId = landerId {
@@ -425,8 +427,9 @@ public struct LunarLanderContinuous: Env {
             }
             let (windKey, turbKey, newKey) = splitKey3(windKeySource)
             _key = newKey
-            windIdx = Int(MLX.randInt(low: -9999, high: 9999, key: windKey).item(Int32.self))
-            torqueIdx = Int(MLX.randInt(low: -9999, high: 9999, key: turbKey).item(Int32.self))
+            windIdx = Int(MLX.randInt(low: -9999, high: 9999, key: windKey).scalarValue(Int32.self))
+            torqueIdx = Int(
+                MLX.randInt(low: -9999, high: 9999, key: turbKey).scalarValue(Int32.self))
         }
 
         lastMainPower = 0

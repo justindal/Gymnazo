@@ -118,7 +118,7 @@ public struct Box: Space {
         let mask = MLX.logicalAnd(geLow.asType(.bool), leHigh.asType(.bool))
         let inRange = MLX.all(mask)
         eval(inRange)
-        return (inRange.item() as Bool)
+        return inRange.scalarValue(Bool.self)
     }
 
     /// Sample a random value from the space.

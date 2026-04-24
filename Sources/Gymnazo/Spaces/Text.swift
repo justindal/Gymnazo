@@ -46,7 +46,7 @@ public struct TextSpace: Space {
         let charKey = keys[1]
 
         let length = Int(
-            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
+            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).scalarValue(Int32.self))
 
         if length == 0 {
             return MLXArray([Int32](repeating: -1, count: maxLength))
@@ -71,7 +71,7 @@ public struct TextSpace: Space {
         let charKey = keys[1]
 
         let length = Int(
-            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).item(Int32.self))
+            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).scalarValue(Int32.self))
 
         if length == 0 {
             return ""

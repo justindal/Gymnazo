@@ -20,7 +20,7 @@ public actor TD3 {
     public nonisolated let policyConfig: TD3PolicyConfig
     public nonisolated let algorithmConfig: TD3AlgorithmConfig
 
-    nonisolated(unsafe) private var env: (any Env)?
+    private var env: (any Env)?
 
     let policy: TD3Policy
     let learningRate: any LearningRateSchedule
@@ -127,12 +127,13 @@ public actor TD3 {
         totalTimesteps: Int,
         progressRemaining: Double,
         gradientSteps: Int,
-        buffer: ReplayBuffer?
+        buffer: ReplayBuffer?,
+        envBox: EnvBox? = nil
     ) {
         let resolvedOffPolicyConfig = Self.sanitizeOffPolicyConfig(
             offPolicyConfig
         )
-        self.env = nil
+        self.env = envBox?.env
         self.policy = policy
         self.offPolicyConfig = resolvedOffPolicyConfig
         self.policyConfig = policyConfig
@@ -182,6 +183,7 @@ public actor TD3 {
         var episodeLength: Int = 0
 
         while timesteps < self.totalTimesteps {
+            try Task.checkCancellation()
             guard shouldContinue else { break }
 
             let isWarmup = timesteps < offPolicyConfig.learningStarts
@@ -219,7 +221,7 @@ public actor TD3 {
             episodeLength += 1
 
             let bufferNextObs =
-                step.info["final_observation"]?.cast(MLXArray.self) ?? step.obs
+                step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
 
             buffer?.add(
                 obs: lastObs,
@@ -282,7 +284,7 @@ public actor TD3 {
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
                 if gradSteps > 0 {
-                    let didTrain = await train(
+                    let didTrain = try await train(
                         gradientSteps: gradSteps,
                         batchSize: offPolicyConfig.batchSize,
                         callbacks: callbacks
@@ -313,12 +315,14 @@ public actor TD3 {
         }
 
         for _ in 0..<episodes {
+            try Task.checkCancellation()
             var obs = try environment.reset().obs
             var done = false
             var episodeReward: Double = 0
             var episodeLength: Int = 0
 
             while !done {
+                try Task.checkCancellation()
                 let action = callAsFunction(
                     observation: obs,
                     deterministic: deterministic
@@ -392,14 +396,14 @@ public actor TD3 {
     /// Attaches an environment to the agent.
     ///
     /// - Parameter env: The environment to attach.
-    nonisolated public func setEnv(_ env: any Env) {
-        self.env = env
+    public func setEnv(_ envBox: EnvBox) {
+        self.env = envBox.env
     }
 
     /// Detaches and returns the currently attached environment, leaving the slot empty.
     ///
     /// - Returns: The detached environment, or `nil` if none was attached.
-    nonisolated public func takeEnv() -> (any Env)? {
+    public func takeEnv() -> (any Env)? {
         let e = env
         env = nil
         return e
@@ -479,7 +483,7 @@ public actor TD3 {
         gradientSteps: Int,
         batchSize: Int,
         callbacks: LearnCallbacks?
-    ) async -> Bool {
+    ) async throws -> Bool {
         guard gradientSteps > 0 else { return false }
         guard var buf = buffer, buf.count >= batchSize else { return false }
 
@@ -494,6 +498,7 @@ public actor TD3 {
         actorLossArrays.reserveCapacity(max(1, gradientSteps / policyDelay))
 
         for _ in 0..<gradientSteps {
+            try Task.checkCancellation()
             let (sampleKey, k1) = MLX.split(key: key, stream: .cpu)
             let (targetNoiseKey, nextKey) = MLX.split(key: k1, stream: .cpu)
             key = nextKey
@@ -516,7 +521,7 @@ public actor TD3 {
             if self.gradientSteps % policyDelay == 0 {
                 let actorValues = actorStep([batch.obs])
                 actorLossArrays.append(actorValues[0])
-                softUpdateTargets()
+                try softUpdateTargets()
                 eval(
                     actorValues[0],
                     actor,
@@ -531,7 +536,14 @@ public actor TD3 {
         policy.setTrainingMode(false)
 
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
-        eval(totalCriticLoss)
+        let totalActorLoss =
+            actorLossArrays.isEmpty ? nil : actorLossArrays.reduce(MLXArray(0.0), +)
+        if let totalActorLoss {
+            eval(totalCriticLoss, totalActorLoss)
+        } else {
+            eval(totalCriticLoss)
+        }
+
         let avgCriticLoss =
             (totalCriticLoss / Float(max(1, criticLossArrays.count)))
             .scalarValue(Float.self)
@@ -541,9 +553,7 @@ public actor TD3 {
             "learningRate": Double(policy.actorOptimizer.learningRate),
         ]
 
-        if !actorLossArrays.isEmpty {
-            let totalActorLoss = actorLossArrays.reduce(MLXArray(0.0), +)
-            eval(totalActorLoss)
+        if let totalActorLoss {
             let avgActorLoss = (totalActorLoss / Float(actorLossArrays.count))
                 .scalarValue(Float.self)
             metrics["actorLoss"] = Double(avgActorLoss)
@@ -696,7 +706,7 @@ public actor TD3 {
         return step
     }
 
-    private func softUpdateTargets() {
+    private func softUpdateTargets() throws {
         let tau = offPolicyConfig.tau
 
         let actorParams = actor.parameters()
@@ -706,10 +716,16 @@ public actor TD3 {
             source: actorParams,
             tau: tau
         )
-        _ = try? targetActor.update(
-            parameters: updatedActor,
-            verify: .noUnusedKeys
-        )
+        do {
+            try targetActor.update(
+                parameters: updatedActor,
+                verify: .noUnusedKeys
+            )
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to update TD3 target actor: \(error)"
+            )
+        }
 
         let criticParams = critic.parameters()
         let criticTargetParams = targetCritic.parameters()
@@ -718,10 +734,16 @@ public actor TD3 {
             source: criticParams,
             tau: tau
         )
-        _ = try? targetCritic.update(
-            parameters: updatedCritic,
-            verify: .noUnusedKeys
-        )
+        do {
+            try targetCritic.update(
+                parameters: updatedCritic,
+                verify: .noUnusedKeys
+            )
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to update TD3 target critic: \(error)"
+            )
+        }
 
         targetActor.setTrainingMode(false)
         targetCritic.setTrainingMode(false)

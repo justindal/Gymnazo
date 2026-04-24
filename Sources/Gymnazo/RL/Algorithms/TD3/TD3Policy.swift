@@ -84,7 +84,7 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
 
         super.init()
 
-        syncTargetsFromOnline()
+        try syncTargetsFromOnline()
     }
 
     public convenience init(
@@ -140,9 +140,15 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         criticOptimizer.learningRate = lr
     }
 
-    public func syncTargetsFromOnline() {
-        _ = try? actorTarget.update(parameters: actor.parameters(), verify: .noUnusedKeys)
-        _ = try? criticTarget.update(parameters: critic.parameters(), verify: .noUnusedKeys)
+    public func syncTargetsFromOnline() throws {
+        do {
+            try actorTarget.update(parameters: actor.parameters(), verify: .noUnusedKeys)
+            try criticTarget.update(parameters: critic.parameters(), verify: .noUnusedKeys)
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to synchronize TD3 target networks: \(error)"
+            )
+        }
         actorTarget.train(false)
         criticTarget.train(false)
     }

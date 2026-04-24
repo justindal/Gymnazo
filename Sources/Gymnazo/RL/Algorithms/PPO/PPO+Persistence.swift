@@ -88,12 +88,9 @@ extension PPO {
             timesteps: checkpoint.numTimesteps,
             totalTimesteps: checkpoint.totalTimesteps,
             progressRemaining: checkpoint.currentProgressRemaining,
-            updates: checkpoint.numGradientSteps ?? 0
+            updates: checkpoint.numGradientSteps ?? 0,
+            envBox: env.map(EnvBox.init)
         )
-
-        if let env {
-            agent.setEnv(env)
-        }
 
         return agent
     }

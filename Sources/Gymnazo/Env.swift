@@ -57,6 +57,13 @@ public struct Reset {
     }
 }
 
+public enum EnvInfoKey {
+    public static let finalObservation = "final_observation"
+    public static let finalInfo = "final_info"
+    public static let episode = "episode"
+    public static let timeLimitTruncated = "TimeLimit.truncated"
+}
+
 extension Env {
     public mutating func reset(seed: UInt64) throws -> Reset {
         try self.reset(seed: seed, options: nil)

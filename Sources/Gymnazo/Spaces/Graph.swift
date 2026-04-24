@@ -119,10 +119,16 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
 
         let sampledNodes =
             maxNodes == 0
-            ? 0 : Int(MLX.randInt(low: 1, high: maxNodes + 1, key: nodeCountKey).item(Int32.self))
+            ? 0
+            : Int(
+                MLX.randInt(low: 1, high: maxNodes + 1, key: nodeCountKey).scalarValue(
+                    Int32.self))
         let sampledEdges =
             maxEdges == 0
-            ? 0 : Int(MLX.randInt(low: 0, high: maxEdges + 1, key: edgeCountKey).item(Int32.self))
+            ? 0
+            : Int(
+                MLX.randInt(low: 0, high: maxEdges + 1, key: edgeCountKey).scalarValue(
+                    Int32.self))
 
         let nodes = nodeSpace.sampleBatch(key: nodeKey, count: maxNodes)
         let edges = edgeSpace.sampleBatch(key: edgeKey, count: maxEdges)

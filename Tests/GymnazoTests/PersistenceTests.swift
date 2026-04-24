@@ -33,7 +33,7 @@ struct PersistenceTests {
             timesteps: 500,
             explorationRate: 0.25
         )
-        agent.setEnv(env)
+        await agent.setEnv(EnvBox(env))
 
         try await agent.save(to: dir)
 
@@ -72,7 +72,7 @@ struct PersistenceTests {
             timesteps: 200,
             explorationRate: 0.5
         )
-        agent.setEnv(env)
+        await agent.setEnv(EnvBox(env))
 
         try await agent.save(to: dir)
 
@@ -107,7 +107,7 @@ struct PersistenceTests {
             config: dqnConfig,
             seed: 42
         )
-        dqn.setEnv(env)
+        await dqn.setEnv(EnvBox(env))
 
         await dqn.restore(
             timesteps: 100,
@@ -179,7 +179,7 @@ struct PersistenceTests {
             targetEntropy: -1.0,
             seed: 42
         )
-        sac.setEnv(env)
+        await sac.setEnv(EnvBox(env))
 
         await sac.restore(
             timesteps: 75,
@@ -273,7 +273,7 @@ struct PersistenceTests {
             config: offPolicyConfig,
             seed: 42
         )
-        td3.setEnv(env)
+        await td3.setEnv(EnvBox(env))
 
         await td3.restore(
             timesteps: 90,
@@ -357,7 +357,7 @@ struct PersistenceTests {
             config: config,
             seed: 13
         )
-        ppo.setEnv(env)
+        await ppo.setEnv(EnvBox(env))
 
         await ppo.restore(
             timesteps: 60,

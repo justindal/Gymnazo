@@ -239,7 +239,7 @@ public final class CliffWalking: Env {
         let probs = transitions.map { Float($0.prob) }
         let epsilon = MLXArray(1e-9, dtype: .float32)
         let logits = MLX.log(MLXArray(probs) + epsilon)
-        let i = Int(MLX.categorical(logits, key: sampleKey).item(Int32.self))
+        let i = Int(MLX.categorical(logits, key: sampleKey).scalarValue(Int32.self))
 
         let (p, newState, reward, terminated) = transitions[i]
 

@@ -23,10 +23,14 @@ public final class RecordEpisodeStatistics: Wrapper {
     private var episodeLengths: Int = 0
 
     public convenience init(env: any Env) throws {
-        try self.init(env: env, bufferLength: 100, statsKey: "episode")
+        try self.init(env: env, bufferLength: 100, statsKey: EnvInfoKey.episode)
     }
 
-    public init(env: any Env, bufferLength: Int = 100, statsKey: String = "episode") throws {
+    public init(
+        env: any Env,
+        bufferLength: Int = 100,
+        statsKey: String = EnvInfoKey.episode
+    ) throws {
         guard bufferLength > 0 else {
             throw GymnazoError.invalidRecordBufferLength(bufferLength)
         }

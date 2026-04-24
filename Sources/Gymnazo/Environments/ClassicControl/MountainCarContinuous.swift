@@ -173,8 +173,8 @@ public struct MountainCarContinuous: Env {
         let (stepKey, nextKey) = MLX.split(key: self._key!)
         self._key = nextKey
 
-        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0].item(
-            Float.self)
+        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0]
+            .scalarValue(Float.self)
         state = (position: position, velocity: 0.0)
         lastForce = nil
 

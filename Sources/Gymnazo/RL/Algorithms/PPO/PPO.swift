@@ -20,7 +20,7 @@ public actor PPO {
     public nonisolated let config: PPOConfig
     public nonisolated let policyConfig: PPOPolicyConfig
 
-    nonisolated(unsafe) private var env: (any Env)?
+    private var env: (any Env)?
     let policy: PPOPolicy
     private var optimizer: Adam
     let learningRate: any LearningRateSchedule
@@ -116,9 +116,10 @@ public actor PPO {
         timesteps: Int,
         totalTimesteps: Int,
         progressRemaining: Double,
-        updates: Int
+        updates: Int,
+        envBox: EnvBox? = nil
     ) {
-        self.env = nil
+        self.env = envBox?.env
         self.policy = policy
         self.optimizer = optimizer
         self.config = config
@@ -169,6 +170,7 @@ public actor PPO {
         var episodeLength: Int = 0
 
         while timesteps < self.totalTimesteps {
+            try Task.checkCancellation()
             guard shouldContinue else { break }
             rolloutBuffer.reset()
 
@@ -182,6 +184,7 @@ public actor PPO {
             }
 
             for stepIndex in 0..<rolloutSteps {
+                try Task.checkCancellation()
                 guard shouldContinue else { break }
 
                 if config.useSDE && config.sdeSampleFreq > 0
@@ -205,11 +208,11 @@ public actor PPO {
                 let step = try environment.step(envAction)
 
                 var adjustedReward = Float(step.reward)
-                if step.truncated,
-                    let finalObservation = step.info["final_observation"]?.cast(MLXArray.self)
-                {
+                if step.truncated {
+                    let finalObservation =
+                        step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
                     let bootstrapValue = policy.predictValues(obs: finalObservation)
-                    let terminalValue = Self.flatten(bootstrapValue).item(Float.self)
+                    let terminalValue = Self.flatten(bootstrapValue).singletonValue(Float.self)
                     adjustedReward += Float(config.gamma) * terminalValue
                 }
 
@@ -290,12 +293,14 @@ public actor PPO {
         }
 
         for _ in 0..<episodes {
+            try Task.checkCancellation()
             var obs = try environment.reset().obs
             var done = false
             var episodeReward: Double = 0.0
             var episodeLength: Int = 0
 
             while !done {
+                try Task.checkCancellation()
                 let action = callAsFunction(
                     observation: obs,
                     deterministic: deterministic
@@ -360,14 +365,14 @@ public actor PPO {
     /// Attaches an environment to the agent.
     ///
     /// - Parameter env: The environment to attach.
-    nonisolated public func setEnv(_ env: any Env) {
-        self.env = env
+    public func setEnv(_ envBox: EnvBox) {
+        self.env = envBox.env
     }
 
     /// Detaches and returns the currently attached environment, leaving the slot empty.
     ///
     /// - Returns: The detached environment, or `nil` if none was attached.
-    nonisolated public func takeEnv() -> (any Env)? {
+    public func takeEnv() -> (any Env)? {
         let environment = env
         env = nil
         return environment
@@ -443,12 +448,12 @@ public actor PPO {
                     optimizer
                 )
 
-                let loss = values[0].item(Float.self)
-                let policyLoss = values[1].item(Float.self)
-                let valueLoss = values[2].item(Float.self)
-                let entropyLoss = values[3].item(Float.self)
-                let approxKL = values[4].item(Float.self)
-                let clipFraction = values[5].item(Float.self)
+                let loss = values[0].scalarValue(Float.self)
+                let policyLoss = values[1].scalarValue(Float.self)
+                let valueLoss = values[2].scalarValue(Float.self)
+                let entropyLoss = values[3].scalarValue(Float.self)
+                let approxKL = values[4].scalarValue(Float.self)
+                let clipFraction = values[5].scalarValue(Float.self)
 
                 lossValues.append(loss)
                 policyLossValues.append(policyLoss)

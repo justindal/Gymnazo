@@ -172,7 +172,7 @@ public struct RolloutBuffer: RolloutBuffering {
         let casted = value.asType(.float32)
         let flattened = casted.reshaped([-1])
         eval(flattened)
-        return flattened.item(Float.self)
+        return flattened.singletonValue(Float.self)
     }
 
     private static func actionDimension(_ actionSpace: any Space) -> Int {

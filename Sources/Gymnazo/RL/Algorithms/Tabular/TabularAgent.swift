@@ -11,7 +11,7 @@ public actor TabularAgent {
     public let numStates: Int
     public let numActions: Int
 
-    nonisolated(unsafe) private var env: (any Env)?
+    private var env: (any Env)?
     private let actionSpace: Discrete
     private let stateStrides: [Int]
     private var qTable: MLXArray
@@ -50,9 +50,10 @@ public actor TabularAgent {
         stateStrides: [Int] = [],
         qTable: MLXArray,
         timesteps: Int,
-        explorationRate: Double
+        explorationRate: Double,
+        envBox: EnvBox? = nil
     ) {
-        self.env = nil
+        self.env = envBox?.env
         self.updateRule = updateRule
         self.config = config
         self.numStates = numStates
@@ -134,6 +135,7 @@ public actor TabularAgent {
         var episodeLength: Int = 0
 
         while timesteps < totalTimesteps {
+            try Task.checkCancellation()
             guard shouldContinue else { break }
 
             if updateRule == .qLearning {
@@ -213,13 +215,15 @@ public actor TabularAgent {
         }
 
         for _ in 0..<episodes {
+            try Task.checkCancellation()
             var obs = try environment.reset().obs
             var done = false
             var episodeReward: Double = 0
             var episodeLength: Int = 0
 
             while !done {
-                let stateIdx: Int32 = flatIndex(for: obs).item()
+                try Task.checkCancellation()
+                let stateIdx: Int32 = flatIndex(for: obs).scalarValue(Int32.self)
                 let actionIndex = predict(state: stateIdx, deterministic: deterministic)
                 let action = MLXArray(actionIndex)
 
@@ -255,16 +259,13 @@ public actor TabularAgent {
         if !deterministic {
             var k = nextKey(for: &key, stream: .cpu)
             let random = MLX.uniform(0.0..<1.0, key: k, stream: .cpu)
-            eval(random)
-            if Double(random.item(Float.self)) < explorationRate {
+            if Double(random.scalarValue(Float.self)) < explorationRate {
                 k = nextKey(for: &key, stream: .cpu)
                 let sample = actionSpace.sample(key: k)
-                eval(sample)
                 return sample.singletonValue(Int32.self)
             }
         }
         let action = MLX.argMax(qTable[Int(state)], stream: .cpu).asType(.int32, stream: .cpu)
-        eval(action)
         return action.scalarValue(Int32.self)
     }
 
@@ -282,11 +283,11 @@ public actor TabularAgent {
         return qTable.asArray(Float.self)
     }
 
-    nonisolated public func setEnv(_ env: any Env) {
-        self.env = env
+    public func setEnv(_ envBox: EnvBox) {
+        self.env = envBox.env
     }
 
-    nonisolated public func takeEnv() -> (any Env)? {
+    public func takeEnv() -> (any Env)? {
         let e = env
         env = nil
         return e
@@ -307,9 +308,7 @@ public actor TabularAgent {
     private func selectAction(state: MLXArray) -> MLXArray {
         var k = nextKey(for: &key, stream: .cpu)
         let random = MLX.uniform(0.0..<1.0, key: k, stream: .cpu)
-        eval(random)
-
-        if Double(random.item(Float.self)) < explorationRate {
+        if Double(random.scalarValue(Float.self)) < explorationRate {
             k = nextKey(for: &key, stream: .cpu)
             return actionSpace.sample(key: k)
         }

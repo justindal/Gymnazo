@@ -118,7 +118,7 @@ public struct Acrobot: Env {
             _key = nextKey
             let noise = MLX.uniform(low: -torqueNoiseMax, high: torqueNoiseMax, [1], key: noiseKey)[
                 0
-            ].item(Float.self)
+            ].scalarValue(Float.self)
             torque += noise
         }
 
@@ -163,10 +163,10 @@ public struct Acrobot: Env {
         eval(randomState)
 
         self.state = [
-            randomState[0].item(Float.self),
-            randomState[1].item(Float.self),
-            randomState[2].item(Float.self),
-            randomState[3].item(Float.self),
+            randomState[0].scalarValue(Float.self),
+            randomState[1].scalarValue(Float.self),
+            randomState[2].scalarValue(Float.self),
+            randomState[3].scalarValue(Float.self),
         ]
 
         return Reset(obs: try getObservation(), info: [:])

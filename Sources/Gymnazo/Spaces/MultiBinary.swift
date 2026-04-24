@@ -38,8 +38,8 @@ public struct MultiBinary: Space {
     public func contains(_ x: MLXArray) -> Bool {
         if let shape, x.shape != shape { return false }
         let xI = x.asType(.int32)
-        let ge0 = (xI .>= 0).all().item(Bool.self)
-        let le1 = (xI .<= 1).all().item(Bool.self)
+        let ge0 = (xI .>= 0).all().scalarValue(Bool.self)
+        let le1 = (xI .<= 1).all().scalarValue(Bool.self)
         return ge0 && le1
     }
 }

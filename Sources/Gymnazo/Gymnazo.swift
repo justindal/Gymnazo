@@ -151,7 +151,7 @@ public enum Gymnazo {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         options: EnvOptions = [:]
     ) async throws -> any Env {
         try await GymnazoRegistry.shared.make(
@@ -185,7 +185,7 @@ public enum Gymnazo {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         options: EnvOptions = [:]
     ) async throws -> any Env {
         try await GymnazoRegistry.shared.make(
@@ -226,7 +226,7 @@ public enum Gymnazo {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
     ) async throws -> SyncVectorEnv {
@@ -292,7 +292,7 @@ public enum Gymnazo {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
     ) async throws -> any VectorEnv {
@@ -337,7 +337,7 @@ public enum Gymnazo {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
     ) async throws -> AsyncVectorEnv {
@@ -404,7 +404,7 @@ extension GymnazoRegistry {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         options: EnvOptions = [:]
     ) async throws -> any Env {
         await ensureInitialized()
@@ -442,7 +442,7 @@ extension GymnazoRegistry {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         options: EnvOptions = [:]
     ) async throws -> any Env {
         await ensureInitialized()
@@ -484,7 +484,7 @@ extension GymnazoRegistry {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
     ) async throws -> SyncVectorEnv {
@@ -569,7 +569,7 @@ extension GymnazoRegistry {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
     ) async throws -> any VectorEnv {
@@ -629,7 +629,7 @@ extension GymnazoRegistry {
         disableRenderOrderEnforcing: Bool = false,
         recordEpisodeStatistics: Bool = false,
         recordBufferLength: Int = 100,
-        recordStatsKey: String = "episode",
+        recordStatsKey: String = EnvInfoKey.episode,
         autoresetMode: AutoresetMode = .nextStep,
         options: EnvOptions = [:]
     ) async throws -> AsyncVectorEnv {

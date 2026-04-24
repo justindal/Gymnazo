@@ -72,7 +72,7 @@ struct TabularTests {
             timesteps: 0,
             explorationRate: 0.0
         )
-        agent.setEnv(env)
+        await agent.setEnv(EnvBox(env))
 
         try await agent.learn(totalTimesteps: 1, callbacks: nil as LearnCallbacks?)
         let values = await agent.tableValues()
@@ -108,7 +108,7 @@ struct TabularTests {
             timesteps: 0,
             explorationRate: 0.0
         )
-        agent.setEnv(env)
+        await agent.setEnv(EnvBox(env))
 
         try await agent.learn(totalTimesteps: 1, callbacks: nil as LearnCallbacks?)
         let values = await agent.tableValues()

@@ -442,7 +442,7 @@ public final class Taxi: Env {
         let probs = MLXArray(initialStateDistrib.map { Float($0) })
         let logits = MLX.log(probs + epsilon)
         let sampledState = MLX.categorical(logits, key: sampleKey)
-        s = Int(sampledState.item(Int32.self))
+        s = Int(sampledState.scalarValue(Int32.self))
 
         lastAction = nil
         taxiOrientation = 0
@@ -453,7 +453,7 @@ public final class Taxi: Env {
             }
             let (fickleKey, nk) = MLX.split(key: fickleKeySource)
             _key = nk
-            let fickleRand = MLX.uniform(0..<1, key: fickleKey).item(Float.self)
+            let fickleRand = MLX.uniform(0..<1, key: fickleKey).scalarValue(Float.self)
             fickleStep = fickleRand < 0.3
         } else {
             fickleStep = false
@@ -483,7 +483,7 @@ public final class Taxi: Env {
         let probs = transitions.map { Float($0.prob) }
         let epsilon = MLXArray(1e-9, dtype: .float32)
         let logits = MLX.log(MLXArray(probs) + epsilon)
-        let i = Int(MLX.categorical(logits, key: sampleKey).item(Int32.self))
+        let i = Int(MLX.categorical(logits, key: sampleKey).scalarValue(Int32.self))
 
         let (p, newState, reward, terminated) = transitions[i]
 
@@ -508,7 +508,7 @@ public final class Taxi: Env {
             let (destKey, nk) = MLX.split(key: destKeySource)
             _key = nk
             let destRand = MLX.randInt(low: 0, high: possibleDestinations.count, key: destKey)
-            destIdx = possibleDestinations[Int(destRand.item(Int32.self))]
+            destIdx = possibleDestinations[Int(destRand.scalarValue(Int32.self))]
 
             s = Self.encode(taxiRow: taxiRow, taxiCol: taxiCol, passLoc: passLoc, destIdx: destIdx)
         } else {

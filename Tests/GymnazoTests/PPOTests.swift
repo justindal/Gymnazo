@@ -15,6 +15,25 @@ private actor PPOTrainMetricCollector {
     }
 }
 
+private struct TruncatingPPOEnv: Env {
+    let observationSpace: any Space = Box(low: -1, high: 1, shape: [4])
+    let actionSpace: any Space = Discrete(n: 2)
+    var spec: EnvSpec?
+    var renderMode: RenderMode?
+    private var steps = 0
+
+    mutating func step(_ action: MLXArray) throws -> Step {
+        steps += 1
+        let obs = MLXArray([Float(steps), 0, 0, 0])
+        return Step(obs: obs, reward: 1.0, terminated: false, truncated: true)
+    }
+
+    mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
+        steps = 0
+        return Reset(obs: MLXArray([Float(0), 0, 0, 0]))
+    }
+}
+
 @Suite("PPO", .serialized)
 struct PPOTests {
     @Test
@@ -53,7 +72,7 @@ struct PPOTests {
             config: config,
             seed: 42
         )
-        ppo.setEnv(env)
+        await ppo.setEnv(EnvBox(env))
 
         let collector = PPOTrainMetricCollector()
         let callbacks = LearnCallbacks(
@@ -123,7 +142,7 @@ struct PPOTests {
             ),
             seed: 7
         )
-        ppo.setEnv(env)
+        await ppo.setEnv(EnvBox(env))
 
         try await ppo.learn(totalTimesteps: 32, callbacks: nil as LearnCallbacks?)
         try await ppo.evaluate(
@@ -134,5 +153,46 @@ struct PPOTests {
         let action = await ppo(observation: observation, deterministic: true)
         eval(action)
         #expect(action.size > 0)
+    }
+
+    @Test
+    @MainActor
+    func learnBootstrapsTruncatedStepsWithoutFinalObservation() async throws {
+        let env = TruncatingPPOEnv()
+        let ppo = try PPO(
+            observationSpace: env.observationSpace,
+            actionSpace: env.actionSpace,
+            policyConfig: PPOPolicyConfig(
+                netArch: .shared([32, 32]),
+                featuresExtractor: .flatten,
+                activation: .tanh,
+                normalizeImages: true,
+                shareFeaturesExtractor: true,
+                orthoInit: false
+            ),
+            config: PPOConfig(
+                nSteps: 8,
+                batchSize: 4,
+                nEpochs: 1,
+                gamma: 0.99,
+                gaeLambda: 0.95,
+                clipRange: 0.2,
+                clipRangeVf: nil,
+                normalizeAdvantage: true,
+                entCoef: 0.0,
+                vfCoef: 0.5,
+                maxGradNorm: 0.5,
+                targetKL: nil,
+                useSDE: false,
+                sdeSampleFreq: -1
+            ),
+            seed: 11
+        )
+        await ppo.setEnv(EnvBox(env))
+
+        try await ppo.learn(totalTimesteps: 16, callbacks: nil as LearnCallbacks?)
+
+        #expect(await ppo.numTimesteps == 16)
+        #expect(await ppo.nUpdates > 0)
     }
 }

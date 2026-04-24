@@ -466,7 +466,7 @@ public final class FrozenLake: Env {
         self._key = nextKey
 
         let s_ml: MLXArray = MLX.categorical(self.initial_state_logits, key: resetKey)
-        self.s = s_ml.item(Int.self)
+        self.s = s_ml.scalarValue(Int.self)
         self.lastAction = nil
 
         return Reset(obs: toMLX(self.s), info: ["prob": 1.0])
@@ -489,7 +489,7 @@ public final class FrozenLake: Env {
         let epsilon = MLXArray(1e-9, dtype: .float32)
         let prob_logits = MLX.log(MLXArray(probs) + epsilon)
 
-        let i = MLX.categorical(prob_logits, key: stepKey).item(Int.self)
+        let i = MLX.categorical(prob_logits, key: stepKey).scalarValue(Int.self)
 
         let (p, s, r, t) = transitions[i]
 

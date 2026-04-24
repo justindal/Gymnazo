@@ -10,15 +10,6 @@ extension MLXArray {
         return item(type)
     }
 
-    /// Returns the first element after flattening, for arrays like shape [1].
-    func firstValue<T: HasDType>(_ type: T.Type = T.self) -> T {
-        let values = reshaped([-1]).asArray(type)
-        guard let value = values.first else {
-            preconditionFailure("MLXArray.firstValue requires a non-empty array")
-        }
-        return value
-    }
-
     /// Returns the only element in the array.
     ///
     /// Accepts either a scalar (`[]`) or shape `[1]`, and rejects anything larger.

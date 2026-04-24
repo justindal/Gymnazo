@@ -21,7 +21,8 @@ struct WrapperBehaviorTests {
         _ = try recorder.reset(seed: 99)
         let step = try recorder.step(MLXArray(Int32(1)))
         #expect(step.truncated)
-        #expect(step.info["episode"] != nil)
+        #expect(step.info[EnvInfoKey.timeLimitTruncated]?.bool == true)
+        #expect(step.info[EnvInfoKey.episode] != nil)
     }
 
     @Test
@@ -35,5 +36,20 @@ struct WrapperBehaviorTests {
         try env.render()
         _ = try env.reset(seed: 1)
         try env.render()
+    }
+
+    @Test
+    func testDefaultWrapperOrderProducesDeterministicInfoContract() async throws {
+        var env = try await Gymnazo.make(
+            "CartPole",
+            maxEpisodeSteps: 1,
+            recordEpisodeStatistics: true
+        )
+        _ = try env.reset(seed: 7)
+        let step = try env.step(MLXArray(Int32(0)))
+
+        #expect(step.truncated)
+        #expect(step.info[EnvInfoKey.timeLimitTruncated]?.bool == true)
+        #expect(step.info[EnvInfoKey.episode] != nil)
     }
 }

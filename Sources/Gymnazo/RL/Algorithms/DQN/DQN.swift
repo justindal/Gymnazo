@@ -7,7 +7,7 @@ public actor DQN {
     public nonisolated let policyConfig: DQNPolicyConfig
     public nonisolated let optimizerConfig: DQNOptimizerConfig
 
-    nonisolated(unsafe) private var env: (any Env)?
+    private var env: (any Env)?
     private let policy: DQNPolicy
     private let targetPolicy: DQNPolicy
     private var optimizer: Adam
@@ -106,9 +106,10 @@ public actor DQN {
         progressRemaining: Double,
         explorationRate: Double,
         gradientSteps: Int,
-        buffer: ReplayBuffer?
+        buffer: ReplayBuffer?,
+        envBox: EnvBox? = nil
     ) {
-        self.env = nil
+        self.env = envBox?.env
         self.policy = policy
         self.targetPolicy = targetPolicy
         self.optimizer = optimizer
@@ -149,6 +150,7 @@ public actor DQN {
         var episodeLength: Int = 0
 
         while timesteps < self.totalTimesteps {
+            try Task.checkCancellation()
             guard shouldContinue else { break }
 
             updateExplorationRate()
@@ -173,7 +175,9 @@ public actor DQN {
             episodeReward += Double(reward)
             episodeLength += 1
 
-            let bufferNextObs = step.info["final_observation"]?.cast(MLXArray.self) ?? step.obs
+            let bufferNextObs =
+                step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self)
+                ?? step.obs
 
             buffer?.add(
                 obs: lastObs,
@@ -230,7 +234,7 @@ public actor DQN {
                 case .fixed(let steps): gradSteps = steps
                 case .asCollectedSteps: gradSteps = stepsSinceTrain
                 }
-                let didTrain = await train(
+                let didTrain = try await train(
                     gradientSteps: gradSteps, batchSize: config.batchSize, callbacks: callbacks)
                 if didTrain { stepsSinceTrain = 0 }
             }
@@ -249,12 +253,14 @@ public actor DQN {
         }
 
         for _ in 0..<episodes {
+            try Task.checkCancellation()
             var obs = try environment.reset().obs
             var done = false
             var episodeReward: Double = 0
             var episodeLength: Int = 0
 
             while !done {
+                try Task.checkCancellation()
                 let action = callAsFunction(
                     observation: obs,
                     deterministic: deterministic
@@ -318,11 +324,11 @@ public actor DQN {
     var qNet: DQNPolicy { policy }
     var qNetTarget: DQNPolicy { targetPolicy }
 
-    nonisolated public func setEnv(_ env: any Env) {
-        self.env = env
+    public func setEnv(_ envBox: EnvBox) {
+        self.env = envBox.env
     }
 
-    nonisolated public func takeEnv() -> (any Env)? {
+    public func takeEnv() -> (any Env)? {
         let e = env
         env = nil
         return e
@@ -370,8 +376,7 @@ public actor DQN {
 
     private func shouldExplore(key: MLXArray) -> Bool {
         let random = MLX.uniform(0.0..<1.0, key: key, stream: .cpu)
-        eval(random)
-        return Double(random.item(Float.self)) < explorationRate
+        return Double(random.scalarValue(Float.self)) < explorationRate
     }
 
     private func sampleRandom(key: MLXArray) -> MLXArray {
@@ -391,8 +396,11 @@ public actor DQN {
     }
 
     @discardableResult
-    private func train(gradientSteps: Int, batchSize: Int, callbacks: LearnCallbacks?) async -> Bool
-    {
+    private func train(
+        gradientSteps: Int,
+        batchSize: Int,
+        callbacks: LearnCallbacks?
+    ) async throws -> Bool {
         guard var buf = buffer, buf.count >= batchSize else { return false }
 
         let lr = Float(learningRate.value(at: progressRemaining))
@@ -408,6 +416,7 @@ public actor DQN {
         qArrays.reserveCapacity(gradientSteps)
 
         for _ in 0..<gradientSteps {
+            try Task.checkCancellation()
             let (sampleKey, nextKey) = MLX.split(key: key, stream: .cpu)
             key = nextKey
             let batch = buf.sample(batchSize, key: sampleKey)
@@ -421,7 +430,7 @@ public actor DQN {
 
             self.gradientSteps += 1
             if self.gradientSteps % config.targetUpdateInterval == 0 {
-                updateTarget()
+                try updateTarget()
             }
         }
         buffer = buf
@@ -433,9 +442,9 @@ public actor DQN {
         eval(totalLoss, totalTD, totalQ)
 
         await callbacks?.onTrain?([
-            "loss": Double((totalLoss / steps).item(Float.self)),
-            "tdError": Double((totalTD / steps).item(Float.self)),
-            "meanQValue": Double((totalQ / steps).item(Float.self)),
+            "loss": Double((totalLoss / steps).scalarValue(Float.self)),
+            "tdError": Double((totalTD / steps).scalarValue(Float.self)),
+            "meanQValue": Double((totalQ / steps).scalarValue(Float.self)),
             "learningRate": Double(lr),
         ])
         return true
@@ -542,11 +551,17 @@ public actor DQN {
         return ModuleParameters.unflattened(clipped)
     }
 
-    private func updateTarget() {
+    private func updateTarget() throws {
         let qNetParams = policy.parameters()
         let targetParams = targetPolicy.parameters()
         let updated = polyakUpdate(target: targetParams, source: qNetParams, tau: config.tau)
-        _ = try? targetPolicy.update(parameters: updated, verify: .noUnusedKeys)
+        do {
+            try targetPolicy.update(parameters: updated, verify: .noUnusedKeys)
+        } catch {
+            throw GymnazoError.operationFailed(
+                "Failed to update DQN target network: \(error)"
+            )
+        }
         targetPolicy.setTrainingMode(false)
         eval(targetPolicy.parameters())
     }

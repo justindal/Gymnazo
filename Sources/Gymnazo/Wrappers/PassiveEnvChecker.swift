@@ -47,11 +47,8 @@ public final class PassiveEnvChecker: Wrapper {
     }
 
     public func close() {
-        if !closeCalled {
-            closeCalled = true
-            env.close()
-            return
-        }
+        guard !closeCalled else { return }
+        closeCalled = true
         env.close()
     }
 
