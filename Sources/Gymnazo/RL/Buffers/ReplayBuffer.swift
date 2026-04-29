@@ -63,6 +63,10 @@ public struct ReplayBuffer: Buffer {
             precondition(config.bufferSize > 1)
         }
 
+        let config = Self.config(
+            config, observationSpace: observationSpace
+        )
+
         self.observationSpace = observationSpace
         self.actionSpace = actionSpace
         self.config = config
@@ -182,6 +186,36 @@ public struct ReplayBuffer: Buffer {
             nextObs: nextObsBatch,
             dones: donesBatch,
             timeouts: timeoutsBatch
+        )
+    }
+
+    private static func config(
+        _ config: Configuration,
+        observationSpace: any Space
+    ) -> Configuration {
+        let obsShape = observationSpace.shape ?? [1]
+        let obsDtype = observationSpace.dtype ?? .float32
+        let bytesPerObs = obsShape.reduce(1, *) * obsDtype.size
+        guard bytesPerObs > 0 else { return config }
+
+        let maxBufferBytes = GPU.deviceInfo().maxBufferSize
+        guard maxBufferBytes > 0 else { return config }
+
+        let maxSafe = maxBufferBytes / bytesPerObs
+        guard config.bufferSize > maxSafe else { return config }
+
+        let bufferSize = max(1, maxSafe)
+        print(
+            "[ReplayBuffer] bufferSize \(config.bufferSize) would require "
+                + "\(config.bufferSize * bytesPerObs) bytes per observation buffer, "
+                + "exceeding Metal's \(maxBufferBytes)-byte limit on this device. "
+                + "Capping to \(bufferSize)."
+        )
+        return Configuration(
+            bufferSize: bufferSize,
+            optimizeMemoryUsage: config.optimizeMemoryUsage,
+            handleTimeoutTermination: config.handleTimeoutTermination,
+            seed: config.seed
         )
     }
 
