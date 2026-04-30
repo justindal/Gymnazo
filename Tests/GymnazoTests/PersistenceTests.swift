@@ -16,6 +16,12 @@ struct PersistenceTests {
         try? FileManager.default.removeItem(at: url)
     }
 
+    private func maxAbsDiff(_ lhs: MLXArray, _ rhs: MLXArray) -> Float {
+        let diff = MLX.abs(lhs.asType(.float32) - rhs.asType(.float32))
+        eval(diff)
+        return MLX.max(diff).item(Float.self)
+    }
+
     @Test @MainActor
     func tabularAgentQLearningSaveLoad() async throws {
         let dir = tempDir()
@@ -491,5 +497,61 @@ struct PersistenceTests {
             eval(diff)
             #expect(MLX.max(diff).item(Float.self) < 1e-6)
         }
+    }
+
+    @Test
+    func replayBufferFrameStackSaveLoad() throws {
+        let dir = tempDir()
+        defer { cleanup(dir) }
+
+        let obsSpace = Box(low: 0, high: 255, shape: [4, 2], dtype: .uint8)
+        let actSpace = Discrete(n: 3)
+        let bufferConfig = ReplayBuffer.Configuration(
+            bufferSize: 32,
+            optimizeMemoryUsage: true,
+            handleTimeoutTermination: false,
+            frameStack: .init(size: 4, padding: .zero)
+        )
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: bufferConfig
+        )
+
+        let zero = MLXArray([UInt8(0), UInt8(0)])
+        var previous = MLXArray([UInt8(10), UInt8(20)])
+        for i in 0..<6 {
+            let current = MLXArray([UInt8(11 + i), UInt8(21 + i)])
+            let obs = MLX.stacked([zero, zero, previous, previous], axis: 0).asType(.uint8)
+            let nextObs = MLX.stacked([zero, previous, previous, current], axis: 0).asType(.uint8)
+            buffer.add(
+                obs: obs,
+                action: MLXArray(Int32(i % 3)),
+                reward: MLXArray(Float(i)),
+                nextObs: nextObs,
+                terminated: false,
+                truncated: false
+            )
+            previous = current
+        }
+
+        try buffer.save(to: dir)
+
+        var loadedBuffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: bufferConfig
+        )
+        try loadedBuffer.load(from: dir)
+
+        #expect(loadedBuffer.count == buffer.count)
+        #expect(loadedBuffer.config.frameStack?.size == 4)
+
+        let key = MLX.key(123)
+        let originalSample = buffer.sample(2, key: key)
+        let loadedSample = loadedBuffer.sample(2, key: key)
+
+        #expect(maxAbsDiff(originalSample.obs, loadedSample.obs) < 1e-6)
+        #expect(maxAbsDiff(originalSample.nextObs, loadedSample.nextObs) < 1e-6)
     }
 }

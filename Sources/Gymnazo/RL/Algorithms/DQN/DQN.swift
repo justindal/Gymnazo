@@ -354,6 +354,7 @@ public actor DQN {
             bufferSize: config.bufferSize,
             optimizeMemoryUsage: config.optimizeMemoryUsage,
             handleTimeoutTermination: config.handleTimeoutTermination,
+            frameStack: config.replayFrameStack,
             seed: randomSeed
         )
         buffer = ReplayBuffer(

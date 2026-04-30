@@ -5,6 +5,12 @@ import Testing
 
 @Suite("Buffer invariants", .serialized)
 struct BufferTests {
+    private func maxAbsDiff(_ lhs: MLXArray, _ rhs: MLXArray) -> Float {
+        let diff = MLX.abs(lhs.asType(.float32) - rhs.asType(.float32))
+        eval(diff)
+        return MLX.max(diff).item(Float.self)
+    }
+
     @Test
     func replayBufferCapsCountAndSampleShapes() {
         let obsSpace = Box(
@@ -85,6 +91,49 @@ struct BufferTests {
 
         #expect(abs(doneValue - 0.0) < 1e-6)
         #expect(abs(timeoutValue - 1.0) < 1e-6)
+    }
+
+    @Test
+    func replayBufferFrameStackCompressionStoresFramesAndReconstructsSample() {
+        let obsSpace = Box(low: 0, high: 255, shape: [4, 2], dtype: .uint8)
+        let actSpace = Discrete(n: 2)
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: ReplayBuffer.Configuration(
+                bufferSize: 8,
+                optimizeMemoryUsage: true,
+                handleTimeoutTermination: false,
+                frameStack: .init(size: 4, padding: .zero)
+            )
+        )
+
+        let zero = MLXArray([UInt8(0), UInt8(0)])
+        let frame0 = MLXArray([UInt8(10), UInt8(20)])
+        let frame1 = MLXArray([UInt8(11), UInt8(21)])
+        let obs = MLX.stacked([zero, zero, zero, frame0], axis: 0).asType(.uint8)
+        let nextObs = MLX.stacked([zero, zero, frame0, frame1], axis: 0).asType(.uint8)
+
+        buffer.add(
+            obs: obs,
+            action: MLXArray(Int32(1)),
+            reward: MLXArray(1.0 as Float),
+            nextObs: nextObs,
+            terminated: false,
+            truncated: false
+        )
+
+        #expect(buffer.observations.shape == [8, 2])
+
+        let sample = buffer.sample(1, key: MLX.key(5))
+        #expect(sample.obs.shape == [1, 4, 2])
+        #expect(sample.nextObs.shape == [1, 4, 2])
+
+        let sampledObs = sample.obs[0]
+        let sampledNextObs = sample.nextObs[0]
+
+        #expect(maxAbsDiff(sampledObs, obs) < 1e-6)
+        #expect(maxAbsDiff(sampledNextObs, nextObs) < 1e-6)
     }
 
     @Test

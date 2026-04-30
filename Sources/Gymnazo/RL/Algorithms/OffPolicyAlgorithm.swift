@@ -34,6 +34,7 @@ public struct OffPolicyConfig: Sendable, Codable {
     public let targetUpdateInterval: Int
     public let optimizeMemoryUsage: Bool
     public let handleTimeoutTermination: Bool
+    public let replayFrameStack: ReplayBuffer.Configuration.FrameStackConfig?
     public let useSDEAtWarmup: Bool
     public let sdeSampleFreq: Int
     public let sdeSupported: Bool
@@ -49,6 +50,7 @@ public struct OffPolicyConfig: Sendable, Codable {
         targetUpdateInterval: Int = 1,
         optimizeMemoryUsage: Bool = false,
         handleTimeoutTermination: Bool = true,
+        replayFrameStack: ReplayBuffer.Configuration.FrameStackConfig? = nil,
         useSDEAtWarmup: Bool = false,
         sdeSampleFreq: Int = -1,
         sdeSupported: Bool = true
@@ -63,6 +65,7 @@ public struct OffPolicyConfig: Sendable, Codable {
         self.targetUpdateInterval = targetUpdateInterval
         self.optimizeMemoryUsage = optimizeMemoryUsage
         self.handleTimeoutTermination = handleTimeoutTermination
+        self.replayFrameStack = replayFrameStack
         self.useSDEAtWarmup = useSDEAtWarmup
         self.sdeSampleFreq = sdeSampleFreq
         self.sdeSupported = sdeSupported

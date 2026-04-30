@@ -43,6 +43,7 @@ public struct DQNConfig: Sendable, Codable {
     public let maxGradNorm: Double?
     public let optimizeMemoryUsage: Bool
     public let handleTimeoutTermination: Bool
+    public let replayFrameStack: ReplayBuffer.Configuration.FrameStackConfig?
 
     public init(
         bufferSize: Int = 1_000_000,
@@ -58,7 +59,8 @@ public struct DQNConfig: Sendable, Codable {
         explorationFinalEps: Double = 0.05,
         maxGradNorm: Double? = 10.0,
         optimizeMemoryUsage: Bool = false,
-        handleTimeoutTermination: Bool = true
+        handleTimeoutTermination: Bool = true,
+        replayFrameStack: ReplayBuffer.Configuration.FrameStackConfig? = nil
     ) {
         let safeTrainFrequency = TrainFrequency(
             frequency: max(1, trainFrequency.frequency),
@@ -94,6 +96,7 @@ public struct DQNConfig: Sendable, Codable {
         self.maxGradNorm = maxGradNorm.map { max(0.0, $0) }
         self.optimizeMemoryUsage = safeOptimizeMemoryUsage
         self.handleTimeoutTermination = handleTimeoutTermination
+        self.replayFrameStack = replayFrameStack
     }
 }
 
