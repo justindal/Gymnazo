@@ -16,6 +16,8 @@ public enum FrameStackPadding {
     case reset
     /// Fill initial frames with zeros, placing the reset observation last.
     case zero
+    /// Fill initial frames with a custom observation, placing the reset observation last.
+    case custom(MLXArray)
 }
 
 /// Stacks the last N observations for temporal information.
@@ -56,10 +58,9 @@ public struct FrameStackObservation: Wrapper {
     public let paddingType: FrameStackPadding
     public let observationSpace: any Space
 
-    /// Circular buffer of stacked frames
     private var frameBuffer: [MLXArray]
-    private var bufferIndex: Int = 0
     private var frameShape: [Int]
+    private var frameDtype: DType
 
     public var spec: EnvSpec? {
         get { env.spec }
@@ -92,14 +93,15 @@ public struct FrameStackObservation: Wrapper {
         }
 
         self.frameShape = innerShape
+        self.frameDtype = innerBox.dtype ?? .uint8
 
-        let newShape = [stackSize] + innerShape
-        self.observationSpace = Box(
-            low: 0,
-            high: 255,
-            shape: newShape,
-            dtype: innerBox.dtype ?? .uint8
-        )
+        if case .custom(let custom) = paddingType, custom.shape != innerShape {
+            throw GymnazoError.invalidObservationSpace
+        }
+
+        let low = MLX.stacked(Array(repeating: innerBox.low, count: stackSize), axis: 0)
+        let high = MLX.stacked(Array(repeating: innerBox.high, count: stackSize), axis: 0)
+        self.observationSpace = Box(low: low, high: high, dtype: self.frameDtype)
 
         self.frameBuffer = []
     }
@@ -121,51 +123,46 @@ public struct FrameStackObservation: Wrapper {
     public mutating func reset(seed: UInt64?, options: EnvOptions?) throws -> Reset {
         let result = try env.reset(seed: seed, options: options)
 
-        frameBuffer = []
-
-        let initialFrame: MLXArray
-        switch paddingType {
-        case .reset:
-            initialFrame = result.obs
-        case .zero:
-            initialFrame = MLXArray.zeros(frameShape).asType(observationSpace.dtype ?? .uint8)
+        frameBuffer.removeAll(keepingCapacity: true)
+        let paddingValue = paddingValue(from: result.obs)
+        for _ in 0..<(stackSize - 1) {
+            frameBuffer.append(paddingValue)
         }
-
-        for _ in 0..<stackSize {
-            frameBuffer.append(initialFrame)
-        }
-
-        if paddingType == .zero {
-            frameBuffer[stackSize - 1] = result.obs
-        }
-
-        bufferIndex = 0
+        frameBuffer.append(result.obs)
 
         return Reset(obs: getStackedObservation(), info: result.info)
     }
 
     private mutating func addFrame(_ frame: MLXArray) {
-        if frameBuffer.count < stackSize {
-            frameBuffer.append(frame)
-        } else {
-            frameBuffer[bufferIndex] = frame
-            bufferIndex = (bufferIndex + 1) % stackSize
+        if frameBuffer.count == stackSize {
+            frameBuffer.removeFirst()
+        }
+        frameBuffer.append(frame)
+    }
+
+    private func paddingValue(from resetObservation: MLXArray) -> MLXArray {
+        switch paddingType {
+        case .reset:
+            return resetObservation
+        case .zero:
+            return MLXArray.zeros(frameShape, dtype: frameDtype)
+        case .custom(let custom):
+            return custom.asType(frameDtype)
         }
     }
 
     private func getStackedObservation() -> MLXArray {
-        guard frameBuffer.count == stackSize else {
-            let fullShape = [stackSize] + frameShape
-            return MLXArray.zeros(fullShape).asType(observationSpace.dtype ?? .uint8)
+        if frameBuffer.count == stackSize {
+            return MLX.stacked(frameBuffer, axis: 0).asType(frameDtype)
         }
 
-        var orderedFrames: [MLXArray] = []
-        for i in 0..<stackSize {
-            let idx = (bufferIndex + i) % stackSize
-            orderedFrames.append(frameBuffer[idx])
+        var padded = frameBuffer
+        if padded.count < stackSize {
+            let zero = MLXArray.zeros(frameShape, dtype: frameDtype)
+            for _ in 0..<(stackSize - padded.count) {
+                padded.insert(zero, at: 0)
+            }
         }
-
-        let stacked = MLX.stacked(orderedFrames, axis: 0)
-        return stacked.asType(observationSpace.dtype ?? .uint8)
+        return MLX.stacked(padded, axis: 0).asType(frameDtype)
     }
 }
