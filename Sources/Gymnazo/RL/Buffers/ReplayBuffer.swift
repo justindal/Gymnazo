@@ -244,29 +244,7 @@ public struct ReplayBuffer: Buffer {
                 nextObsBatch = nextObservations![indices]
             }
         } else {
-            var doneCache: [Int: Bool] = [:]
-            var obsList: [MLXArray] = []
-            var nextList: [MLXArray] = []
-            obsList.reserveCapacity(rawIndices.count)
-            nextList.reserveCapacity(rawIndices.count)
-
-            for index in rawIndices {
-                let stackedObs = stackedObservation(
-                    endingAt: index,
-                    doneCache: &doneCache
-                )
-                obsList.append(stackedObs)
-
-                let nextFrame: MLXArray
-                if config.optimizeMemoryUsage {
-                    nextFrame = observations[(index + 1) % bufferSize]
-                } else {
-                    nextFrame = nextObservations![index]
-                }
-                nextList.append(shiftStack(stackedObs, appending: nextFrame))
-            }
-            obsBatch = MLX.stacked(obsList, axis: 0)
-            nextObsBatch = MLX.stacked(nextList, axis: 0)
+            (obsBatch, nextObsBatch) = sampleFrameStacks(rawIndices: rawIndices)
         }
 
         if config.handleTimeoutTermination {
@@ -281,6 +259,127 @@ public struct ReplayBuffer: Buffer {
             dones: donesBatch,
             timeouts: timeoutsBatch
         )
+    }
+
+    private func sampleFrameStacks(rawIndices: [Int]) -> (MLXArray, MLXArray) {
+        let frameStack = config.frameStack!
+        let stackSize = frameStack.size
+        let n = count
+        let batchCount = rawIndices.count
+        let frameShape = storageObsShape
+        let isZeroPad = frameStack.padding == .zero
+
+        let donesArray = prefetchDones(count: n)
+
+        var allFrameIndices: [Int32] = []
+        allFrameIndices.reserveCapacity(batchCount * stackSize)
+        var padMask: [Float]? = isZeroPad ? [] : nil
+        padMask?.reserveCapacity(batchCount * stackSize)
+        var nextFrameIndices: [Int32] = []
+        nextFrameIndices.reserveCapacity(batchCount)
+
+        for index in rawIndices {
+            var frameIdxForSample: [Int] = []
+            frameIdxForSample.reserveCapacity(stackSize)
+            var padCount = 0
+
+            var cursor = index
+            frameIdxForSample.append(cursor)
+
+            while frameIdxForSample.count < stackSize {
+                if isEpisodeStartCPU(cursor, donesArray: donesArray) {
+                    padCount = stackSize - frameIdxForSample.count
+                    let padIdx = frameIdxForSample[frameIdxForSample.count - 1]
+                    while frameIdxForSample.count < stackSize {
+                        frameIdxForSample.append(padIdx)
+                    }
+                    break
+                }
+                cursor = previousIndex(cursor)
+                frameIdxForSample.append(cursor)
+            }
+
+            frameIdxForSample.reverse()
+            allFrameIndices.append(contentsOf: frameIdxForSample.map { Int32($0) })
+
+            if isZeroPad {
+                for i in 0..<stackSize {
+                    padMask!.append(i < padCount ? 0.0 : 1.0)
+                }
+            }
+
+            if config.optimizeMemoryUsage {
+                nextFrameIndices.append(Int32((index + 1) % bufferSize))
+            } else {
+                nextFrameIndices.append(Int32(index))
+            }
+        }
+
+        let gatherIndices = MLXArray(allFrameIndices)
+        var allFrames = observations[gatherIndices]
+
+        if let mask = padMask {
+            let maskShape = [batchCount * stackSize] + Array(repeating: 1, count: frameShape.count)
+            let maskArr = MLXArray(mask).reshaped(maskShape)
+            allFrames = allFrames * maskArr
+        }
+
+        let batchedFrames = allFrames.reshaped([batchCount, stackSize] + frameShape)
+        let obsBatch: MLXArray
+        if resolvedStackAxis == 0 {
+            obsBatch = batchedFrames
+        } else {
+            var perm = [0]
+            for i in 2..<(2 + frameShape.count) {
+                if i - 1 == resolvedStackAxis {
+                    perm.append(1)
+                }
+                perm.append(i)
+            }
+            if perm.count < batchedFrames.ndim {
+                perm.append(1)
+            }
+            obsBatch = batchedFrames.transposed(axes: perm)
+        }
+
+        let nextIndicesArr = MLXArray(nextFrameIndices)
+        let nextFrames: MLXArray
+        if config.optimizeMemoryUsage {
+            nextFrames = observations[nextIndicesArr]
+        } else {
+            nextFrames = nextObservations![nextIndicesArr]
+        }
+
+        let nextObsBatch: MLXArray
+        if resolvedStackAxis == 0 {
+            let tail = obsBatch[0..., 1..<stackSize]
+            let newFrame = nextFrames.expandedDimensions(axis: 1)
+            nextObsBatch = MLX.concatenated([tail, newFrame], axis: 1)
+        } else {
+            let moved = obsBatch.swappedAxes(1, resolvedStackAxis + 1)
+            let tail = moved[0..., 1..<stackSize]
+            let newFrame = nextFrames.expandedDimensions(axis: 1)
+            let shifted = MLX.concatenated([tail, newFrame], axis: 1)
+            nextObsBatch = shifted.swappedAxes(1, resolvedStackAxis + 1)
+        }
+
+        return (obsBatch, nextObsBatch)
+    }
+
+    private func prefetchDones(count n: Int) -> [Float] {
+        let slice = n == bufferSize ? dones : dones[0..<n]
+        eval(slice)
+        return slice.asArray(Float.self)
+    }
+
+    private func isEpisodeStartCPU(_ index: Int, donesArray: [Float]) -> Bool {
+        if !isBufferFull {
+            if index == 0 { return true }
+            return donesArray[index - 1] > 0.5
+        }
+        if index == position { return true }
+        let previous = previousIndex(index)
+        return donesArray[previous] > 0.5
     }
 
     private static func config(
@@ -393,88 +492,8 @@ public struct ReplayBuffer: Buffer {
         return obs.swappedAxes(0, resolvedStackAxis)[lastIdx]
     }
 
-    private func stackedObservation(
-        endingAt index: Int,
-        doneCache: inout [Int: Bool]
-    ) -> MLXArray {
-        guard let frameStack = config.frameStack else {
-            return observations[index]
-        }
-
-        var frames: [MLXArray] = []
-        frames.reserveCapacity(frameStack.size)
-
-        var cursor = index
-        frames.append(observations[cursor])
-
-        while frames.count < frameStack.size {
-            if isEpisodeStart(cursor, doneCache: &doneCache) {
-                let paddingFrame: MLXArray
-                switch frameStack.padding {
-                case .reset:
-                    paddingFrame = frames[frames.count - 1]
-                case .zero:
-                    paddingFrame =
-                        zeroFrame
-                        ?? MLX.zeros(storageObsShape, dtype: storageObsDtype)
-                }
-                while frames.count < frameStack.size {
-                    frames.append(paddingFrame)
-                }
-                break
-            }
-
-            cursor = previousIndex(cursor)
-            frames.append(observations[cursor])
-        }
-
-        frames.reverse()
-        return MLX.stacked(frames, axis: resolvedStackAxis)
-    }
-
-    private func shiftStack(_ stack: MLXArray, appending frame: MLXArray) -> MLXArray {
-        guard let frameStack = config.frameStack else { return frame }
-        let axis = resolvedStackAxis
-        if frameStack.size <= 1 {
-            return frame.expandedDimensions(axis: axis)
-        }
-        if axis == 0 {
-            let tail = stack[1..<frameStack.size]
-            return MLX.concatenated([tail, frame.expandedDimensions(axis: 0)], axis: 0)
-        }
-        let moved = stack.swappedAxes(0, axis)
-        let tail = moved[1..<frameStack.size]
-        let shifted = MLX.concatenated([tail, frame.expandedDimensions(axis: 0)], axis: 0)
-        return shifted.swappedAxes(0, axis)
-    }
-
     private func previousIndex(_ index: Int) -> Int {
         (index - 1 + bufferSize) % bufferSize
-    }
-
-    private func isEpisodeStart(
-        _ index: Int,
-        doneCache: inout [Int: Bool]
-    ) -> Bool {
-        if !isBufferFull {
-            if index == 0 { return true }
-            return transitionDone(index - 1, doneCache: &doneCache)
-        }
-        if index == position { return true }
-        let previous = previousIndex(index)
-        return transitionDone(previous, doneCache: &doneCache)
-    }
-
-    private func transitionDone(
-        _ index: Int,
-        doneCache: inout [Int: Bool]
-    ) -> Bool {
-        if let cached = doneCache[index] {
-            return cached
-        }
-        let done = dones[index].item(Float.self) > 0.5
-        doneCache[index] = done
-        return done
     }
 }
 
