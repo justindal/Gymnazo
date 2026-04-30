@@ -330,11 +330,12 @@ public struct ReplayBuffer: Buffer {
             obsBatch = batchedFrames
         } else {
             var perm = [0]
-            for i in 2..<(2 + frameShape.count) {
-                if i - 1 == resolvedStackAxis {
+            let frameDims = Array(2..<(2 + frameShape.count))
+            for (offset, dim) in frameDims.enumerated() {
+                if offset == resolvedStackAxis {
                     perm.append(1)
                 }
-                perm.append(i)
+                perm.append(dim)
             }
             if perm.count < batchedFrames.ndim {
                 perm.append(1)

@@ -12,7 +12,7 @@ struct BufferTests {
     }
 
     @Test
-    func replayBufferCapsCountAndSampleShapes() {
+    func replayCountsAndShapes() {
         let obsSpace = Box(
             low: MLXArray([-1.0 as Float, -1.0 as Float]),
             high: MLXArray([1.0 as Float, 1.0 as Float])
@@ -58,7 +58,7 @@ struct BufferTests {
     }
 
     @Test
-    func replayBufferTimeoutMaskingSetsDoneToZero() {
+    func timeoutMaskingClearsDone() {
         let obsSpace = Box(
             low: MLXArray([-1.0 as Float]),
             high: MLXArray([1.0 as Float])
@@ -94,7 +94,7 @@ struct BufferTests {
     }
 
     @Test
-    func replayBufferFrameStackCompressionStoresFramesAndReconstructsSample() {
+    func frameStackCompressionRoundTrip() {
         let obsSpace = Box(low: 0, high: 255, shape: [4, 2], dtype: .uint8)
         let actSpace = Discrete(n: 2)
         var buffer = ReplayBuffer(
@@ -137,7 +137,236 @@ struct BufferTests {
     }
 
     @Test
-    func rolloutBufferAdvantagesAndBatchesAreFinite() {
+    func frameStackChannelLastShapes() {
+        let obsSpace = Box(low: 0, high: 255, shape: [84, 84, 4], dtype: .uint8)
+        let actSpace = Discrete(n: 5)
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: ReplayBuffer.Configuration(
+                bufferSize: 16,
+                optimizeMemoryUsage: true,
+                handleTimeoutTermination: false,
+                frameStack: .init(size: 4, padding: .zero, axis: -1)
+            )
+        )
+
+        for step in 0..<8 {
+            let frame = MLXArray(
+                Array(repeating: UInt8(step), count: 84 * 84 * 4),
+                [84, 84, 4]
+            )
+            let nextFrame = MLXArray(
+                Array(repeating: UInt8(step + 1), count: 84 * 84 * 4),
+                [84, 84, 4]
+            )
+            buffer.add(
+                obs: frame,
+                action: MLXArray(Int32(step % 5)),
+                reward: MLXArray(Float(step) * 0.1),
+                nextObs: nextFrame,
+                terminated: step == 4,
+                truncated: false
+            )
+        }
+
+        #expect(buffer.observations.shape == [16, 84, 84])
+
+        let sample = buffer.sample(4, key: MLX.key(42))
+        #expect(sample.obs.shape == [4, 84, 84, 4])
+        #expect(sample.nextObs.shape == [4, 84, 84, 4])
+        #expect(sample.actions.shape == [4, 1])
+        #expect(sample.rewards.shape == [4])
+        #expect(sample.dones.shape == [4])
+    }
+
+    @Test
+    func frameStackChannelLastValues() {
+        let stackSize = 4
+        let obsSpace = Box(low: 0, high: 255, shape: [2, 2, stackSize], dtype: .uint8)
+        let actSpace = Discrete(n: 2)
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: ReplayBuffer.Configuration(
+                bufferSize: 16,
+                optimizeMemoryUsage: true,
+                handleTimeoutTermination: false,
+                frameStack: .init(size: stackSize, padding: .zero, axis: -1)
+            )
+        )
+
+        for step in 0..<6 {
+            let val = UInt8(step + 1)
+            var frames: [[UInt8]] = []
+            for ch in 0..<stackSize {
+                let frameVal: UInt8 =
+                    ch < stackSize - 1 ? UInt8(max(0, Int(val) - (stackSize - 1 - ch))) : val
+                frames.append(Array(repeating: frameVal, count: 4))
+            }
+            let obsData = (0..<4).flatMap { pixel in frames.map { $0[pixel] } }
+            let obs = MLXArray(obsData, [2, 2, stackSize]).asType(.uint8)
+
+            let nextVal = UInt8(step + 2)
+            var nextFrames: [[UInt8]] = []
+            for ch in 0..<stackSize {
+                let frameVal: UInt8 =
+                    ch < stackSize - 1
+                    ? UInt8(max(0, Int(nextVal) - (stackSize - 1 - ch))) : nextVal
+                nextFrames.append(Array(repeating: frameVal, count: 4))
+            }
+            let nextObsData = (0..<4).flatMap { pixel in nextFrames.map { $0[pixel] } }
+            let nextObs = MLXArray(nextObsData, [2, 2, stackSize]).asType(.uint8)
+
+            buffer.add(
+                obs: obs,
+                action: MLXArray(Int32(0)),
+                reward: MLXArray(1.0 as Float),
+                nextObs: nextObs,
+                terminated: false,
+                truncated: false
+            )
+        }
+
+        let sample = buffer.sample(1, key: MLX.key(99))
+        #expect(sample.obs.shape == [1, 2, 2, stackSize])
+        #expect(sample.nextObs.shape == [1, 2, 2, stackSize])
+    }
+
+    @Test
+    func frameStackAxis0Shapes() {
+        let obsSpace = Box(low: 0, high: 255, shape: [4, 6], dtype: .uint8)
+        let actSpace = Discrete(n: 3)
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: ReplayBuffer.Configuration(
+                bufferSize: 10,
+                optimizeMemoryUsage: true,
+                handleTimeoutTermination: false,
+                frameStack: .init(size: 4, padding: .reset, axis: 0)
+            )
+        )
+
+        for step in 0..<6 {
+            let obs = MLXArray(
+                Array(repeating: UInt8(step), count: 4 * 6), [4, 6]
+            ).asType(.uint8)
+            let nextObs = MLXArray(
+                Array(repeating: UInt8(step + 1), count: 4 * 6), [4, 6]
+            ).asType(.uint8)
+            buffer.add(
+                obs: obs,
+                action: MLXArray(Int32(step % 3)),
+                reward: MLXArray(Float(step)),
+                nextObs: nextObs,
+                terminated: false,
+                truncated: false
+            )
+        }
+
+        #expect(buffer.observations.shape == [10, 6])
+
+        let sample = buffer.sample(2, key: MLX.key(7))
+        #expect(sample.obs.shape == [2, 4, 6])
+        #expect(sample.nextObs.shape == [2, 4, 6])
+    }
+
+    @Test
+    func frameStackChannelLastZeroPadding() {
+        let stackSize = 3
+        let obsSpace = Box(low: 0, high: 255, shape: [4, 4, stackSize], dtype: .uint8)
+        let actSpace = Discrete(n: 2)
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: ReplayBuffer.Configuration(
+                bufferSize: 10,
+                optimizeMemoryUsage: true,
+                handleTimeoutTermination: false,
+                frameStack: .init(size: stackSize, padding: .zero, axis: -1)
+            )
+        )
+
+        let zeroChannel = MLXArray.zeros([4, 4, 1]).asType(.uint8)
+        let fiveChannel = MLXArray.full([4, 4, 1], values: MLXArray(UInt8(5))).asType(.uint8)
+        let sixChannel = MLXArray.full([4, 4, 1], values: MLXArray(UInt8(6))).asType(.uint8)
+
+        let obs = MLX.concatenated(
+            [zeroChannel, zeroChannel, fiveChannel], axis: 2
+        )
+        let nextObs = MLX.concatenated(
+            [zeroChannel, fiveChannel, sixChannel], axis: 2
+        )
+        eval(obs, nextObs)
+
+        buffer.add(
+            obs: obs,
+            action: MLXArray(Int32(1)),
+            reward: MLXArray(1.0 as Float),
+            nextObs: nextObs,
+            terminated: false,
+            truncated: false
+        )
+
+        let sample = buffer.sample(1, key: MLX.key(3))
+        #expect(sample.obs.shape == [1, 4, 4, stackSize])
+        #expect(sample.nextObs.shape == [1, 4, 4, stackSize])
+
+        eval(sample.obs)
+        let obsSlice = sample.obs[0]
+        eval(obsSlice)
+        let zeroChannels = obsSlice[0..., 0..., ..<(stackSize - 1)]
+        eval(zeroChannels)
+        let maxVal = MLX.max(zeroChannels).item(Float.self)
+        #expect(maxVal < 1e-6)
+
+        let lastChannel = obsSlice[0..., 0..., (stackSize - 1)..<stackSize]
+        eval(lastChannel)
+        let minVal = MLX.min(lastChannel).item(Float.self)
+        #expect(minVal > 4.0)
+    }
+
+    @Test
+    func frameStackEpisodeBoundary() {
+        let stackSize = 3
+        let obsSpace = Box(low: 0, high: 255, shape: [stackSize, 2], dtype: .uint8)
+        let actSpace = Discrete(n: 2)
+        var buffer = ReplayBuffer(
+            observationSpace: obsSpace,
+            actionSpace: actSpace,
+            config: ReplayBuffer.Configuration(
+                bufferSize: 10,
+                optimizeMemoryUsage: true,
+                handleTimeoutTermination: false,
+                frameStack: .init(size: stackSize, padding: .zero, axis: 0)
+            )
+        )
+
+        for step in 0..<3 {
+            let obs = MLXArray(
+                Array(repeating: UInt8(step + 1), count: stackSize * 2), [stackSize, 2]
+            ).asType(.uint8)
+            let nextObs = MLXArray(
+                Array(repeating: UInt8(step + 2), count: stackSize * 2), [stackSize, 2]
+            ).asType(.uint8)
+            buffer.add(
+                obs: obs,
+                action: MLXArray(Int32(0)),
+                reward: MLXArray(1.0 as Float),
+                nextObs: nextObs,
+                terminated: step == 1,
+                truncated: false
+            )
+        }
+
+        let sample = buffer.sample(3, key: MLX.key(55))
+        #expect(sample.obs.shape == [3, stackSize, 2])
+        #expect(sample.nextObs.shape == [3, stackSize, 2])
+    }
+
+    @Test
+    func rolloutFiniteStatsAndBatches() {
         let obsSpace = Box(low: -1.0, high: 1.0, shape: [3])
         let actSpace = Box(low: -1.0, high: 1.0, shape: [1])
         var buffer = RolloutBuffer(
