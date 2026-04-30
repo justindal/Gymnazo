@@ -138,12 +138,16 @@ extension Env {
     /// - Parameters:
     ///   - stackSize: Number of frames to stack (typically 4).
     ///   - paddingType: How to pad initial frames: `.reset` or `.zero`.
+    ///   - stackAxis: Axis along which to stack. Use `-1` for channel-last (HWC) layout.
     /// - Returns: The wrapped environment.
     public func frameStacked(
         _ stackSize: Int,
-        paddingType: FrameStackPadding = .reset
+        paddingType: FrameStackPadding = .reset,
+        stackAxis: Int = 0
     ) throws -> FrameStackObservation {
-        try FrameStackObservation(env: self, stackSize: stackSize, paddingType: paddingType)
+        try FrameStackObservation(
+            env: self, stackSize: stackSize, paddingType: paddingType, stackAxis: stackAxis
+        )
     }
 
     /// Applies state-aware reward shaping.

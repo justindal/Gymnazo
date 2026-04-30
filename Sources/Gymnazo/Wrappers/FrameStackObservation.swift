@@ -36,25 +36,27 @@ public enum FrameStackPadding {
 /// ## Example
 ///
 /// ```swift
-/// // Standard CarRacing preprocessing pipeline
+/// // Standard CarRacing preprocessing pipeline (channel-stacked for NatureCNN)
 /// var env = CarRacing()
 ///     .grayscale()
 ///     .resized(to: (84, 84))
-///     .frameStacked(4)           // [84, 84] -> [4, 84, 84]
+///     .frameStacked(4, stackAxis: -1)  // [84, 84] -> [84, 84, 4]
 ///     .timeLimited(1000)
 /// ```
 ///
 /// ## Topics
 ///
 /// ### Creating a Frame Stack Wrapper
-/// - ``init(env:stackSize:paddingType:)``
+/// - ``init(env:stackSize:paddingType:stackAxis:)``
 ///
 /// ### Configuration
 /// - ``stackSize``
 /// - ``paddingType``
+/// - ``stackAxis``
 public struct FrameStackObservation: Wrapper {
     public var env: any Env
     public let stackSize: Int
+    public let stackAxis: Int
     public let paddingType: FrameStackPadding
     public let observationSpace: any Space
 
@@ -77,13 +79,20 @@ public struct FrameStackObservation: Wrapper {
     ///   - env: The environment to wrap
     ///   - stackSize: Number of frames to stack (typically 4)
     ///   - paddingType: How to pad initial frames: `.reset` or `.zero`
-    public init(env: any Env, stackSize: Int, paddingType: FrameStackPadding = .reset) throws {
+    ///   - stackAxis: Axis along which to stack frames. Use `-1` for channel-last (HWC) layout.
+    public init(
+        env: any Env,
+        stackSize: Int,
+        paddingType: FrameStackPadding = .reset,
+        stackAxis: Int = 0
+    ) throws {
         guard stackSize >= 1 else {
             throw GymnazoError.invalidStackSize(stackSize)
         }
 
         self.env = env
         self.stackSize = stackSize
+        self.stackAxis = stackAxis
         self.paddingType = paddingType
 
         guard let innerBox = env.observationSpace as? Box,
@@ -99,8 +108,8 @@ public struct FrameStackObservation: Wrapper {
             throw GymnazoError.invalidObservationSpace
         }
 
-        let low = MLX.stacked(Array(repeating: innerBox.low, count: stackSize), axis: 0)
-        let high = MLX.stacked(Array(repeating: innerBox.high, count: stackSize), axis: 0)
+        let low = MLX.stacked(Array(repeating: innerBox.low, count: stackSize), axis: stackAxis)
+        let high = MLX.stacked(Array(repeating: innerBox.high, count: stackSize), axis: stackAxis)
         self.observationSpace = Box(low: low, high: high, dtype: self.frameDtype)
 
         self.frameBuffer = []
@@ -153,7 +162,7 @@ public struct FrameStackObservation: Wrapper {
 
     private func getStackedObservation() -> MLXArray {
         if frameBuffer.count == stackSize {
-            return MLX.stacked(frameBuffer, axis: 0).asType(frameDtype)
+            return MLX.stacked(frameBuffer, axis: stackAxis).asType(frameDtype)
         }
 
         var padded = frameBuffer
@@ -163,6 +172,6 @@ public struct FrameStackObservation: Wrapper {
                 padded.insert(zero, at: 0)
             }
         }
-        return MLX.stacked(padded, axis: 0).asType(frameDtype)
+        return MLX.stacked(padded, axis: stackAxis).asType(frameDtype)
     }
 }

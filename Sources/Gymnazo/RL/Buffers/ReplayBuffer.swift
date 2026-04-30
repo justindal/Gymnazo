@@ -10,11 +10,24 @@ public struct ReplayBuffer: Buffer {
         public struct FrameStackConfig: Sendable, Codable, Equatable {
             public let size: Int
             public let padding: FrameStackPadding
+            public let axis: Int
 
-            public init(size: Int, padding: FrameStackPadding = .reset) {
+            public init(size: Int, padding: FrameStackPadding = .reset, axis: Int = 0) {
                 precondition(size > 1)
                 self.size = size
                 self.padding = padding
+                self.axis = axis
+            }
+
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                size = try container.decode(Int.self, forKey: .size)
+                padding = try container.decode(FrameStackPadding.self, forKey: .padding)
+                axis = try container.decodeIfPresent(Int.self, forKey: .axis) ?? 0
+            }
+
+            public func resolvedAxis(ndim: Int) -> Int {
+                axis >= 0 ? axis : ndim + axis
             }
         }
 
@@ -68,6 +81,7 @@ public struct ReplayBuffer: Buffer {
     private let storageObsShape: [Int]
     private let storageObsDtype: DType
     private let zeroFrame: MLXArray?
+    private let resolvedStackAxis: Int
 
     public var count: Int { isBufferFull ? bufferSize : position }
 
@@ -103,6 +117,15 @@ public struct ReplayBuffer: Buffer {
             zeroFrame = nil
         }
 
+        let resolvedAxis: Int
+        if let frameStack = config.frameStack,
+            let obsNdim = observationSpace.shape?.count
+        {
+            resolvedAxis = frameStack.resolvedAxis(ndim: obsNdim)
+        } else {
+            resolvedAxis = 0
+        }
+
         self.observationSpace = observationSpace
         self.actionSpace = actionSpace
         self.config = config
@@ -110,6 +133,7 @@ public struct ReplayBuffer: Buffer {
         self.storageObsShape = storageObsShape
         self.storageObsDtype = storageObsDtype
         self.zeroFrame = zeroFrame
+        self.resolvedStackAxis = resolvedAxis
 
         let (obs, nextObs, acts, rews, dns, tos) = Self.allocateStorage(
             bufferSize: config.bufferSize,
@@ -300,11 +324,14 @@ public struct ReplayBuffer: Buffer {
         let shape = observationSpace.shape ?? [1]
         guard let frameStack else { return shape }
         precondition(!shape.isEmpty)
+        let axis = frameStack.resolvedAxis(ndim: shape.count)
         precondition(
-            shape[0] == frameStack.size,
-            "frameStack size \(frameStack.size) does not match observation shape \(shape)"
+            shape[axis] == frameStack.size,
+            "frameStack size \(frameStack.size) does not match observation shape \(shape) at axis \(axis)"
         )
-        return Array(shape.dropFirst())
+        var result = shape
+        result.remove(at: axis)
+        return result
     }
 
     private static func allocateStorage(
@@ -359,7 +386,11 @@ public struct ReplayBuffer: Buffer {
 
     private func toStoredObservation(_ obs: MLXArray) -> MLXArray {
         guard let frameStack = config.frameStack else { return obs }
-        return obs[frameStack.size - 1]
+        let lastIdx = frameStack.size - 1
+        if resolvedStackAxis == 0 {
+            return obs[lastIdx]
+        }
+        return obs.swappedAxes(0, resolvedStackAxis)[lastIdx]
     }
 
     private func stackedObservation(
@@ -398,16 +429,23 @@ public struct ReplayBuffer: Buffer {
         }
 
         frames.reverse()
-        return MLX.stacked(frames, axis: 0)
+        return MLX.stacked(frames, axis: resolvedStackAxis)
     }
 
     private func shiftStack(_ stack: MLXArray, appending frame: MLXArray) -> MLXArray {
         guard let frameStack = config.frameStack else { return frame }
+        let axis = resolvedStackAxis
         if frameStack.size <= 1 {
-            return frame.expandedDimensions(axis: 0)
+            return frame.expandedDimensions(axis: axis)
         }
-        let tail = stack[1..<frameStack.size]
-        return MLX.concatenated([tail, frame.expandedDimensions(axis: 0)], axis: 0)
+        if axis == 0 {
+            let tail = stack[1..<frameStack.size]
+            return MLX.concatenated([tail, frame.expandedDimensions(axis: 0)], axis: 0)
+        }
+        let moved = stack.swappedAxes(0, axis)
+        let tail = moved[1..<frameStack.size]
+        let shifted = MLX.concatenated([tail, frame.expandedDimensions(axis: 0)], axis: 0)
+        return shifted.swappedAxes(0, axis)
     }
 
     private func previousIndex(_ index: Int) -> Int {
