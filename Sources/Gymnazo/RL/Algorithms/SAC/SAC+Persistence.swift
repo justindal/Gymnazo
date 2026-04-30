@@ -124,6 +124,7 @@ extension SAC {
                     bufferSize: offPolicyConfig.bufferSize,
                     optimizeMemoryUsage: offPolicyConfig.optimizeMemoryUsage,
                     handleTimeoutTermination: offPolicyConfig.handleTimeoutTermination,
+                    frameStack: offPolicyConfig.replayFrameStack,
                     seed: checkpoint.seed
                 )
                 var buffer = ReplayBuffer(

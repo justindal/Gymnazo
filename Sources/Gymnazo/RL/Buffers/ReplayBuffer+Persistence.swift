@@ -5,6 +5,7 @@ struct ReplayBufferMetadata: Codable {
     let bufferSize: Int
     let optimizeMemoryUsage: Bool
     let handleTimeoutTermination: Bool
+    let frameStack: ReplayBuffer.Configuration.FrameStackConfig?
     let seed: UInt64?
     let position: Int
     let isFull: Bool
@@ -55,6 +56,7 @@ extension ReplayBuffer: BufferPersisting {
             bufferSize: config.bufferSize,
             optimizeMemoryUsage: config.optimizeMemoryUsage,
             handleTimeoutTermination: config.handleTimeoutTermination,
+            frameStack: config.frameStack,
             seed: config.seed,
             position: position,
             isFull: isBufferFull,

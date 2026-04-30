@@ -521,6 +521,7 @@ public actor SAC {
             bufferSize: offPolicyConfig.bufferSize,
             optimizeMemoryUsage: offPolicyConfig.optimizeMemoryUsage,
             handleTimeoutTermination: offPolicyConfig.handleTimeoutTermination,
+            frameStack: offPolicyConfig.replayFrameStack,
             seed: randomSeed
         )
         buffer = ReplayBuffer(

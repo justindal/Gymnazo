@@ -427,6 +427,7 @@ public actor TD3 {
             bufferSize: offPolicyConfig.bufferSize,
             optimizeMemoryUsage: offPolicyConfig.optimizeMemoryUsage,
             handleTimeoutTermination: offPolicyConfig.handleTimeoutTermination,
+            frameStack: offPolicyConfig.replayFrameStack,
             seed: randomSeed
         )
         buffer = ReplayBuffer(

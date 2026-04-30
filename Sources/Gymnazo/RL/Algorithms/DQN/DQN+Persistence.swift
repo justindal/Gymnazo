@@ -91,6 +91,7 @@ extension DQN {
                     bufferSize: dqnConfig.bufferSize,
                     optimizeMemoryUsage: dqnConfig.optimizeMemoryUsage,
                     handleTimeoutTermination: dqnConfig.handleTimeoutTermination,
+                    frameStack: dqnConfig.replayFrameStack,
                     seed: checkpoint.seed
                 )
                 var buffer = ReplayBuffer(
