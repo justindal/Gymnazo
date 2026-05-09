@@ -41,6 +41,10 @@ public struct ResizeObservation: Wrapper {
     public let targetHeight: Int
     public let targetWidth: Int
     public let observationSpace: any Space
+    private let sourceHeight: Int
+    private let sourceWidth: Int
+    private let indicesH: MLXArray
+    private let indicesW: MLXArray
 
     public var spec: EnvSpec? {
         get { env.spec }
@@ -67,6 +71,12 @@ public struct ResizeObservation: Wrapper {
         else {
             throw GymnazoError.invalidResizeShape
         }
+        let sourceHeight = innerShape[0]
+        let sourceWidth = innerShape[1]
+        self.sourceHeight = sourceHeight
+        self.sourceWidth = sourceWidth
+        self.indicesH = Self.resizeIndices(source: sourceHeight, target: targetHeight)
+        self.indicesW = Self.resizeIndices(source: sourceWidth, target: targetWidth)
 
         var newShape = [targetHeight, targetWidth]
         if innerShape.count > 2 {
@@ -110,24 +120,15 @@ public struct ResizeObservation: Wrapper {
             input = input.expandedDimensions(axis: 0)
         }
 
-        let scaleH = Float(originalShape[0]) / Float(targetHeight)
-        let scaleW = Float(originalShape[1]) / Float(targetWidth)
-
-        var indices_h = [Int32]()
-        var indices_w = [Int32]()
-
-        for h in 0..<targetHeight {
-            let srcH = min(Int(Float(h) * scaleH), originalShape[0] - 1)
-            indices_h.append(Int32(srcH))
+        let indicesHArray: MLXArray
+        let indicesWArray: MLXArray
+        if originalShape[0] == sourceHeight && originalShape[1] == sourceWidth {
+            indicesHArray = indicesH
+            indicesWArray = indicesW
+        } else {
+            indicesHArray = Self.resizeIndices(source: originalShape[0], target: targetHeight)
+            indicesWArray = Self.resizeIndices(source: originalShape[1], target: targetWidth)
         }
-
-        for w in 0..<targetWidth {
-            let srcW = min(Int(Float(w) * scaleW), originalShape[1] - 1)
-            indices_w.append(Int32(srcW))
-        }
-
-        let indicesHArray = MLXArray(indices_h)
-        let indicesWArray = MLXArray(indices_w)
 
         var resized = input.take(indicesHArray, axis: 1)
         resized = resized.take(indicesWArray, axis: 2)
@@ -139,5 +140,16 @@ public struct ResizeObservation: Wrapper {
         }
 
         return resized.asType(observationSpace.dtype ?? .uint8)
+    }
+
+    private static func resizeIndices(source: Int, target: Int) -> MLXArray {
+        let scale = Float(source) / Float(target)
+        var indices = [Int32]()
+        indices.reserveCapacity(target)
+        for i in 0..<target {
+            let src = min(Int(Float(i) * scale), source - 1)
+            indices.append(Int32(src))
+        }
+        return MLXArray(indices)
     }
 }

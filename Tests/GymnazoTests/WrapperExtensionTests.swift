@@ -68,6 +68,24 @@ struct WrapperExtensionTests {
         #expect(env is TimeLimit)
     }
 
+    @Test("frameSkipped creates FrameSkip wrapper")
+    func testFrameSkipped() async throws {
+        let baseEnv = try await makeCartPole()
+        let env = try baseEnv.frameSkipped(2)
+
+        #expect(env is FrameSkip)
+    }
+
+    @Test("frameSkipped accumulates rewards")
+    func testFrameSkippedAccumulatesRewards() async throws {
+        let baseEnv = try await makeCartPole()
+        var env = try baseEnv.frameSkipped(2)
+
+        _ = try env.reset(seed: 42, options: nil)
+        let step = try env.step(MLXArray(Int32(0)))
+        #expect(step.reward == 2.0)
+    }
+
     @Test("observationsNormalized creates NormalizeObservation wrapper")
     func testObservationsNormalized() async throws {
         let baseEnv = try await makeCartPole()

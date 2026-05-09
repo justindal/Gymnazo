@@ -133,6 +133,10 @@ extension Env {
         try ResizeObservation(env: self, shape: shape)
     }
 
+    public func frameSkipped(_ skip: Int = 2) throws -> FrameSkip {
+        try FrameSkip(env: self, skip: skip)
+    }
+
     /// Stacks the last N observations for temporal information.
     ///
     /// - Parameters:
