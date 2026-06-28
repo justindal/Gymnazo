@@ -3,6 +3,7 @@ import MLX
 
 struct ReplayBufferMetadata: Codable {
     let bufferSize: Int
+    let requestedBufferSize: Int?
     let optimizeMemoryUsage: Bool
     let handleTimeoutTermination: Bool
     let frameStack: ReplayBuffer.Configuration.FrameStackConfig?
@@ -26,7 +27,7 @@ extension ReplayBuffer: BufferPersisting {
         let doneSlice = n == bufferSize ? dones : dones[0..<n]
         let timeoutSlice = n == bufferSize ? timeouts : timeouts[0..<n]
 
-        eval(obsSlice, actSlice, rewSlice, doneSlice, timeoutSlice)
+        try MLXEval.evaluate(obsSlice, actSlice, rewSlice, doneSlice, timeoutSlice)
 
         try MLX.save(
             arrays: ["data": obsSlice],
@@ -46,7 +47,7 @@ extension ReplayBuffer: BufferPersisting {
 
         if let nextObs = nextObservations {
             let nextSlice = n == bufferSize ? nextObs : nextObs[0..<n]
-            eval(nextSlice)
+            try MLXEval.evaluate(nextSlice)
             try MLX.save(
                 arrays: ["data": nextSlice],
                 url: url.appendingPathComponent("next_observations.safetensors"))
@@ -54,6 +55,7 @@ extension ReplayBuffer: BufferPersisting {
 
         let meta = ReplayBufferMetadata(
             bufferSize: config.bufferSize,
+            requestedBufferSize: allocationInfo.requested,
             optimizeMemoryUsage: config.optimizeMemoryUsage,
             handleTimeoutTermination: config.handleTimeoutTermination,
             frameStack: config.frameStack,
@@ -79,6 +81,8 @@ extension ReplayBuffer: BufferPersisting {
         let metaData = try Data(contentsOf: metaURL)
         let meta = try JSONDecoder().decode(ReplayBufferMetadata.self, from: metaData)
 
+        try validateMetadata(meta)
+
         guard meta.count > 0 else {
             reset()
             return
@@ -100,12 +104,47 @@ extension ReplayBuffer: BufferPersisting {
             }
         }
 
+        try validateLoadedTensors()
+
         var toEval = [observations, actions, rewards, dones, timeouts]
         if let next = nextObservations { toEval.append(next) }
-        eval(toEval)
+        try MLXEval.evaluate(toEval)
 
         position = meta.position
         isBufferFull = meta.isFull
+    }
+
+    private func validateMetadata(_ meta: ReplayBufferMetadata) throws {
+        guard meta.bufferSize == config.bufferSize else {
+            throw PersistenceError.invalidCheckpoint("bufferSize mismatch")
+        }
+        guard meta.optimizeMemoryUsage == config.optimizeMemoryUsage else {
+            throw PersistenceError.invalidCheckpoint("optimizeMemoryUsage mismatch")
+        }
+        guard meta.handleTimeoutTermination == config.handleTimeoutTermination else {
+            throw PersistenceError.invalidCheckpoint("handleTimeoutTermination mismatch")
+        }
+        guard meta.frameStack == config.frameStack else {
+            throw PersistenceError.invalidCheckpoint("frameStack mismatch")
+        }
+    }
+
+    private func validateLoadedTensors() throws {
+        guard observations.shape[0] == bufferSize else {
+            throw PersistenceError.invalidCheckpoint("observations buffer dimension mismatch")
+        }
+        let expectedObsShape = [bufferSize] + storageObsShape
+        guard observations.shape == expectedObsShape else {
+            throw PersistenceError.invalidCheckpoint("observations shape mismatch")
+        }
+        guard actions.shape[0] == bufferSize else {
+            throw PersistenceError.invalidCheckpoint("actions buffer dimension mismatch")
+        }
+        if let nextObs = nextObservations {
+            guard nextObs.shape == expectedObsShape else {
+                throw PersistenceError.invalidCheckpoint("next_observations shape mismatch")
+            }
+        }
     }
 
     private static func loadAndPad(

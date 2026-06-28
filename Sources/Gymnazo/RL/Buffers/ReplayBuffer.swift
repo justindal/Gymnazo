@@ -67,6 +67,7 @@ public struct ReplayBuffer: Buffer {
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let numEnvs: Int
+    public let allocationInfo: ReplayBufferAllocationInfo
 
     var observations: MLXArray
     var nextObservations: MLXArray?
@@ -78,9 +79,9 @@ public struct ReplayBuffer: Buffer {
     var position: Int = 0
     var isBufferFull: Bool = false
     private var keyState: MLXArray?
-    private let storageObsShape: [Int]
+    let storageObsShape: [Int]
     private let storageObsDtype: DType
-    private let zeroFrame: MLXArray?
+    private let actionDim: Int
     private let resolvedStackAxis: Int
 
     public var count: Int { isBufferFull ? bufferSize : position }
@@ -90,7 +91,7 @@ public struct ReplayBuffer: Buffer {
         actionSpace: any Space,
         config: Configuration,
         numEnvs: Int = 1
-    ) {
+    ) throws {
         precondition(numEnvs > 0)
         precondition(
             !(config.optimizeMemoryUsage && config.handleTimeoutTermination),
@@ -99,26 +100,21 @@ public struct ReplayBuffer: Buffer {
             precondition(config.bufferSize > 1)
         }
 
-        let config = Self.config(
-            config, observationSpace: observationSpace
-        )
         let storageObsShape = Self.storageObservationShape(
             observationSpace: observationSpace,
             frameStack: config.frameStack
         )
         let storageObsDtype = observationSpace.dtype ?? .float32
-        let zeroFrame: MLXArray?
-        if config.frameStack?.padding == .zero {
-            zeroFrame = MLX.zeros(storageObsShape, dtype: storageObsDtype)
-            if let zeroFrame {
-                eval(zeroFrame)
-            }
-        } else {
-            zeroFrame = nil
-        }
+        let actionDim = bufferActionDim(for: actionSpace)
+        let resolved = try ReplayBufferSizing.resolve(
+            config: config,
+            storageObsShape: storageObsShape,
+            storageObsDtype: storageObsDtype,
+            actionDim: actionDim
+        )
 
         let resolvedAxis: Int
-        if let frameStack = config.frameStack,
+        if let frameStack = resolved.config.frameStack,
             let obsNdim = observationSpace.shape?.count
         {
             resolvedAxis = frameStack.resolvedAxis(ndim: obsNdim)
@@ -128,19 +124,20 @@ public struct ReplayBuffer: Buffer {
 
         self.observationSpace = observationSpace
         self.actionSpace = actionSpace
-        self.config = config
+        self.config = resolved.config
+        self.allocationInfo = resolved.info
         self.numEnvs = numEnvs
         self.storageObsShape = storageObsShape
         self.storageObsDtype = storageObsDtype
-        self.zeroFrame = zeroFrame
+        self.actionDim = actionDim
         self.resolvedStackAxis = resolvedAxis
 
         let (obs, nextObs, acts, rews, dns, tos) = Self.allocateStorage(
-            bufferSize: config.bufferSize,
+            bufferSize: resolved.config.bufferSize,
             observationShape: storageObsShape,
             observationDtype: storageObsDtype,
-            actionSpace: actionSpace,
-            optimizeMemory: config.optimizeMemoryUsage
+            actionDim: actionDim,
+            optimizeMemory: resolved.config.optimizeMemoryUsage
         )
         self.observations = obs
         self.nextObservations = nextObs
@@ -148,12 +145,7 @@ public struct ReplayBuffer: Buffer {
         self.rewards = rews
         self.dones = dns
         self.timeouts = tos
-
-        var toEval = [observations, actions, rewards, dones, timeouts]
-        if let next = nextObservations { toEval.append(next) }
-        eval(toEval)
-
-        self.keyState = config.seed.map { MLXRandom.key($0) }
+        self.keyState = resolved.config.seed.map { MLXRandom.key($0) }
     }
 
     public mutating func reset() {
@@ -161,7 +153,7 @@ public struct ReplayBuffer: Buffer {
             bufferSize: config.bufferSize,
             observationShape: storageObsShape,
             observationDtype: storageObsDtype,
-            actionSpace: actionSpace,
+            actionDim: actionDim,
             optimizeMemory: config.optimizeMemoryUsage
         )
         observations = obs
@@ -170,10 +162,6 @@ public struct ReplayBuffer: Buffer {
         rewards = rews
         dones = dns
         timeouts = tos
-
-        var toEval = [observations, actions, rewards, dones, timeouts]
-        if let next = nextObservations { toEval.append(next) }
-        eval(toEval)
 
         position = 0
         isBufferFull = false
@@ -187,11 +175,15 @@ public struct ReplayBuffer: Buffer {
         nextObs: MLXArray,
         terminated: Bool,
         truncated: Bool
-    ) {
-        let doneValue: Float = (terminated || truncated) ? 1.0 : 0.0
-        let timeoutValue: Float = truncated ? 1.0 : 0.0
+    ) throws {
         let storedObs = toStoredObservation(obs)
         let storedNextObs = toStoredObservation(nextObs)
+        try validateStoredObs(storedObs)
+        try validateStoredObs(storedNextObs)
+        try validateAction(action)
+
+        let doneValue: Float = (terminated || truncated) ? 1.0 : 0.0
+        let timeoutValue: Float = truncated ? 1.0 : 0.0
 
         observations[position] = storedObs
         actions[position] = action.reshaped([-1])
@@ -206,15 +198,11 @@ public struct ReplayBuffer: Buffer {
             nextObservations![position] = storedNextObs
         }
 
-        var toEval = [observations, actions, rewards, dones, timeouts]
-        if let next = nextObservations { toEval.append(next) }
-        eval(toEval)
-
         position = (position + 1) % bufferSize
         if position == 0 { isBufferFull = true }
     }
 
-    public mutating func sample(_ batchSize: Int, key: MLXArray) -> Sample {
+    public mutating func sample(_ batchSize: Int, key: MLXArray) throws -> Sample {
         precondition(batchSize > 0)
         precondition(count >= batchSize)
         let samplingKey: MLXArray
@@ -225,7 +213,7 @@ public struct ReplayBuffer: Buffer {
         } else {
             samplingKey = key
         }
-        let rawIndices = sampleIndices(batchSize: batchSize, key: samplingKey)
+        let rawIndices = try sampleIndices(batchSize: batchSize, key: samplingKey)
         let indices = MLXArray(rawIndices.map { Int32($0) })
 
         let actionsBatch = actions[indices]
@@ -244,7 +232,7 @@ public struct ReplayBuffer: Buffer {
                 nextObsBatch = nextObservations![indices]
             }
         } else {
-            (obsBatch, nextObsBatch) = sampleFrameStacks(rawIndices: rawIndices)
+            (obsBatch, nextObsBatch) = try sampleFrameStacks(rawIndices: rawIndices)
         }
 
         if config.handleTimeoutTermination {
@@ -261,7 +249,7 @@ public struct ReplayBuffer: Buffer {
         )
     }
 
-    private func sampleFrameStacks(rawIndices: [Int]) -> (MLXArray, MLXArray) {
+    private func sampleFrameStacks(rawIndices: [Int]) throws -> (MLXArray, MLXArray) {
         let frameStack = config.frameStack!
         let stackSize = frameStack.size
         let n = count
@@ -269,7 +257,7 @@ public struct ReplayBuffer: Buffer {
         let frameShape = storageObsShape
         let isZeroPad = frameStack.padding == .zero
 
-        let donesArray = prefetchDones(count: n)
+        let donesArray = try prefetchDones(count: n)
 
         var allFrameIndices: [Int32] = []
         allFrameIndices.reserveCapacity(batchCount * stackSize)
@@ -367,9 +355,9 @@ public struct ReplayBuffer: Buffer {
         return (obsBatch, nextObsBatch)
     }
 
-    private func prefetchDones(count n: Int) -> [Float] {
+    private func prefetchDones(count n: Int) throws -> [Float] {
         let slice = n == bufferSize ? dones : dones[0..<n]
-        eval(slice)
+        try MLXEval.evaluate(slice)
         return slice.asArray(Float.self)
     }
 
@@ -381,40 +369,6 @@ public struct ReplayBuffer: Buffer {
         if index == position { return true }
         let previous = previousIndex(index)
         return donesArray[previous] > 0.5
-    }
-
-    private static func config(
-        _ config: Configuration,
-        observationSpace: any Space
-    ) -> Configuration {
-        let obsDtype = observationSpace.dtype ?? .float32
-        let storageShape = storageObservationShape(
-            observationSpace: observationSpace,
-            frameStack: config.frameStack
-        )
-        let bytesPerObs = storageShape.reduce(1, *) * obsDtype.size
-        guard bytesPerObs > 0 else { return config }
-
-        let maxBufferBytes = GPU.deviceInfo().maxBufferSize
-        guard maxBufferBytes > 0 else { return config }
-
-        let maxSafe = maxBufferBytes / bytesPerObs
-        guard config.bufferSize > maxSafe else { return config }
-
-        let bufferSize = max(1, maxSafe)
-        print(
-            "[ReplayBuffer] bufferSize \(config.bufferSize) would require "
-                + "\(config.bufferSize * bytesPerObs) bytes per observation buffer, "
-                + "exceeding Metal's \(maxBufferBytes)-byte limit on this device. "
-                + "Capping to \(bufferSize)."
-        )
-        return Configuration(
-            bufferSize: bufferSize,
-            optimizeMemoryUsage: config.optimizeMemoryUsage,
-            handleTimeoutTermination: config.handleTimeoutTermination,
-            frameStack: config.frameStack,
-            seed: config.seed
-        )
     }
 
     private static func storageObservationShape(
@@ -438,11 +392,9 @@ public struct ReplayBuffer: Buffer {
         bufferSize: Int,
         observationShape: [Int],
         observationDtype: DType,
-        actionSpace: any Space,
+        actionDim: Int,
         optimizeMemory: Bool
     ) -> (MLXArray, MLXArray?, MLXArray, MLXArray, MLXArray, MLXArray) {
-        let actionDim = bufferActionDim(for: actionSpace)
-
         let obs = MLX.zeros([bufferSize] + observationShape, dtype: observationDtype)
         let nextObs =
             optimizeMemory
@@ -455,19 +407,41 @@ public struct ReplayBuffer: Buffer {
         return (obs, nextObs, acts, rews, dns, tos)
     }
 
-    private func sampleIndices(batchSize: Int, key: MLXArray) -> [Int] {
+    private func validateStoredObs(_ obs: MLXArray) throws {
+        guard obs.shape == storageObsShape else {
+            throw GymnazoError.invalidConfiguration(
+                "Expected observation shape \(storageObsShape), got \(obs.shape)"
+            )
+        }
+        guard obs.dtype == storageObsDtype else {
+            throw GymnazoError.invalidConfiguration(
+                "Expected observation dtype \(storageObsDtype), got \(obs.dtype)"
+            )
+        }
+    }
+
+    private func validateAction(_ action: MLXArray) throws {
+        let flat = action.reshaped([-1])
+        guard flat.size == actionDim else {
+            throw GymnazoError.invalidAction(
+                "Expected action dimension \(actionDim), got \(flat.size)"
+            )
+        }
+    }
+
+    private func sampleIndices(batchSize: Int, key: MLXArray) throws -> [Int] {
         var indices: [Int] = []
         indices.reserveCapacity(batchSize)
 
         if !config.optimizeMemoryUsage || !isBufferFull {
             let upper = count
             indices.append(
-                contentsOf: randomIndices(batchSize: batchSize, upperBound: upper, key: key))
+                contentsOf: try randomIndices(batchSize: batchSize, upperBound: upper, key: key))
             return indices
         }
 
         let upper = bufferSize - 1
-        for idx in randomIndices(batchSize: batchSize, upperBound: upper, key: key) {
+        for idx in try randomIndices(batchSize: batchSize, upperBound: upper, key: key) {
             var idx = idx
             if idx >= position { idx += 1 }
             indices.append(idx)
@@ -475,10 +449,10 @@ public struct ReplayBuffer: Buffer {
         return indices
     }
 
-    private func randomIndices(batchSize: Int, upperBound: Int, key: MLXArray) -> [Int] {
+    private func randomIndices(batchSize: Int, upperBound: Int, key: MLXArray) throws -> [Int] {
         precondition(upperBound > 0)
         let randomValues = MLX.uniform(0.0..<1.0, [batchSize], key: key, stream: .cpu)
-        eval(randomValues)
+        try MLXEval.evaluate(randomValues)
         let randomList = randomValues.asArray(Float.self)
         let upperBoundF = Float(upperBound)
         return randomList.map { min(Int($0 * upperBoundF), upperBound - 1) }

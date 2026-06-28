@@ -94,7 +94,7 @@ extension DQN {
                     frameStack: dqnConfig.replayFrameStack,
                     seed: checkpoint.seed
                 )
-                var buffer = ReplayBuffer(
+                var buffer = try ReplayBuffer(
                     observationSpace: networks.qNet.observationSpace,
                     actionSpace: networks.qNet.actionSpace,
                     config: bufferConfig,

@@ -136,7 +136,10 @@ public actor DQN {
         if resetProgress { self.timesteps = 0 }
         shouldContinue = true
 
-        setupBuffer()
+        try setupBuffer()
+        if let info = buffer?.allocationInfo, info.wasCapped {
+            await callbacks?.onBufferAllocated?(info)
+        }
 
         guard var environment = env else {
             throw GymnazoError.invalidState("DQN.learn requires an environment.")
@@ -179,7 +182,7 @@ public actor DQN {
                 step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self)
                 ?? step.obs
 
-            buffer?.add(
+            try buffer?.add(
                 obs: lastObs,
                 action: action,
                 reward: MLXArray(reward),
@@ -188,7 +191,7 @@ public actor DQN {
                 truncated: truncated
             )
 
-            eval(action, bufferNextObs)
+            try MLXEval.evaluate(action, bufferNextObs)
 
             if terminated || truncated {
                 await callbacks?.onEpisodeEnd?(episodeReward, episodeLength)
@@ -348,7 +351,7 @@ public actor DQN {
         self.gradientSteps = gradientSteps
     }
 
-    private func setupBuffer() {
+    private func setupBuffer() throws {
         guard buffer == nil else { return }
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: config.bufferSize,
@@ -357,7 +360,7 @@ public actor DQN {
             frameStack: config.replayFrameStack,
             seed: randomSeed
         )
-        buffer = ReplayBuffer(
+        buffer = try ReplayBuffer(
             observationSpace: policy.observationSpace,
             actionSpace: policy.actionSpace,
             config: bufferConfig,
@@ -420,10 +423,10 @@ public actor DQN {
             try Task.checkCancellation()
             let (sampleKey, nextKey) = MLX.split(key: key, stream: .cpu)
             key = nextKey
-            let batch = buf.sample(batchSize, key: sampleKey)
+            let batch = try buf.sample(batchSize, key: sampleKey)
 
             let values = step([batch.obs, batch.actions, batch.nextObs, batch.rewards, batch.dones])
-            eval(values[0], values[1], values[2], policy, optimizer)
+            try MLXEval.run { eval(values[0], values[1], values[2], policy, optimizer) }
 
             lossArrays.append(values[0])
             tdArrays.append(values[1])
@@ -440,7 +443,7 @@ public actor DQN {
         let totalTD = tdArrays.reduce(MLXArray(0.0), +)
         let totalQ = qArrays.reduce(MLXArray(0.0), +)
         let steps = Float(gradientSteps)
-        eval(totalLoss, totalTD, totalQ)
+        try MLXEval.evaluate(totalLoss, totalTD, totalQ)
 
         await callbacks?.onTrain?([
             "loss": Double((totalLoss / steps).scalarValue(Float.self)),

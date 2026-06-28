@@ -210,7 +210,10 @@ public actor SAC {
         if resetProgress { self.timesteps = 0 }
         shouldContinue = true
 
-        setupBuffer()
+        try setupBuffer()
+        if let info = buffer?.allocationInfo, info.wasCapped {
+            await callbacks?.onBufferAllocated?(info)
+        }
 
         guard var environment = env else {
             throw GymnazoError.invalidState(
@@ -281,7 +284,7 @@ public actor SAC {
             let bufferNextObs =
                 step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
 
-            buffer?.add(
+            try buffer?.add(
                 obs: lastObs,
                 action: bufferAction,
                 reward: MLXArray(reward),
@@ -290,7 +293,7 @@ public actor SAC {
                 truncated: truncated
             )
 
-            eval(bufferAction, bufferNextObs)
+            try MLXEval.evaluate(bufferAction, bufferNextObs)
 
             if terminated || truncated {
                 await callbacks?.onEpisodeEnd?(episodeReward, episodeLength)
@@ -515,7 +518,7 @@ public actor SAC {
         )
     }
 
-    private func setupBuffer() {
+    private func setupBuffer() throws {
         guard buffer == nil else { return }
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: offPolicyConfig.bufferSize,
@@ -524,7 +527,7 @@ public actor SAC {
             frameStack: offPolicyConfig.replayFrameStack,
             seed: randomSeed
         )
-        buffer = ReplayBuffer(
+        buffer = try ReplayBuffer(
             observationSpace: policy.observationSpace,
             actionSpace: policy.actionSpace,
             config: bufferConfig,
@@ -585,7 +588,7 @@ public actor SAC {
             let (sampleKey, k2) = MLX.split(key: key, stream: .cpu)
             let (actionKey, nextKey) = MLX.split(key: k2, stream: .cpu)
             key = nextKey
-            let batch = buf.sample(batchSize, key: sampleKey)
+            let batch = try buf.sample(batchSize, key: sampleKey)
 
             let values = step(
                 [
@@ -593,22 +596,24 @@ public actor SAC {
                     batch.rewards, batch.dones, actionKey,
                 ]
             )
-            eval(
-                values[0],
-                values[1],
-                policy,
-                critic,
-                criticTarget,
-                actorOptimizer,
-                criticOptimizer,
-                logEntCoefModule
-            )
+            try MLXEval.run {
+                eval(
+                    values[0],
+                    values[1],
+                    policy,
+                    critic,
+                    criticTarget,
+                    actorOptimizer,
+                    criticOptimizer,
+                    logEntCoefModule
+                )
+            }
             criticLossArrays.append(values[0])
             actorLossArrays.append(values[1])
 
             if gradientStep % targetUpdateInterval == 0 {
                 try softUpdate()
-                eval(criticTarget.parameters())
+                try MLXEval.run { eval(criticTarget.parameters()) }
             }
         }
         self.gradientSteps += gradientSteps
@@ -616,7 +621,7 @@ public actor SAC {
 
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
         let totalActorLoss = actorLossArrays.reduce(MLXArray(0.0), +)
-        eval(totalCriticLoss, totalActorLoss)
+        try MLXEval.evaluate(totalCriticLoss, totalActorLoss)
         let avgCriticLoss = (totalCriticLoss / Float(max(1, criticLossArrays.count))).scalarValue(
             Float.self)
         let avgActorLoss = (totalActorLoss / Float(max(1, actorLossArrays.count))).scalarValue(

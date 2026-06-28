@@ -127,7 +127,7 @@ extension SAC {
                     frameStack: offPolicyConfig.replayFrameStack,
                     seed: checkpoint.seed
                 )
-                var buffer = ReplayBuffer(
+                var buffer = try ReplayBuffer(
                     observationSpace: networks.actor.observationSpace,
                     actionSpace: networks.actor.actionSpace,
                     config: bufferConfig,

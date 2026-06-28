@@ -106,7 +106,7 @@ extension TD3 {
                     frameStack: offPolicyConfig.replayFrameStack,
                     seed: checkpoint.seed
                 )
-                var buffer = ReplayBuffer(
+                var buffer = try ReplayBuffer(
                     observationSpace: policy.observationSpace,
                     actionSpace: policy.actionSpace,
                     config: bufferConfig,

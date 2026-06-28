@@ -461,7 +461,7 @@ struct PersistenceTests {
             bufferSize: 100,
             seed: 42
         )
-        var buffer = ReplayBuffer(
+        var buffer = try ReplayBuffer(
             observationSpace: obsSpace,
             actionSpace: actSpace,
             config: bufferConfig
@@ -472,7 +472,7 @@ struct PersistenceTests {
             let action = MLXArray(Int32(i % 4))
             let reward = MLXArray(Float(i) * 0.5)
             let nextObs = MLXArray([Float(i + 1) * 0.1, Float(i + 1) * -0.1])
-            buffer.add(
+            try buffer.add(
                 obs: obs, action: action, reward: reward,
                 nextObs: nextObs, terminated: false, truncated: false)
         }
@@ -481,7 +481,7 @@ struct PersistenceTests {
 
         try buffer.save(to: dir)
 
-        var loadedBuffer = ReplayBuffer(
+        var loadedBuffer = try ReplayBuffer(
             observationSpace: obsSpace,
             actionSpace: actSpace,
             config: bufferConfig
@@ -512,7 +512,7 @@ struct PersistenceTests {
             handleTimeoutTermination: false,
             frameStack: .init(size: 4, padding: .zero)
         )
-        var buffer = ReplayBuffer(
+        var buffer = try ReplayBuffer(
             observationSpace: obsSpace,
             actionSpace: actSpace,
             config: bufferConfig
@@ -524,7 +524,7 @@ struct PersistenceTests {
             let current = MLXArray([UInt8(11 + i), UInt8(21 + i)])
             let obs = MLX.stacked([zero, zero, previous, previous], axis: 0).asType(.uint8)
             let nextObs = MLX.stacked([zero, previous, previous, current], axis: 0).asType(.uint8)
-            buffer.add(
+            try buffer.add(
                 obs: obs,
                 action: MLXArray(Int32(i % 3)),
                 reward: MLXArray(Float(i)),
@@ -537,7 +537,7 @@ struct PersistenceTests {
 
         try buffer.save(to: dir)
 
-        var loadedBuffer = ReplayBuffer(
+        var loadedBuffer = try ReplayBuffer(
             observationSpace: obsSpace,
             actionSpace: actSpace,
             config: bufferConfig
@@ -548,8 +548,8 @@ struct PersistenceTests {
         #expect(loadedBuffer.config.frameStack?.size == 4)
 
         let key = MLX.key(123)
-        let originalSample = buffer.sample(2, key: key)
-        let loadedSample = loadedBuffer.sample(2, key: key)
+        let originalSample = try buffer.sample(2, key: key)
+        let loadedSample = try loadedBuffer.sample(2, key: key)
 
         #expect(maxAbsDiff(originalSample.obs, loadedSample.obs) < 1e-6)
         #expect(maxAbsDiff(originalSample.nextObs, loadedSample.nextObs) < 1e-6)

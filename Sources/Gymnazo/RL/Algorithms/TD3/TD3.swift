@@ -167,7 +167,10 @@ public actor TD3 {
         shouldContinue = true
         actionNoise?.reset()
 
-        setupBuffer()
+        try setupBuffer()
+        if let info = buffer?.allocationInfo, info.wasCapped {
+            await callbacks?.onBufferAllocated?(info)
+        }
 
         guard var environment = env else {
             throw GymnazoError.invalidState(
@@ -223,7 +226,7 @@ public actor TD3 {
             let bufferNextObs =
                 step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
 
-            buffer?.add(
+            try buffer?.add(
                 obs: lastObs,
                 action: bufferAction,
                 reward: MLXArray(reward),
@@ -232,7 +235,7 @@ public actor TD3 {
                 truncated: truncated
             )
 
-            eval(bufferAction, bufferNextObs)
+            try MLXEval.evaluate(bufferAction, bufferNextObs)
 
             if terminated || truncated {
                 await callbacks?.onEpisodeEnd?(episodeReward, episodeLength)
@@ -421,7 +424,7 @@ public actor TD3 {
         self.gradientSteps = gradientSteps
     }
 
-    private func setupBuffer() {
+    private func setupBuffer() throws {
         guard buffer == nil else { return }
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: offPolicyConfig.bufferSize,
@@ -430,7 +433,7 @@ public actor TD3 {
             frameStack: offPolicyConfig.replayFrameStack,
             seed: randomSeed
         )
-        buffer = ReplayBuffer(
+        buffer = try ReplayBuffer(
             observationSpace: policy.observationSpace,
             actionSpace: policy.actionSpace,
             config: bufferConfig,
@@ -504,7 +507,7 @@ public actor TD3 {
             let (targetNoiseKey, nextKey) = MLX.split(key: k1, stream: .cpu)
             key = nextKey
 
-            let batch = buf.sample(batchSize, key: sampleKey)
+            let batch = try buf.sample(batchSize, key: sampleKey)
             let criticValues = criticStep(
                 [
                     batch.obs,
@@ -516,20 +519,22 @@ public actor TD3 {
                 ]
             )
             criticLossArrays.append(criticValues[0])
-            eval(criticValues[0], critic, policy.criticOptimizer)
+            try MLXEval.run { eval(criticValues[0], critic, policy.criticOptimizer) }
 
             self.gradientSteps += 1
             if self.gradientSteps % policyDelay == 0 {
                 let actorValues = actorStep([batch.obs])
                 actorLossArrays.append(actorValues[0])
                 try softUpdateTargets()
-                eval(
-                    actorValues[0],
-                    actor,
-                    targetActor,
-                    targetCritic,
-                    policy.actorOptimizer
-                )
+                try MLXEval.run {
+                    eval(
+                        actorValues[0],
+                        actor,
+                        targetActor,
+                        targetCritic,
+                        policy.actorOptimizer
+                    )
+                }
             }
         }
 
@@ -540,9 +545,9 @@ public actor TD3 {
         let totalActorLoss =
             actorLossArrays.isEmpty ? nil : actorLossArrays.reduce(MLXArray(0.0), +)
         if let totalActorLoss {
-            eval(totalCriticLoss, totalActorLoss)
+            try MLXEval.evaluate(totalCriticLoss, totalActorLoss)
         } else {
-            eval(totalCriticLoss)
+            try MLXEval.evaluate(totalCriticLoss)
         }
 
         let avgCriticLoss =

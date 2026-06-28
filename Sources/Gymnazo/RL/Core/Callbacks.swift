@@ -22,22 +22,27 @@ public struct LearnCallbacks: Sendable {
     public typealias OnEpisodeEndCallback = @Sendable (Double, Int) async -> Void
     public typealias OnSnapshotCallback = @Sendable (any Sendable) async -> Void
     public typealias OnTrainCallback = @Sendable ([String: Double]) async -> Void
+    public typealias OnBufferAllocatedCallback =
+        @Sendable (ReplayBufferAllocationInfo) async -> Void
 
     public var onStep: OnStepCallback?
     public var onEpisodeEnd: OnEpisodeEndCallback?
     public var onSnapshot: OnSnapshotCallback?
     public var onTrain: OnTrainCallback?
+    public var onBufferAllocated: OnBufferAllocatedCallback?
 
     public init(
         onStep: OnStepCallback? = nil,
         onEpisodeEnd: OnEpisodeEndCallback? = nil,
         onSnapshot: OnSnapshotCallback? = nil,
-        onTrain: OnTrainCallback? = nil
+        onTrain: OnTrainCallback? = nil,
+        onBufferAllocated: OnBufferAllocatedCallback? = nil
     ) {
         self.onStep = onStep
         self.onEpisodeEnd = onEpisodeEnd
         self.onSnapshot = onSnapshot
         self.onTrain = onTrain
+        self.onBufferAllocated = onBufferAllocated
     }
 }
 
