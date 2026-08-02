@@ -33,6 +33,7 @@ public actor TD3 {
     var progressRemaining: Double = 1.0
 
     private var shouldContinue: Bool = true
+    private var isSessionRunning = false
     private var key: MLXArray
     private var actionNoise: (any TD3ActionNoise)?
     private var compiledCriticStep: (([MLXArray]) -> [MLXArray])?
@@ -57,7 +58,7 @@ public actor TD3 {
     ///   - config: Off-policy hyper-parameters (buffer, batch size, etc.).
     ///   - seed: Optional PRNG seed for reproducibility.
     public init(
-        env: any Env,
+        env: sending any Env,
         learningRate: any LearningRateSchedule = ConstantLearningRate(1e-3),
         policyConfig: TD3PolicyConfig = TD3PolicyConfig(),
         algorithmConfig: TD3AlgorithmConfig = TD3AlgorithmConfig(),
@@ -106,7 +107,8 @@ public actor TD3 {
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             learningRateSchedule: learningRate,
-            config: policyConfig
+            config: policyConfig,
+            initializationSeed: seed
         )
         self.learningRate = learningRate
         self.randomSeed = seed
@@ -117,7 +119,7 @@ public actor TD3 {
     }
 
     init(
-        policy: TD3Policy,
+        policy: sending TD3Policy,
         offPolicyConfig: OffPolicyConfig,
         policyConfig: TD3PolicyConfig,
         algorithmConfig: TD3AlgorithmConfig,
@@ -127,13 +129,13 @@ public actor TD3 {
         totalTimesteps: Int,
         progressRemaining: Double,
         gradientSteps: Int,
-        buffer: ReplayBuffer?,
-        envBox: EnvBox? = nil
+        buffer: sending ReplayBuffer?,
+        env: sending (any Env)? = nil
     ) {
         let resolvedOffPolicyConfig = Self.sanitizeOffPolicyConfig(
             offPolicyConfig
         )
-        self.env = envBox?.env
+        self.env = env
         self.policy = policy
         self.offPolicyConfig = resolvedOffPolicyConfig
         self.policyConfig = policyConfig
@@ -162,6 +164,8 @@ public actor TD3 {
         callbacks: LearnCallbacks?,
         resetProgress: Bool = true
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         self.totalTimesteps = totalTimesteps
         if resetProgress { self.timesteps = 0 }
         shouldContinue = true
@@ -311,6 +315,8 @@ public actor TD3 {
         deterministic: Bool = true,
         callbacks: EvaluateCallbacks? = nil
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         guard var environment = env else {
             throw GymnazoError.invalidState(
                 "TD3.evaluate requires an environment."
@@ -326,10 +332,7 @@ public actor TD3 {
 
             while !done {
                 try Task.checkCancellation()
-                let action = callAsFunction(
-                    observation: obs,
-                    deterministic: deterministic
-                )
+                let action = inferenceAction(observation: obs, deterministic: deterministic)
                 let step = try environment.step(action)
                 episodeReward += step.reward
                 episodeLength += 1
@@ -367,10 +370,34 @@ public actor TD3 {
     ///   - observation: The current environment observation.
     ///   - deterministic: If `true` (default), returns the mode action without exploration noise.
     /// - Returns: The unscaled action clipped to the environment action space.
-    public func callAsFunction(
-        observation: MLXArray,
+    public func act(
+        observation: [Float],
         deterministic: Bool = true
-    ) -> MLXArray {
+    ) -> PolicyAction {
+        let action = inferenceAction(
+            observation: MLXArray(observation), deterministic: deterministic)
+        return .continuous(action.reshaped([-1]).asArray(Float.self))
+    }
+
+    public func act(
+        observations: [TensorValue<Float>],
+        deterministic: Bool = true
+    ) throws -> [PolicyAction] {
+        guard !observations.isEmpty else { return [] }
+        let batch = try MLXValueCodec.encodeBatch(observations)
+        let actions = inferenceAction(observation: batch, deterministic: deterministic)
+        let values = actions.reshaped([-1]).asArray(Float.self)
+        guard values.count.isMultiple(of: observations.count) else {
+            throw GymnazoError.invalidState("TD3 returned an invalid action batch.")
+        }
+        let dimension = values.count / observations.count
+        return observations.indices.map { index in
+            let start = index * dimension
+            return .continuous(Array(values[start..<(start + dimension)]))
+        }
+    }
+
+    private func inferenceAction(observation: MLXArray, deterministic: Bool) -> MLXArray {
         let scaledAction: MLXArray
         if deterministic {
             scaledAction = selectAction(obs: observation, deterministic: true)
@@ -389,6 +416,16 @@ public actor TD3 {
         return action
     }
 
+    func actionValues(observation: [Float], deterministic: Bool) -> [Float] {
+        guard
+            case .continuous(let values) = act(
+                observation: observation, deterministic: deterministic)
+        else {
+            preconditionFailure("TD3 produces continuous actions.")
+        }
+        return values
+    }
+
     /// Signals the training loop to stop at the next step boundary.
     public func stop() {
         shouldContinue = false
@@ -396,20 +433,22 @@ public actor TD3 {
 
     public var numTimesteps: Int { timesteps }
 
+    func actorParameterValues() -> [Float] {
+        let parameters = actor.parameters().flattened().sorted { $0.0 < $1.0 }
+        let arrays = parameters.map(\.1)
+        eval(arrays)
+        return arrays.flatMap { $0.asArray(Float.self) }
+    }
+
     /// Attaches an environment to the agent.
     ///
     /// - Parameter env: The environment to attach.
-    public func setEnv(_ envBox: EnvBox) {
-        self.env = envBox.env
-    }
-
-    /// Detaches and returns the currently attached environment, leaving the slot empty.
-    ///
-    /// - Returns: The detached environment, or `nil` if none was attached.
-    public func takeEnv() -> (any Env)? {
-        let e = env
-        env = nil
-        return e
+    public func setEnv(_ environment: sending any Env) throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState(
+                "Cannot replace an environment during training or evaluation.")
+        }
+        env = environment
     }
 
     func restore(
@@ -503,11 +542,10 @@ public actor TD3 {
 
         for _ in 0..<gradientSteps {
             try Task.checkCancellation()
-            let (sampleKey, k1) = MLX.split(key: key, stream: .cpu)
-            let (targetNoiseKey, nextKey) = MLX.split(key: k1, stream: .cpu)
+            let (targetNoiseKey, nextKey) = MLX.split(key: key, stream: .cpu)
             key = nextKey
 
-            let batch = try buf.sample(batchSize, key: sampleKey)
+            let batch = try buf.sample(batchSize)
             let criticValues = criticStep(
                 [
                     batch.obs,
@@ -519,22 +557,20 @@ public actor TD3 {
                 ]
             )
             criticLossArrays.append(criticValues[0])
-            try MLXEval.run { eval(criticValues[0], critic, policy.criticOptimizer) }
+            try checkedEval(criticValues[0], critic, policy.criticOptimizer)
 
             self.gradientSteps += 1
-            if self.gradientSteps % policyDelay == 0 {
+            if TD3Math.shouldUpdateActor(step: self.gradientSteps, delay: policyDelay) {
                 let actorValues = actorStep([batch.obs])
                 actorLossArrays.append(actorValues[0])
                 try softUpdateTargets()
-                try MLXEval.run {
-                    eval(
-                        actorValues[0],
-                        actor,
-                        targetActor,
-                        targetCritic,
-                        policy.actorOptimizer
-                    )
-                }
+                try checkedEval(
+                    actorValues[0],
+                    actor,
+                    targetActor,
+                    targetCritic,
+                    policy.actorOptimizer
+                )
             }
         }
 
@@ -615,19 +651,17 @@ public actor TD3 {
             var nextActions = ta(features, deterministic: true)
 
             if targetPolicyNoise > 0 {
-                var noise =
+                let noise =
                     MLX.normal(nextActions.shape, key: noiseKey)
                     * targetPolicyNoise
-                if targetNoiseClip > 0 {
-                    noise = MLX.clip(
-                        noise,
-                        min: -targetNoiseClip,
-                        max: targetNoiseClip
-                    )
-                }
-                nextActions = nextActions + noise
+                nextActions = TD3Math.targetActions(
+                    nextActions,
+                    noise: noise,
+                    noiseClip: targetNoiseClip
+                )
+            } else {
+                nextActions = MLX.clip(nextActions, min: -1, max: 1)
             }
-            nextActions = MLX.clip(nextActions, min: -1.0, max: 1.0)
 
             let targetQValues = tc(
                 obs: nextObs,
@@ -638,9 +672,12 @@ public actor TD3 {
                 minQ = MLX.minimum(minQ, q)
             }
 
-            let targetQ =
-                rewards.expandedDimensions(axis: -1)
-                + (1.0 - dones.expandedDimensions(axis: -1)) * gamma * minQ
+            let targetQ = TD3Math.target(
+                rewards: rewards,
+                dones: dones,
+                minQ: minQ,
+                gamma: gamma
+            )
             let detachedTargetQ = MLX.stopGradient(targetQ)
 
             c.setTrainingMode(true)
@@ -798,6 +835,17 @@ public actor TD3 {
         let qInput = MLX.concatenated([criticFeatures, actions], axis: -1)
         let qValue = critic.qNetworks[0](qInput)
         return -MLX.mean(qValue)
+    }
+
+    private func beginSession() throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState("Training or evaluation is already running.")
+        }
+        isSessionRunning = true
+    }
+
+    private func endSession() {
+        isSessionRunning = false
     }
 
     private static func sanitizeOffPolicyConfig(_ config: OffPolicyConfig)

@@ -22,11 +22,12 @@ public actor DQN {
     var progressRemaining: Double = 1.0
 
     private var shouldContinue: Bool = true
+    private var isSessionRunning = false
     private var key: MLXArray
     private var compiledStep: (([MLXArray]) -> [MLXArray])?
 
     public init(
-        env: any Env,
+        env: sending any Env,
         learningRate: any LearningRateSchedule = ConstantLearningRate(1e-4),
         policyConfig: DQNPolicyConfig = DQNPolicyConfig(),
         config: DQNConfig = DQNConfig(),
@@ -43,7 +44,8 @@ public actor DQN {
         let networks = try DQNNetworks(
             observationSpace: env.observationSpace,
             nActions: discrete.n,
-            config: policyConfig
+            config: policyConfig,
+            initializationSeed: seed
         )
 
         self.env = env
@@ -74,7 +76,8 @@ public actor DQN {
         let networks = try DQNNetworks(
             observationSpace: observationSpace,
             nActions: actionSpace.n,
-            config: policyConfig
+            config: policyConfig,
+            initializationSeed: seed
         )
 
         self.env = env
@@ -93,9 +96,8 @@ public actor DQN {
     }
 
     init(
-        policy: DQNPolicy,
-        targetPolicy: DQNPolicy,
-        optimizer: Adam,
+        networks: sending DQNNetworks,
+        optimizer: sending Adam,
         config: DQNConfig,
         policyConfig: DQNPolicyConfig,
         optimizerConfig: DQNOptimizerConfig,
@@ -106,12 +108,12 @@ public actor DQN {
         progressRemaining: Double,
         explorationRate: Double,
         gradientSteps: Int,
-        buffer: ReplayBuffer?,
-        envBox: EnvBox? = nil
+        buffer: sending ReplayBuffer?,
+        env: sending (any Env)? = nil
     ) {
-        self.env = envBox?.env
-        self.policy = policy
-        self.targetPolicy = targetPolicy
+        self.env = env
+        self.policy = networks.qNet
+        self.targetPolicy = networks.qNetTarget
         self.optimizer = optimizer
         self.config = config
         self.policyConfig = policyConfig
@@ -132,6 +134,8 @@ public actor DQN {
         callbacks: LearnCallbacks?,
         resetProgress: Bool = true
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         self.totalTimesteps = totalTimesteps
         if resetProgress { self.timesteps = 0 }
         shouldContinue = true
@@ -251,6 +255,8 @@ public actor DQN {
         deterministic: Bool = true,
         callbacks: EvaluateCallbacks? = nil
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         guard var environment = env else {
             throw GymnazoError.invalidState("DQN.evaluate requires an environment.")
         }
@@ -264,10 +270,7 @@ public actor DQN {
 
             while !done {
                 try Task.checkCancellation()
-                let action = callAsFunction(
-                    observation: obs,
-                    deterministic: deterministic
-                )
+                let action = inferenceAction(observation: obs, deterministic: deterministic)
                 let step = try environment.step(action)
                 episodeReward += step.reward
                 episodeLength += 1
@@ -296,10 +299,61 @@ public actor DQN {
         self.env = environment
     }
 
-    public func callAsFunction(
-        observation: MLXArray,
+    public func act(
+        observation: [Float],
         deterministic: Bool = true
-    ) -> MLXArray {
+    ) -> PolicyAction {
+        let action = inferenceAction(
+            observation: MLXArray(observation), deterministic: deterministic)
+        return .discrete(Int(action.reshaped([-1]).asArray(Int32.self)[0]))
+    }
+
+    public func act(
+        observations: [TensorValue<Float>],
+        deterministic: Bool = true
+    ) throws -> [PolicyAction] {
+        guard !observations.isEmpty else { return [] }
+        let batch = try MLXValueCodec.encodeBatch(observations)
+        let actions: MLXArray
+        if deterministic {
+            actions = selectAction(obs: batch)
+        } else {
+            guard let discrete = policy.actionSpace as? Discrete else {
+                throw GymnazoError.invalidPolicyActionSpace(
+                    operation: "DQN.act(observations:)",
+                    expected: "Discrete",
+                    actual: String(describing: type(of: policy.actionSpace))
+                )
+            }
+            let (exploreKey, remainder) = MLX.split(key: key, stream: .cpu)
+            let (sampleKey, nextKey) = MLX.split(key: remainder, stream: .cpu)
+            key = nextKey
+            let greedy = selectAction(obs: batch).reshaped([-1])
+            let explore =
+                MLX.uniform(
+                    0.0..<1.0,
+                    [observations.count],
+                    key: exploreKey,
+                    stream: .cpu
+                ) .< Float(explorationRate)
+            let sampled = MLX.randInt(
+                low: 0,
+                high: discrete.n,
+                [observations.count],
+                key: sampleKey,
+                stream: .cpu
+            ).asType(.int32, stream: .cpu)
+            actions = MLX.which(explore, sampled, greedy)
+            eval(actions)
+        }
+        let values = actions.reshaped([-1]).asArray(Int32.self)
+        guard values.count == observations.count else {
+            throw GymnazoError.invalidState("DQN returned an invalid action batch.")
+        }
+        return values.map { .discrete(Int($0)) }
+    }
+
+    private func inferenceAction(observation: MLXArray, deterministic: Bool) -> MLXArray {
         if !deterministic {
             let (exploreKey, nextKey) = MLX.split(key: key, stream: .cpu)
             key = nextKey
@@ -327,14 +381,18 @@ public actor DQN {
     var qNet: DQNPolicy { policy }
     var qNetTarget: DQNPolicy { targetPolicy }
 
-    public func setEnv(_ envBox: EnvBox) {
-        self.env = envBox.env
+    func policyParameterValues() -> [Float] {
+        let arrays = policy.parameters().flattened().sorted { $0.0 < $1.0 }.map(\.1)
+        eval(arrays)
+        return arrays.flatMap { $0.asArray(Float.self) }
     }
 
-    public func takeEnv() -> (any Env)? {
-        let e = env
-        env = nil
-        return e
+    public func setEnv(_ environment: sending any Env) throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState(
+                "Cannot replace an environment during training or evaluation.")
+        }
+        env = environment
     }
 
     func restore(
@@ -368,14 +426,25 @@ public actor DQN {
         )
     }
 
+    private func beginSession() throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState("Training or evaluation is already running.")
+        }
+        isSessionRunning = true
+    }
+
+    private func endSession() {
+        isSessionRunning = false
+    }
+
     private func updateExplorationRate() {
-        let fraction = min(
-            1.0,
-            Double(timesteps) / (Double(totalTimesteps) * config.explorationFraction)
+        explorationRate = DQNMath.explorationRate(
+            initial: config.explorationInitialEps,
+            final: config.explorationFinalEps,
+            timestep: timesteps,
+            totalTimesteps: totalTimesteps,
+            fraction: config.explorationFraction
         )
-        explorationRate =
-            config.explorationInitialEps
-            + fraction * (config.explorationFinalEps - config.explorationInitialEps)
     }
 
     private func shouldExplore(key: MLXArray) -> Bool {
@@ -421,12 +490,10 @@ public actor DQN {
 
         for _ in 0..<gradientSteps {
             try Task.checkCancellation()
-            let (sampleKey, nextKey) = MLX.split(key: key, stream: .cpu)
-            key = nextKey
-            let batch = try buf.sample(batchSize, key: sampleKey)
+            let batch = try buf.sample(batchSize)
 
             let values = step([batch.obs, batch.actions, batch.nextObs, batch.rewards, batch.dones])
-            try MLXEval.run { eval(values[0], values[1], values[2], policy, optimizer) }
+            try checkedEval(values[0], values[1], values[2], policy, optimizer)
 
             lossArrays.append(values[0])
             tdArrays.append(values[1])
@@ -516,8 +583,12 @@ public actor DQN {
     ) -> MLXArray {
         let nextQValues = target(obs: nextObs)
         let nextQMax = MLX.max(nextQValues, axis: -1, keepDims: true)
-        return rewards.expandedDimensions(axis: -1)
-            + (1.0 - dones.expandedDimensions(axis: -1)) * gamma * nextQMax
+        return DQNMath.target(
+            rewards: rewards,
+            dones: dones,
+            nextQ: nextQMax,
+            gamma: gamma
+        )
     }
 
     private static func qNetLossAndMetrics(
@@ -527,12 +598,9 @@ public actor DQN {
         targetQ: MLXArray
     ) -> (loss: MLXArray, tdError: MLXArray, meanQ: MLXArray) {
         let qValues = qNet(obs: obs)
-        let batchSize = actions.shape[0]
-        let batchIndices = MLXArray(Array(0..<Int32(batchSize)))
-        let actionIndices = actions.reshaped([-1]).asType(.int32)
-        let selectedQ = qValues[batchIndices, actionIndices].expandedDimensions(axis: -1)
+        let selectedQ = DQNMath.selectedQ(qValues, actions: actions)
         let td = selectedQ - targetQ
-        let loss = MLX.mean(td ** 2)
+        let loss = DQNMath.loss(selectedQ: selectedQ, targetQ: targetQ)
         let meanAbsTD = MLX.mean(MLX.abs(td))
         let meanQ = MLX.mean(qValues)
         return (loss, meanAbsTD, meanQ)

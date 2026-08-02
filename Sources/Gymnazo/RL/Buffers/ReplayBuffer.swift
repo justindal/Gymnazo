@@ -36,20 +36,24 @@ public struct ReplayBuffer: Buffer {
         public let handleTimeoutTermination: Bool
         public let frameStack: FrameStackConfig?
         public let seed: UInt64?
+        public let memoryBudgetBytes: Int?
 
         public init(
             bufferSize: Int,
             optimizeMemoryUsage: Bool = false,
             handleTimeoutTermination: Bool = true,
             frameStack: FrameStackConfig? = nil,
-            seed: UInt64? = nil
+            seed: UInt64? = nil,
+            memoryBudgetBytes: Int? = nil
         ) {
             precondition(bufferSize > 0)
+            precondition(memoryBudgetBytes == nil || memoryBudgetBytes! > 0)
             self.bufferSize = bufferSize
             self.optimizeMemoryUsage = optimizeMemoryUsage
             self.handleTimeoutTermination = handleTimeoutTermination
             self.frameStack = frameStack
             self.seed = seed
+            self.memoryBudgetBytes = memoryBudgetBytes
         }
     }
 
@@ -75,10 +79,11 @@ public struct ReplayBuffer: Buffer {
     var rewards: MLXArray
     var dones: MLXArray
     var timeouts: MLXArray
+    var doneValues: [Bool]
 
     var position: Int = 0
     var isBufferFull: Bool = false
-    private var keyState: MLXArray?
+    private var randomGenerator: SeededGenerator
     let storageObsShape: [Int]
     private let storageObsDtype: DType
     private let actionDim: Int
@@ -145,7 +150,9 @@ public struct ReplayBuffer: Buffer {
         self.rewards = rews
         self.dones = dns
         self.timeouts = tos
-        self.keyState = resolved.config.seed.map { MLXRandom.key($0) }
+        self.doneValues = Array(repeating: false, count: resolved.config.bufferSize)
+        self.randomGenerator = SeededGenerator(
+            seed: resolved.config.seed ?? UInt64.random(in: 0...UInt64.max))
     }
 
     public mutating func reset() {
@@ -162,10 +169,11 @@ public struct ReplayBuffer: Buffer {
         rewards = rews
         dones = dns
         timeouts = tos
+        doneValues = Array(repeating: false, count: config.bufferSize)
 
         position = 0
         isBufferFull = false
-        keyState = config.seed.map { MLXRandom.key($0) }
+        randomGenerator = SeededGenerator(seed: config.seed ?? UInt64.random(in: 0...UInt64.max))
     }
 
     public mutating func add(
@@ -190,6 +198,7 @@ public struct ReplayBuffer: Buffer {
         rewards[position] = reward
         dones[position] = MLXArray(doneValue)
         timeouts[position] = MLXArray(timeoutValue)
+        doneValues[position] = terminated || truncated
 
         if config.optimizeMemoryUsage {
             let nextPos = (position + 1) % bufferSize
@@ -202,18 +211,33 @@ public struct ReplayBuffer: Buffer {
         if position == 0 { isBufferFull = true }
     }
 
+    public mutating func sample(_ batchSize: Int) throws -> Sample {
+        precondition(batchSize > 0)
+        precondition(count >= batchSize)
+        let rawIndices = try sampleIndices(
+            batchSize: batchSize,
+            generator: &randomGenerator
+        )
+        return try sample(indices: rawIndices)
+    }
+
     public mutating func sample(_ batchSize: Int, key: MLXArray) throws -> Sample {
         precondition(batchSize > 0)
         precondition(count >= batchSize)
-        let samplingKey: MLXArray
-        if let state = keyState {
-            let (sampleKey, nextKey) = MLX.split(key: state, stream: .cpu)
-            keyState = nextKey
-            samplingKey = sampleKey
-        } else {
-            samplingKey = key
+
+        let keyValues = key.asArray(UInt32.self)
+        let seed = keyValues.reduce(UInt64(0)) { partialResult, value in
+            (partialResult << 32) ^ UInt64(value)
         }
-        let rawIndices = try sampleIndices(batchSize: batchSize, key: samplingKey)
+        var generator = SeededGenerator(seed: seed)
+        let rawIndices = try sampleIndices(
+            batchSize: batchSize,
+            generator: &generator
+        )
+        return try sample(indices: rawIndices)
+    }
+
+    private func sample(indices rawIndices: [Int]) throws -> Sample {
         let indices = MLXArray(rawIndices.map { Int32($0) })
 
         let actionsBatch = actions[indices]
@@ -252,12 +276,9 @@ public struct ReplayBuffer: Buffer {
     private func sampleFrameStacks(rawIndices: [Int]) throws -> (MLXArray, MLXArray) {
         let frameStack = config.frameStack!
         let stackSize = frameStack.size
-        let n = count
         let batchCount = rawIndices.count
         let frameShape = storageObsShape
         let isZeroPad = frameStack.padding == .zero
-
-        let donesArray = try prefetchDones(count: n)
 
         var allFrameIndices: [Int32] = []
         allFrameIndices.reserveCapacity(batchCount * stackSize)
@@ -275,7 +296,7 @@ public struct ReplayBuffer: Buffer {
             frameIdxForSample.append(cursor)
 
             while frameIdxForSample.count < stackSize {
-                if isEpisodeStartCPU(cursor, donesArray: donesArray) {
+                if isEpisodeStartCPU(cursor) {
                     padCount = stackSize - frameIdxForSample.count
                     let padIdx = frameIdxForSample[frameIdxForSample.count - 1]
                     while frameIdxForSample.count < stackSize {
@@ -355,20 +376,14 @@ public struct ReplayBuffer: Buffer {
         return (obsBatch, nextObsBatch)
     }
 
-    private func prefetchDones(count n: Int) throws -> [Float] {
-        let slice = n == bufferSize ? dones : dones[0..<n]
-        try MLXEval.evaluate(slice)
-        return slice.asArray(Float.self)
-    }
-
-    private func isEpisodeStartCPU(_ index: Int, donesArray: [Float]) -> Bool {
+    private func isEpisodeStartCPU(_ index: Int) -> Bool {
         if !isBufferFull {
             if index == 0 { return true }
-            return donesArray[index - 1] > 0.5
+            return doneValues[index - 1]
         }
         if index == position { return true }
         let previous = previousIndex(index)
-        return donesArray[previous] > 0.5
+        return doneValues[previous]
     }
 
     private static func storageObservationShape(
@@ -429,19 +444,30 @@ public struct ReplayBuffer: Buffer {
         }
     }
 
-    private func sampleIndices(batchSize: Int, key: MLXArray) throws -> [Int] {
+    private func sampleIndices(
+        batchSize: Int,
+        generator: inout SeededGenerator
+    ) throws -> [Int] {
         var indices: [Int] = []
         indices.reserveCapacity(batchSize)
 
         if !config.optimizeMemoryUsage || !isBufferFull {
             let upper = count
             indices.append(
-                contentsOf: try randomIndices(batchSize: batchSize, upperBound: upper, key: key))
+                contentsOf: try randomIndices(
+                    batchSize: batchSize,
+                    upperBound: upper,
+                    generator: &generator
+                ))
             return indices
         }
 
         let upper = bufferSize - 1
-        for idx in try randomIndices(batchSize: batchSize, upperBound: upper, key: key) {
+        for idx in try randomIndices(
+            batchSize: batchSize,
+            upperBound: upper,
+            generator: &generator
+        ) {
             var idx = idx
             if idx >= position { idx += 1 }
             indices.append(idx)
@@ -449,13 +475,15 @@ public struct ReplayBuffer: Buffer {
         return indices
     }
 
-    private func randomIndices(batchSize: Int, upperBound: Int, key: MLXArray) throws -> [Int] {
+    private func randomIndices(
+        batchSize: Int,
+        upperBound: Int,
+        generator: inout SeededGenerator
+    ) throws -> [Int] {
         precondition(upperBound > 0)
-        let randomValues = MLX.uniform(0.0..<1.0, [batchSize], key: key, stream: .cpu)
-        try MLXEval.evaluate(randomValues)
-        let randomList = randomValues.asArray(Float.self)
-        let upperBoundF = Float(upperBound)
-        return randomList.map { min(Int($0 * upperBoundF), upperBound - 1) }
+        return (0..<batchSize).map { _ in
+            min(Int(generator.uniform(in: 0...1) * Float(upperBound)), upperBound - 1)
+        }
     }
 
     private func toStoredObservation(_ obs: MLXArray) -> MLXArray {
@@ -473,5 +501,17 @@ public struct ReplayBuffer: Buffer {
 }
 
 private func bufferActionDim(for actionSpace: any Space) -> Int {
-    (actionSpace as? Box)?.shape?.reduce(1, *) ?? 1
+    if let box = boxSpace(from: actionSpace) {
+        return box.shape?.reduce(1, *) ?? 1
+    }
+    if actionSpace is Discrete {
+        return 1
+    }
+    if let multiDiscrete = actionSpace as? MultiDiscrete {
+        return multiDiscrete.shape?.reduce(1, *) ?? 1
+    }
+    if let multiBinary = actionSpace as? MultiBinary {
+        return multiBinary.shape?.reduce(1, *) ?? 1
+    }
+    return actionSpace.shape?.reduce(1, *) ?? 1
 }

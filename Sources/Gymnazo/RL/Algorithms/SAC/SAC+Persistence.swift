@@ -49,9 +49,9 @@ extension SAC {
 
     public static func load(
         from directory: URL,
-        env: (any Env)? = nil,
+        env: sending (any Env)? = nil,
         includeBuffer: Bool = true
-    ) throws -> SAC {
+    ) async throws -> SAC {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
         guard checkpoint.algorithmKind == .sac else {
@@ -73,8 +73,14 @@ extension SAC {
         let observationSpace: any Space
         let actionSpace: any Space
         if let env {
-            observationSpace = env.observationSpace
-            actionSpace = env.actionSpace
+            observationSpace =
+                try SpaceDescriptor
+                .from(space: env.observationSpace)
+                .makeSpace()
+            actionSpace =
+                try SpaceDescriptor
+                .from(space: env.actionSpace)
+                .makeSpace()
         } else {
             guard let observationDescriptor = checkpoint.sacObservationSpace,
                 let actionDescriptor = checkpoint.sacActionSpace
@@ -87,36 +93,39 @@ extension SAC {
             actionSpace = try actionDescriptor.makeSpace()
         }
 
-        let networks = try SACNetworks(
+        let agent = try SAC(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
-            config: networksConfig
+            env: env,
+            learningRate: schedule,
+            networksConfig: networksConfig,
+            config: offPolicyConfig,
+            optimizerConfig: optimizerConfig,
+            entCoef: entCoef,
+            targetEntropy: checkpoint.targetEntropy,
+            seed: checkpoint.seed
         )
+        try await agent.restore(
+            from: directory, checkpoint: checkpoint, includeBuffer: includeBuffer)
 
-        try networks.actor.loadWeights(
-            from: directory.appendingPathComponent(CheckpointFiles.policy))
-        try networks.critic.loadWeights(
-            from: directory.appendingPathComponent(CheckpointFiles.critic))
-        try networks.criticTarget.loadWeights(
+        return agent
+    }
+
+    private func restore(
+        from directory: URL,
+        checkpoint: AlgorithmCheckpoint,
+        includeBuffer: Bool
+    ) throws {
+        try policy.loadWeights(from: directory.appendingPathComponent(CheckpointFiles.policy))
+        try critic.loadWeights(from: directory.appendingPathComponent(CheckpointFiles.critic))
+        try criticTarget.loadWeights(
             from: directory.appendingPathComponent(CheckpointFiles.criticTarget))
-
-        let lr = Float(schedule.value(at: checkpoint.currentProgressRemaining))
-        let actorOpt = optimizerConfig.actor.make(learningRate: lr)
-        let criticOpt = optimizerConfig.critic.make(learningRate: lr)
-        let entOpt: Adam? = entCoef.isAuto ? optimizerConfig.entropy?.make(learningRate: lr) : nil
-
-        let entModule = LogEntropyCoefModule(initialValue: entCoef.initialValue)
-        try entModule.loadWeights(
+        try logEntCoefModule.loadWeights(
             from: directory.appendingPathComponent(CheckpointFiles.entropy))
-
         eval(
-            networks.actor.parameters(),
-            networks.critic.parameters(),
-            networks.criticTarget.parameters(),
-            entModule.parameters()
-        )
+            policy.parameters(), critic.parameters(), criticTarget.parameters(),
+            logEntCoefModule.parameters())
 
-        var buf: ReplayBuffer?
         if includeBuffer {
             let bufferDir = directory.appendingPathComponent(CheckpointFiles.bufferDirectory)
             if FileManager.default.fileExists(atPath: bufferDir.path) {
@@ -127,42 +136,20 @@ extension SAC {
                     frameStack: offPolicyConfig.replayFrameStack,
                     seed: checkpoint.seed
                 )
-                var buffer = try ReplayBuffer(
-                    observationSpace: networks.actor.observationSpace,
-                    actionSpace: networks.actor.actionSpace,
+                var restoredBuffer = try ReplayBuffer(
+                    observationSpace: policy.observationSpace,
+                    actionSpace: policy.actionSpace,
                     config: bufferConfig,
                     numEnvs: 1
                 )
-                try buffer.load(from: bufferDir)
-                buf = buffer
+                try restoredBuffer.load(from: bufferDir)
+                buffer = restoredBuffer
             }
         }
 
-        let actionDim = getActionDim(actionSpace)
-
-        let agent = SAC(
-            policy: networks.actor,
-            critic: networks.critic,
-            criticTarget: networks.criticTarget,
-            actorOptimizer: actorOpt,
-            criticOptimizer: criticOpt,
-            entropyOptimizer: entOpt,
-            logEntCoefModule: entModule,
-            offPolicyConfig: offPolicyConfig,
-            networksConfig: networksConfig,
-            optimizerConfig: optimizerConfig,
-            entCoefConfig: entCoef,
-            targetEntropy: checkpoint.targetEntropy ?? Float(-actionDim),
-            learningRate: schedule,
-            seed: checkpoint.seed,
-            timesteps: checkpoint.numTimesteps,
-            totalTimesteps: checkpoint.totalTimesteps,
-            progressRemaining: checkpoint.currentProgressRemaining,
-            gradientSteps: checkpoint.numGradientSteps ?? 0,
-            buffer: buf,
-            envBox: env.map(EnvBox.init)
-        )
-
-        return agent
+        timesteps = checkpoint.numTimesteps
+        totalTimesteps = checkpoint.totalTimesteps
+        progressRemaining = checkpoint.currentProgressRemaining
+        gradientSteps = checkpoint.numGradientSteps ?? 0
     }
 }

@@ -4,7 +4,7 @@ import MLXNN
 /// The deterministic actor network for ``TD3``.
 ///
 /// Outputs a tanh-squashed action in `[-1, 1]` for each action dimension.
-public final class TD3Actor: Module, Policy, @unchecked Sendable {
+public final class TD3Actor: Module, Policy {
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let netArch: NetArch

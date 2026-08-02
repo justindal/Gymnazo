@@ -7,7 +7,7 @@ import MLX
 import MLXNN
 
 /// Q-Network for DQN that outputs Q-values for all discrete actions.
-public final class DQNPolicy: Module, Policy, @unchecked Sendable {
+public final class DQNPolicy: Module, Policy {
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let normalizeImages: Bool
@@ -29,7 +29,8 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     public init(
         observationSpace: any Space,
         nActions: Int,
-        config: DQNPolicyConfig = DQNPolicyConfig()
+        config: DQNPolicyConfig = DQNPolicyConfig(),
+        initializationKey: MLXArray? = nil
     ) throws {
         self.observationSpace = observationSpace
         self.actionSpace = Discrete(n: nActions)
@@ -53,6 +54,9 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         )
 
         super.init()
+        if var initializationKey {
+            try initializeModuleWeights(self, key: &initializationKey)
+        }
     }
 
     /// Creates a DQN policy from a Discrete action space.
@@ -64,12 +68,14 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
     public convenience init(
         observationSpace: any Space,
         actionSpace: Discrete,
-        config: DQNPolicyConfig = DQNPolicyConfig()
+        config: DQNPolicyConfig = DQNPolicyConfig(),
+        initializationKey: MLXArray? = nil
     ) throws {
         try self.init(
             observationSpace: observationSpace,
             nActions: actionSpace.n,
-            config: config
+            config: config,
+            initializationKey: initializationKey
         )
     }
 
@@ -88,7 +94,8 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         netArch: [Int] = [64, 64],
         featuresExtractor: (any FeaturesExtractor)? = nil,
         normalizeImages: Bool = true,
-        activation: @escaping () -> any UnaryLayer = { ReLU() }
+        activation: @escaping () -> any UnaryLayer = { ReLU() },
+        initializationKey: MLXArray? = nil
     ) throws {
         self.observationSpace = observationSpace
         self.actionSpace = Discrete(n: nActions)
@@ -117,6 +124,9 @@ public final class DQNPolicy: Module, Policy, @unchecked Sendable {
         )
 
         super.init()
+        if var initializationKey {
+            try initializeModuleWeights(self, key: &initializationKey)
+        }
     }
 
     public func makeFeatureExtractor() -> any FeaturesExtractor {

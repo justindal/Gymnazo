@@ -139,13 +139,17 @@ extension Policy {
 /// - Parameters:
 ///   - module: The module to initialize.
 ///   - gain: The scaling factor for the weights.
-public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) throws {
+public func initWeightsOrthogonal(
+    _ module: Module,
+    gain: Float = 1.0,
+    key: MLXArray? = nil
+) throws {
     if let linear = module as? Linear {
         let shape = linear.weight.shape
         let rows = shape[0]
         let cols = shape[1]
 
-        let random = MLX.normal([max(rows, cols), max(rows, cols)], stream: .cpu)
+        let random = MLX.normal([max(rows, cols), max(rows, cols)], key: key, stream: .cpu)
         let (q, _) = MLXLinalg.qr(random, stream: .cpu)
 
         let orthogonal = q[0..<rows, 0..<cols] * gain
@@ -165,7 +169,7 @@ public func initWeightsOrthogonal(_ module: Module, gain: Float = 1.0) throws {
         let fanOut = shape[0]
         let fanIn = shape[1..<shape.count].reduce(1, *)
 
-        let random = MLX.normal([max(fanOut, fanIn), max(fanOut, fanIn)], stream: .cpu)
+        let random = MLX.normal([max(fanOut, fanIn), max(fanOut, fanIn)], key: key, stream: .cpu)
         let (q, _) = MLXLinalg.qr(random, stream: .cpu)
 
         let orthogonal = q[0..<fanOut, 0..<fanIn].reshaped(shape) * gain

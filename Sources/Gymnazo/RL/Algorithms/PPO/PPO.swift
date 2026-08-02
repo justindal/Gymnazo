@@ -32,7 +32,9 @@ public actor PPO {
     var progressRemaining: Double = 1.0
 
     private var shouldContinue: Bool = true
+    private var isSessionRunning = false
     private var key: MLXArray
+    private var batchGenerator: SeededGenerator
     private var compiledTrainStep: (([MLXArray]) -> [MLXArray])?
 
     /// Creates a PPO agent bound to an environment.
@@ -44,7 +46,7 @@ public actor PPO {
     ///   - config: PPO hyper-parameters.
     ///   - seed: Optional PRNG seed for reproducibility.
     public init(
-        env: any Env,
+        env: sending any Env,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
         policyConfig: PPOPolicyConfig = PPOPolicyConfig(),
         config: PPOConfig = PPOConfig(),
@@ -94,11 +96,14 @@ public actor PPO {
             observationSpace: observationSpace,
             actionSpace: actionSpace,
             config: policyConfig,
-            useSDE: config.useSDE
+            useSDE: config.useSDE,
+            initializationKey: seed.map(MLX.key)
         )
         self.learningRate = learningRate
         self.randomSeed = seed
         self.key = MLX.key(seed ?? UInt64.random(in: 0..<UInt64.max))
+        self.batchGenerator = SeededGenerator(
+            seed: (seed ?? UInt64.random(in: 0..<UInt64.max)) ^ 0xA24B_AED4_963E_E407)
 
         let optimizerConfig: OptimizerConfig = .adam()
         self.optimizer = optimizerConfig.make(
@@ -107,8 +112,8 @@ public actor PPO {
     }
 
     init(
-        policy: PPOPolicy,
-        optimizer: Adam,
+        policy: sending PPOPolicy,
+        optimizer: sending Adam,
         config: PPOConfig,
         policyConfig: PPOPolicyConfig,
         learningRate: any LearningRateSchedule,
@@ -117,9 +122,9 @@ public actor PPO {
         totalTimesteps: Int,
         progressRemaining: Double,
         updates: Int,
-        envBox: EnvBox? = nil
+        env: sending (any Env)? = nil
     ) {
-        self.env = envBox?.env
+        self.env = env
         self.policy = policy
         self.optimizer = optimizer
         self.config = config
@@ -131,6 +136,8 @@ public actor PPO {
         self.progressRemaining = progressRemaining
         self.updates = updates
         self.key = MLX.key(seed ?? UInt64.random(in: 0..<UInt64.max))
+        self.batchGenerator = SeededGenerator(
+            seed: (seed ?? UInt64.random(in: 0..<UInt64.max)) ^ 0xA24B_AED4_963E_E407)
     }
 
     /// Runs the PPO training loop for the specified number of environment steps.
@@ -145,6 +152,8 @@ public actor PPO {
         callbacks: LearnCallbacks?,
         resetProgress: Bool = true
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         self.totalTimesteps = totalTimesteps
         if resetProgress {
             self.timesteps = 0
@@ -207,14 +216,19 @@ public actor PPO {
                 let envAction = actionForEnvironment(output.actions)
                 let step = try environment.step(envAction)
 
-                var adjustedReward = Float(step.reward)
+                var terminalValue: Float = 0
                 if step.truncated {
                     let finalObservation =
                         step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
                     let bootstrapValue = policy.predictValues(obs: finalObservation)
-                    let terminalValue = Self.flatten(bootstrapValue).singletonValue(Float.self)
-                    adjustedReward += Float(config.gamma) * terminalValue
+                    terminalValue = Self.flatten(bootstrapValue).singletonValue(Float.self)
                 }
+                let adjustedReward = PPOMath.reward(
+                    Float(step.reward),
+                    truncated: step.truncated,
+                    gamma: config.gamma,
+                    terminalValue: terminalValue
+                )
 
                 let rolloutStep = RolloutStep(
                     observation: lastObs,
@@ -288,6 +302,8 @@ public actor PPO {
         deterministic: Bool = true,
         callbacks: EvaluateCallbacks? = nil
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         guard var environment = env else {
             throw GymnazoError.invalidState("PPO.evaluate requires an environment.")
         }
@@ -301,10 +317,7 @@ public actor PPO {
 
             while !done {
                 try Task.checkCancellation()
-                let action = callAsFunction(
-                    observation: obs,
-                    deterministic: deterministic
-                )
+                let action = inferenceAction(observation: obs, deterministic: deterministic)
                 let step = try environment.step(action)
                 episodeReward += step.reward
                 episodeLength += 1
@@ -339,10 +352,110 @@ public actor PPO {
     ///   - observation: The current environment observation.
     ///   - deterministic: If `true` (default), returns the mode action.
     /// - Returns: The selected action as an `MLXArray` clipped to the action space.
-    public func callAsFunction(
-        observation: MLXArray,
+    public func act(
+        observation: [Float],
         deterministic: Bool = true
-    ) -> MLXArray {
+    ) -> PolicyAction {
+        let envAction = inferenceAction(
+            observation: MLXArray(observation), deterministic: deterministic)
+        if policy.actionSpace is Discrete {
+            return .discrete(Int(envAction.reshaped([-1]).asArray(Int32.self)[0]))
+        }
+        if policy.actionSpace is MultiDiscrete {
+            return .multiDiscrete(envAction.reshaped([-1]).asArray(Int32.self).map(Int.init))
+        }
+        if policy.actionSpace is MultiBinary {
+            return .multiBinary(envAction.reshaped([-1]).asArray(Float.self).map { $0 >= 0.5 })
+        }
+        return .continuous(envAction.reshaped([-1]).asArray(Float.self))
+    }
+
+    public func act(
+        observations: [TensorValue<Float>],
+        deterministic: Bool = true
+    ) throws -> [PolicyAction] {
+        guard !observations.isEmpty else { return [] }
+        let batch = try MLXValueCodec.encodeBatch(observations)
+        policy.setTrainingMode(false)
+        let raw = policy.forward(
+            obs: batch,
+            deterministic: deterministic,
+            key: nil
+        ).actions
+        let count = observations.count
+
+        if let box = boxSpace(from: policy.actionSpace) {
+            var actions = raw.asType(.float32)
+            if policy.squashOutput {
+                actions = (try? policy.unscaleAction(actions)) ?? actions
+            }
+            actions = MLX.clip(actions, min: box.low, max: box.high)
+            eval(actions)
+            return try Self.continuousActions(
+                actions.reshaped([-1]).asArray(Float.self),
+                count: count
+            )
+        }
+        if policy.actionSpace is Discrete {
+            let actions = raw.asType(.int32, stream: .cpu).reshaped([-1])
+            eval(actions)
+            let values = actions.asArray(Int32.self)
+            guard values.count == count else {
+                throw GymnazoError.invalidState("PPO returned an invalid discrete action batch.")
+            }
+            return values.map { .discrete(Int($0)) }
+        }
+        if let multiDiscrete = policy.actionSpace as? MultiDiscrete {
+            let dimension = multiDiscrete.nvec.size
+            let high = multiDiscrete.nvec.asType(.int32).reshaped([1, dimension]) - 1
+            let low = MLX.zeros(high.shape, dtype: .int32)
+            let actions = MLX.clip(
+                raw.asType(.int32).reshaped([count, dimension]),
+                min: low,
+                max: high
+            )
+            eval(actions)
+            let values = actions.asArray(Int32.self)
+            return (0..<count).map { index in
+                let start = index * dimension
+                return .multiDiscrete(
+                    values[start..<(start + dimension)].map(Int.init)
+                )
+            }
+        }
+        if let multiBinary = policy.actionSpace as? MultiBinary,
+            let shape = multiBinary.shape
+        {
+            let dimension = try TensorValue<Bool>.elementCount(for: shape)
+            let actions = (raw.asType(.float32) .>= 0.5).reshaped([count, dimension])
+            eval(actions)
+            let values = actions.asArray(Bool.self)
+            return (0..<count).map { index in
+                let start = index * dimension
+                return .multiBinary(Array(values[start..<(start + dimension)]))
+            }
+        }
+        throw GymnazoError.unsupportedSpaceOperation(
+            operation: "batched PPO action decoding",
+            spaceType: String(describing: type(of: policy.actionSpace))
+        )
+    }
+
+    private static func continuousActions(
+        _ values: [Float],
+        count: Int
+    ) throws -> [PolicyAction] {
+        guard values.count.isMultiple(of: count) else {
+            throw GymnazoError.invalidState("PPO returned an invalid continuous action batch.")
+        }
+        let dimension = values.count / count
+        return (0..<count).map { index in
+            let start = index * dimension
+            return .continuous(Array(values[start..<(start + dimension)]))
+        }
+    }
+
+    private func inferenceAction(observation: MLXArray, deterministic: Bool) -> MLXArray {
         policy.setTrainingMode(false)
         let action = policy.forward(
             obs: observation,
@@ -362,20 +475,21 @@ public actor PPO {
     public var numTimesteps: Int { timesteps }
     public var nUpdates: Int { updates }
 
+    func policyParameterValues() -> [Float] {
+        let arrays = policy.parameters().flattened().sorted { $0.0 < $1.0 }.map(\.1)
+        eval(arrays)
+        return arrays.flatMap { $0.asArray(Float.self) }
+    }
+
     /// Attaches an environment to the agent.
     ///
     /// - Parameter env: The environment to attach.
-    public func setEnv(_ envBox: EnvBox) {
-        self.env = envBox.env
-    }
-
-    /// Detaches and returns the currently attached environment, leaving the slot empty.
-    ///
-    /// - Returns: The detached environment, or `nil` if none was attached.
-    public func takeEnv() -> (any Env)? {
-        let environment = env
-        env = nil
-        return environment
+    public func setEnv(_ environment: sending any Env) throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState(
+                "Cannot replace an environment during training or evaluation.")
+        }
+        env = environment
     }
 
     func restore(
@@ -416,12 +530,8 @@ public actor PPO {
 
         var continueTraining = true
         for _ in 0..<config.nEpochs {
-            let (batchKey, nextKey) = MLX.split(key: key, stream: .cpu)
-            key = nextKey
             let batches = rolloutBuffer.batches(
-                batchSize: config.batchSize,
-                key: batchKey
-            )
+                batchSize: config.batchSize, generator: &batchGenerator)
             for batch in batches {
                 var advantages = batch.advantages
                 if config.normalizeAdvantage && advantages.size > 1 {
@@ -462,7 +572,7 @@ public actor PPO {
                 approxKLValues.append(approxKL)
                 clipFractionValues.append(clipFraction)
 
-                if let targetKL = config.targetKL, approxKL > Float(1.5 * targetKL) {
+                if PPOMath.shouldStop(approxKL: approxKL, targetKL: config.targetKL) {
                     continueTraining = false
                     break
                 }
@@ -523,53 +633,20 @@ public actor PPO {
             )
             let values = Self.flatten(valuesRaw)
             let logProb = Self.flatten(logProbRaw)
-            let ratio = MLX.exp(logProb - oldLogProbs)
-
-            let policyLoss1 = advantages * ratio
-            let policyLoss2 =
-                advantages
-                * MLX.clip(
-                    ratio,
-                    min: 1.0 - clipRange,
-                    max: 1.0 + clipRange
-                )
-            let policyLoss = -MLX.mean(MLX.minimum(policyLoss1, policyLoss2))
-
-            let valuePred: MLXArray
-            if let clipRangeVf {
-                valuePred =
-                    oldValues
-                    + MLX.clip(
-                        values - oldValues,
-                        min: -clipRangeVf,
-                        max: clipRangeVf
-                    )
-            } else {
-                valuePred = values
-            }
-            let valueLoss = MLX.mean((returns - valuePred) ** 2)
-
-            let entropyLoss: MLXArray
-            if let entropyRaw {
-                entropyLoss = -MLX.mean(Self.flatten(entropyRaw))
-            } else {
-                entropyLoss = MLX.mean(logProb)
-            }
-
-            let totalLoss = policyLoss + entCoef * entropyLoss + vfCoef * valueLoss
-
-            let logRatio = logProb - oldLogProbs
-            let approxKL = MLX.mean((MLX.exp(logRatio) - 1.0) - logRatio)
-            let clipFraction = MLX.mean((MLX.abs(ratio - 1.0) .> clipRange).asType(.float32))
-
-            return [
-                totalLoss,
-                MLX.stopGradient(policyLoss),
-                MLX.stopGradient(valueLoss),
-                MLX.stopGradient(entropyLoss),
-                MLX.stopGradient(approxKL),
-                MLX.stopGradient(clipFraction),
-            ]
+            let losses = PPOMath.losses(
+                values: values,
+                logProb: logProb,
+                entropy: entropyRaw.map(Self.flatten),
+                oldValues: oldValues,
+                oldLogProbs: oldLogProbs,
+                advantages: advantages,
+                returns: returns,
+                clipRange: clipRange,
+                clipRangeVf: clipRangeVf,
+                entCoef: entCoef,
+                vfCoef: vfCoef
+            )
+            return [losses[0]] + losses.dropFirst().map { MLX.stopGradient($0) }
         }
 
         let stepBody: ([MLXArray]) -> [MLXArray] = { (args: [MLXArray]) -> [MLXArray] in
@@ -636,6 +713,30 @@ public actor PPO {
         }
 
         return action
+    }
+
+    func actionValues(observation: [Float], deterministic: Bool) -> [Float] {
+        switch act(observation: observation, deterministic: deterministic) {
+        case .discrete(let action):
+            return [Float(action)]
+        case .multiDiscrete(let actions):
+            return actions.map(Float.init)
+        case .multiBinary(let actions):
+            return actions.map { $0 ? 1 : 0 }
+        case .continuous(let actions):
+            return actions
+        }
+    }
+
+    private func beginSession() throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState("Training or evaluation is already running.")
+        }
+        isSessionRunning = true
+    }
+
+    private func endSession() {
+        isSessionRunning = false
     }
 
     private static func flatten(_ value: MLXArray) -> MLXArray {

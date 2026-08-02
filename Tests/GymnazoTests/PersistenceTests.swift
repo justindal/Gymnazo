@@ -27,7 +27,6 @@ struct PersistenceTests {
         let dir = tempDir()
         defer { cleanup(dir) }
 
-        let env = try await Gymnazo.make("FrozenLake")
         let config = TabularConfig(learningRate: 0.3, gamma: 0.9)
         let agent = TabularAgent(
             updateRule: .qLearning,
@@ -39,11 +38,9 @@ struct PersistenceTests {
             timesteps: 500,
             explorationRate: 0.25
         )
-        await agent.setEnv(EnvBox(env))
-
         try await agent.save(to: dir)
 
-        let loaded = try TabularAgent.load(from: dir, env: env)
+        let loaded = try TabularAgent.load(from: dir)
 
         #expect(await loaded.numTimesteps == 500)
         #expect(await loaded.epsilon == 0.25)
@@ -67,7 +64,6 @@ struct PersistenceTests {
         let dir = tempDir()
         defer { cleanup(dir) }
 
-        let env = try await Gymnazo.make("FrozenLake")
         let agent = TabularAgent(
             updateRule: .sarsa,
             config: TabularConfig(),
@@ -78,11 +74,9 @@ struct PersistenceTests {
             timesteps: 200,
             explorationRate: 0.5
         )
-        await agent.setEnv(EnvBox(env))
-
         try await agent.save(to: dir)
 
-        let loaded = try TabularAgent.load(from: dir, env: env)
+        let loaded = try TabularAgent.load(from: dir)
 
         #expect(await loaded.numTimesteps == 200)
         #expect(await loaded.epsilon == 0.5)
@@ -108,12 +102,10 @@ struct PersistenceTests {
             batchSize: 32
         )
         let dqn = try DQN(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace as! Discrete,
+            env: env,
             config: dqnConfig,
             seed: 42
         )
-        await dqn.setEnv(EnvBox(env))
 
         await dqn.restore(
             timesteps: 100,
@@ -135,7 +127,8 @@ struct PersistenceTests {
             FileManager.default.fileExists(
                 atPath: dir.appendingPathComponent("target.safetensors").path))
 
-        let loaded = try DQN.load(from: dir, env: env)
+        let loadedEnv = try await Gymnazo.make("CartPole")
+        let loaded = try await DQN.load(from: dir, env: loadedEnv)
 
         #expect(await loaded.numTimesteps == 100)
         #expect(await loaded.totalTimesteps == 500)
@@ -176,8 +169,7 @@ struct PersistenceTests {
             entropy: .adam(beta1: 0.9, beta2: 0.999, eps: 1e-8)
         )
         let sac = try SAC(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace,
+            env: env,
             networksConfig: networksConfig,
             config: config,
             optimizerConfig: optimizerConfig,
@@ -185,8 +177,6 @@ struct PersistenceTests {
             targetEntropy: -1.0,
             seed: 42
         )
-        await sac.setEnv(EnvBox(env))
-
         await sac.restore(
             timesteps: 75,
             totalTimesteps: 300,
@@ -212,7 +202,8 @@ struct PersistenceTests {
             FileManager.default.fileExists(
                 atPath: dir.appendingPathComponent("entropy.safetensors").path))
 
-        let loaded = try SAC.load(from: dir, env: env)
+        let loadedEnv = try await Gymnazo.make("Pendulum")
+        let loaded = try await SAC.load(from: dir, env: loadedEnv)
 
         #expect(await loaded.numTimesteps == 75)
         #expect(await loaded.totalTimesteps == 300)
@@ -226,13 +217,11 @@ struct PersistenceTests {
         #expect(loadedSacConfig.bufferSize == 500)
         #expect(loadedSacConfig.batchSize == 32)
 
-        let loadedNoEnv = try SAC.load(from: dir)
+        let loadedNoEnv = try await SAC.load(from: dir)
         #expect(loadedNoEnv.networksConfig == networksConfig)
         #expect(loadedNoEnv.optimizerConfig == optimizerConfig)
-        var evalEnv = env
-        let obs = try evalEnv.reset().obs
-        let action = await loadedNoEnv(observation: obs, deterministic: true)
-        #expect(action.size > 0)
+        let action = await loadedNoEnv.actionValues(observation: [0, 0, 0])
+        #expect(action.count == 1)
     }
 
     @Test @MainActor
@@ -271,16 +260,13 @@ struct PersistenceTests {
             actionNoise: .normal(std: 0.1)
         )
         let td3 = try TD3(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace,
+            env: env,
             learningRate: ConstantLearningRate(1e-3),
             policyConfig: policyConfig,
             algorithmConfig: algorithmConfig,
             config: offPolicyConfig,
             seed: 42
         )
-        await td3.setEnv(EnvBox(env))
-
         await td3.restore(
             timesteps: 90,
             totalTimesteps: 400,
@@ -306,7 +292,8 @@ struct PersistenceTests {
             FileManager.default.fileExists(
                 atPath: dir.appendingPathComponent("critic_target.safetensors").path))
 
-        let loaded = try TD3.load(from: dir, env: env)
+        let loadedEnv = try await Gymnazo.make("Pendulum")
+        let loaded = try await TD3.load(from: dir, env: loadedEnv)
 
         #expect(await loaded.numTimesteps == 90)
         #expect(await loaded.totalTimesteps == 400)
@@ -356,15 +343,12 @@ struct PersistenceTests {
             sdeSampleFreq: -1
         )
         let ppo = try PPO(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace,
+            env: env,
             learningRate: ConstantLearningRate(3e-4),
             policyConfig: policyConfig,
             config: config,
             seed: 13
         )
-        await ppo.setEnv(EnvBox(env))
-
         await ppo.restore(
             timesteps: 60,
             totalTimesteps: 240,
@@ -381,7 +365,8 @@ struct PersistenceTests {
             FileManager.default.fileExists(
                 atPath: dir.appendingPathComponent("policy.safetensors").path))
 
-        let loaded = try PPO.load(from: dir, env: env)
+        let loadedEnv = try await Gymnazo.make("CartPole")
+        let loaded = try await PPO.load(from: dir, env: loadedEnv)
         #expect(await loaded.numTimesteps == 60)
         #expect(await loaded.totalTimesteps == 240)
         #expect(abs(await loaded.progressRemaining - 0.75) < 1e-6)
@@ -389,11 +374,12 @@ struct PersistenceTests {
         #expect(loaded.config == config)
         #expect(loaded.policyConfig == policyConfig)
 
-        let loadedNoEnv = try PPO.load(from: dir)
-        var evalEnv = try await Gymnazo.make("CartPole")
-        let obs = try evalEnv.reset(seed: 99).obs
-        let action = await loadedNoEnv(observation: obs, deterministic: true)
-        #expect(action.size > 0)
+        let loadedNoEnv = try await PPO.load(from: dir)
+        let action = await loadedNoEnv.actionValues(
+            observation: [0, 0, 0, 0],
+            deterministic: true
+        )
+        #expect(action.count == 1)
     }
 
     @Test

@@ -30,6 +30,68 @@ struct TD3Tests {
     }
 
     @Test
+    @MainActor
+    func seededNetworksMatchAndDifferentSeedsDiffer() async throws {
+        let config = TD3PolicyConfig(
+            netArch: .shared([16]),
+            featuresExtractor: .flatten
+        )
+        let first = try TD3(
+            observationSpace: observationSpace(),
+            actionSpace: actionSpace(),
+            policyConfig: config,
+            seed: 101
+        )
+        let second = try TD3(
+            observationSpace: observationSpace(),
+            actionSpace: actionSpace(),
+            policyConfig: config,
+            seed: 101
+        )
+        let different = try TD3(
+            observationSpace: observationSpace(),
+            actionSpace: actionSpace(),
+            policyConfig: config,
+            seed: 102
+        )
+
+        #expect(await first.actorParameterValues() == second.actorParameterValues())
+        #expect(await first.actorParameterValues() != different.actorParameterValues())
+    }
+
+    @Test
+    @MainActor
+    func seededLearningProducesMatchingWeights() async throws {
+        let policy = TD3PolicyConfig(
+            netArch: .shared([16]),
+            featuresExtractor: .flatten
+        )
+        let config = OffPolicyConfig(
+            bufferSize: 32,
+            learningStarts: 0,
+            batchSize: 2,
+            sdeSupported: false
+        )
+        let first = try TD3(
+            env: SeededContinuousTrainingEnvironment(),
+            policyConfig: policy,
+            config: config,
+            seed: 43
+        )
+        let second = try TD3(
+            env: SeededContinuousTrainingEnvironment(),
+            policyConfig: policy,
+            config: config,
+            seed: 43
+        )
+
+        try await first.learn(totalTimesteps: 12, callbacks: nil)
+        try await second.learn(totalTimesteps: 12, callbacks: nil)
+
+        #expect(await first.actorParameterValues() == second.actorParameterValues())
+    }
+
+    @Test
     func algorithmConfigDefaultsAndLegacyNoiseMapping() {
         let defaults = TD3AlgorithmConfig()
         #expect(defaults.policyDelay == 2)
@@ -213,11 +275,11 @@ struct TD3Tests {
             seed: 7
         )
 
-        let actorBefore = (await td3.actor).parameters()
+        let actorBefore = await td3.actorParameterValues()
         try await td3.learn(totalTimesteps: 1, callbacks: nil)
-        let actorAfter = (await td3.actor).parameters()
+        let actorAfter = await td3.actorParameterValues()
 
-        #expect(maxParameterDiff(actorBefore, actorAfter) < 1e-6)
+        #expect(actorBefore == actorAfter)
         #expect(await td3.gradientSteps == 1)
     }
 
@@ -266,15 +328,19 @@ struct TD3Tests {
         try await td3.evaluate(episodes: 1, deterministic: true, callbacks: nil)
 
         var envForBounds = try await Gymnazo.make("Pendulum")
-        let obs = try envForBounds.reset(seed: 999).obs
-        let action = await td3(observation: obs, deterministic: false)
+        let observationValues = try envForBounds.reset(seed: 999).obs
+            .reshaped([-1])
+            .asArray(Float.self)
+        let actionValues = await td3.actionValues(
+            observation: observationValues,
+            deterministic: false
+        )
 
         guard let box = envForBounds.actionSpace as? Box else {
             Issue.record("Pendulum action space should be Box.")
             return
         }
 
-        let actionValues = action.reshaped([-1]).asArray(Float.self)
         let lowValues = box.low.reshaped([-1]).asArray(Float.self)
         let highValues = box.high.reshaped([-1]).asArray(Float.self)
 

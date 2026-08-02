@@ -44,6 +44,64 @@ struct SACTests {
 
     @Test
     @MainActor
+    func seededNetworksMatchAndDifferentSeedsDiffer() async throws {
+        let config = SACNetworksConfig(
+            actor: SACActorConfig(netArch: .shared([16]), featuresExtractor: .flatten),
+            critic: SACCriticConfig(netArch: [16], featuresExtractor: .flatten)
+        )
+        let first = try SAC(
+            observationSpace: observationSpace(),
+            actionSpace: actionSpace(),
+            networksConfig: config,
+            seed: 101
+        )
+        let second = try SAC(
+            observationSpace: observationSpace(),
+            actionSpace: actionSpace(),
+            networksConfig: config,
+            seed: 101
+        )
+        let different = try SAC(
+            observationSpace: observationSpace(),
+            actionSpace: actionSpace(),
+            networksConfig: config,
+            seed: 102
+        )
+
+        #expect(await first.criticTargetParameterValues() == second.criticTargetParameterValues())
+        #expect(
+            await first.criticTargetParameterValues() != different.criticTargetParameterValues())
+    }
+
+    @Test
+    @MainActor
+    func seededLearningProducesMatchingWeights() async throws {
+        let networks = SACNetworksConfig(
+            actor: SACActorConfig(netArch: .shared([16]), featuresExtractor: .flatten),
+            critic: SACCriticConfig(netArch: [16], featuresExtractor: .flatten)
+        )
+        let config = OffPolicyConfig(bufferSize: 32, learningStarts: 0, batchSize: 2)
+        let first = try SAC(
+            env: SeededContinuousTrainingEnvironment(),
+            networksConfig: networks,
+            config: config,
+            seed: 43
+        )
+        let second = try SAC(
+            env: SeededContinuousTrainingEnvironment(),
+            networksConfig: networks,
+            config: config,
+            seed: 43
+        )
+
+        try await first.learn(totalTimesteps: 12, callbacks: nil)
+        try await second.learn(totalTimesteps: 12, callbacks: nil)
+
+        #expect(await first.criticTargetParameterValues() == second.criticTargetParameterValues())
+    }
+
+    @Test
+    @MainActor
     func targetEntropyDefaultsToNegativeActionDim() async throws {
         let sac = try SAC(
             observationSpace: observationSpace(),
@@ -119,9 +177,13 @@ struct SACTests {
             seed: 42
         )
 
-        let targetBeforeNorm = parameterL1Norm((await sac.criticTarget).parameters())
+        let targetBeforeNorm = await sac.criticTargetParameterValues().reduce(0) {
+            $0 + abs($1)
+        }
         try await sac.learn(totalTimesteps: 3, callbacks: nil)
-        let targetAfterNorm = parameterL1Norm((await sac.criticTarget).parameters())
+        let targetAfterNorm = await sac.criticTargetParameterValues().reduce(0) {
+            $0 + abs($1)
+        }
 
         #expect(abs(targetAfterNorm - targetBeforeNorm) > 1e-8)
     }

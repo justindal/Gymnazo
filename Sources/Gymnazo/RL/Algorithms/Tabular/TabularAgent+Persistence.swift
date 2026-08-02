@@ -37,7 +37,7 @@ extension TabularAgent {
 
     public static func load(
         from directory: URL,
-        env: (any Env)? = nil
+        env: sending (any Env)? = nil
     ) throws -> TabularAgent {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
@@ -86,7 +86,7 @@ extension TabularAgent {
             qTable: qTable,
             timesteps: checkpoint.numTimesteps,
             explorationRate: explorationRate,
-            envBox: env.map(EnvBox.init)
+            env: env
         )
 
         return agent

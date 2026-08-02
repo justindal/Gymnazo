@@ -38,9 +38,9 @@ extension DQN {
 
     public static func load(
         from directory: URL,
-        env: (any Env)? = nil,
+        env: sending (any Env)? = nil,
         includeBuffer: Bool = true
-    ) throws -> DQN {
+    ) async throws -> DQN {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
         guard checkpoint.algorithmKind == .dqn else {
@@ -59,7 +59,15 @@ extension DQN {
                 "DQN.load requires an environment to reconstruct network architecture")
         }
 
-        guard let discrete = environment.actionSpace as? Discrete else {
+        let observationSpace =
+            try SpaceDescriptor
+            .from(space: environment.observationSpace)
+            .makeSpace()
+        guard
+            let discrete = try SpaceDescriptor
+                .from(space: environment.actionSpace)
+                .makeSpace() as? Discrete
+        else {
             throw PersistenceError.invalidCheckpoint("DQN requires a Discrete action space")
         }
 
@@ -68,7 +76,7 @@ extension DQN {
             ?? ConstantLearningRate(1e-4)
 
         let networks = try DQNNetworks(
-            observationSpace: environment.observationSpace,
+            observationSpace: observationSpace,
             nActions: discrete.n,
             config: policyConfig
         )
@@ -95,8 +103,14 @@ extension DQN {
                     seed: checkpoint.seed
                 )
                 var buffer = try ReplayBuffer(
-                    observationSpace: networks.qNet.observationSpace,
-                    actionSpace: networks.qNet.actionSpace,
+                    observationSpace:
+                        try SpaceDescriptor
+                        .from(space: networks.qNet.observationSpace)
+                        .makeSpace(),
+                    actionSpace:
+                        try SpaceDescriptor
+                        .from(space: networks.qNet.actionSpace)
+                        .makeSpace(),
                     config: bufferConfig,
                     numEnvs: 1
                 )
@@ -106,8 +120,7 @@ extension DQN {
         }
 
         let agent = DQN(
-            policy: networks.qNet,
-            targetPolicy: networks.qNetTarget,
+            networks: networks,
             optimizer: optimizer,
             config: dqnConfig,
             policyConfig: policyConfig,
@@ -120,8 +133,10 @@ extension DQN {
             explorationRate: checkpoint.explorationRate ?? dqnConfig.explorationInitialEps,
             gradientSteps: checkpoint.numGradientSteps ?? 0,
             buffer: buf,
-            envBox: env.map(EnvBox.init)
+            env: nil
         )
+
+        try await agent.setEnv(environment)
 
         return agent
     }
