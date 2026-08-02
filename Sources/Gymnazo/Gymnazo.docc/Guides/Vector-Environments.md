@@ -4,14 +4,15 @@ Run multiple environment instances in parallel for efficient training.
 
 ## Overview
 
-Vector environments allow you to run multiple instances of an environment simultaneously, which can help speed up training. Gymnazo provides two implementations, as Gymnasium does:
+Vector environments allow you to manage multiple instances of an environment with one batched step boundary. Gymnazo provides compatibility vectors and a typed Swift-value vector API:
 
 - **SyncVectorEnv**: Runs environments sequentially in the main thread.
-- **AsyncVectorEnv**: Runs each environment in its own Swift actor for true parallelism.
+- **AsyncVectorEnv**: Preserves the compatibility async API while serializing compatibility environment access through the main actor.
+- **AnyValueVectorEnvironment**: Owns typed environments and supports sequential or actor-owned parallel collection.
 
 ## Creating Vector Environments
 
-### Using makeVec() (Recommended)
+### Using makeVec() (Compatibility API)
 
 The simplest way to create vector environments is with `Gymnazo.makeVec(...)` and `Gymnazo.makeVecAsync(...)`:
 
@@ -28,7 +29,7 @@ let asyncEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
 You can also use the `vectorizationMode` parameter:
 
 ```swift
-// Equivalent to makeVecAsync
+// Compatibility async façade
 let asyncEnv = try await Gymnazo.makeVec(
     "CartPole",
     numEnvs: 4,
@@ -152,9 +153,30 @@ let env = try SyncVectorEnv(
 )
 ```
 
+## Typed Vector Environment
+
+Use ``Gymnazo/makeValueVec(_:numEnvs:mode:autoresetMode:maxEpisodeSteps:options:)`` when observations, actions, and info should remain typed Swift values:
+
+```swift
+let env = try await Gymnazo.makeValueVec(
+    "CartPole",
+    numEnvs: 4,
+    mode: .parallel,
+    autoresetMode: .sameStep
+)
+
+_ = try await env.reset(seed: 42)
+let result = try await env.step([
+    .discrete(0), .discrete(1), .discrete(0), .discrete(1)
+])
+try await env.close()
+```
+
+Use ``ValueCollectionSession`` when one batched policy closure should own collection and overlapping sessions must be rejected. See <doc:Typed-Value-Boundary> for the complete typed workflow.
+
 ## Async Vector Environment
 
-`AsyncVectorEnv` uses Swift's actor system to run environments in parallel. It provides both synchronous and asynchronous APIs:
+`AsyncVectorEnv` preserves the compatibility API for existing `Env` clients. It provides both synchronous and asynchronous entry points while keeping compatibility environment access serialized:
 
 ```swift
 import MLX
@@ -170,19 +192,21 @@ let resetAsync = try await asyncEnv.resetAsync(seed: 42)
 let resultAsync = try await asyncEnv.stepAsync(MLXArray([1, 0, 1, 0]))
 ```
 
-### When to Use Async
+### When to Use Typed Parallel Collection
 
-Use `AsyncVectorEnv` when:
+Use `makeValueVec(..., mode: .parallel)` when:
 
-- Your environment's `step(_:)` function is computationally expensive
-- You have many environments and want true parallelism
-- You're running on a multi-core system
+- Your typed environment's `stepValue(_:)` function is computationally expensive
+- You have many independent environments and want actor-owned parallelism
+- You need Sendable observations, actions, and terminal metadata
 
 Use `SyncVectorEnv` when:
 
 - Environments are lightweight
 - You need deterministic, reproducible behavior
 - You want simpler debugging
+
+Use `AsyncVectorEnv` when an existing compatibility `Env` integration requires its async entry points. It is not the recommended path for new parallel typed collection.
 
 ## Properties
 
@@ -241,15 +265,20 @@ func trainWithVectorEnv() async throws {
 - ``VectorEnv``
 - ``SyncVectorEnv``
 - ``AsyncVectorEnv``
+- ``AnyValueVectorEnvironment``
+- ``SyncValueVectorEnvironment``
+- ``ParallelValueVectorEnvironment``
+- ``ValueCollectionSession``
 
 ### Configuration
 
 - ``AutoresetMode``
 - ``VectorizationMode``
+- ``ValueVectorMode``
 
 ### Result Types
 
 - ``VectorStepResult``
 - ``VectorResetResult``
-- ``EnvStepResult``
-- ``EnvResetResult``
+- ``Step``
+- ``Reset``
