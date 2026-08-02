@@ -1,5 +1,6 @@
 import Foundation
 
+/// Typed Swift-state continuous-control MountainCar environment.
 public struct MountainCarContinuousValueEnvironment: ValueEnvironment {
     public let minPosition: Float = -1.2
     public let maxPosition: Float = 0.6
@@ -17,6 +18,10 @@ public struct MountainCarContinuousValueEnvironment: ValueEnvironment {
     private var needsReset = true
     private var isClosed = false
 
+    /// Creates a continuous MountainCar environment with the requested goal velocity.
+    ///
+    /// - Parameter goalVelocity: Minimum velocity required at the goal.
+    /// - Throws: If the configuration is invalid.
     public init(goalVelocity: Float = 0) throws {
         guard goalVelocity.isFinite else {
             throw GymnazoError.invalidConfiguration("Goal velocity must be finite.")
@@ -29,6 +34,13 @@ public struct MountainCarContinuousValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Resets the car to a seeded position in the starting interval.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: MountainCarContinuous does not support reset options.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If the environment is closed or options are supplied.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -53,6 +65,11 @@ public struct MountainCarContinuousValueEnvironment: ValueEnvironment {
         return ValueReset(observation: try observation())
     }
 
+    /// Advances the car with one bounded continuous force.
+    ///
+    /// - Parameter action: A one-element tensor containing the force.
+    /// - Returns: The next observation and step result.
+    /// - Throws: If the environment is closed, not reset, or action is invalid.
     public mutating func stepValue(
         _ action: TensorValue<Float>
     ) throws -> ValueStep<TensorValue<Float>> {

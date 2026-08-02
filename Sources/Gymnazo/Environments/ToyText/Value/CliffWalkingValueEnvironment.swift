@@ -1,3 +1,4 @@
+/// Typed Swift-state CliffWalking environment.
 public struct CliffWalkingValueEnvironment: ValueEnvironment {
     private static let rows = 4
     private static let columns = 12
@@ -12,12 +13,23 @@ public struct CliffWalkingValueEnvironment: ValueEnvironment {
     private var state = Self.start
     private var generator: SeededGenerator?
 
+    /// Creates a grid with optional slippery transitions.
+    ///
+    /// - Parameter isSlippery: Whether actions may drift to neighboring directions.
+    /// - Throws: If the value-space configuration fails.
     public init(isSlippery: Bool = false) throws {
         valueObservationSpace = try DiscreteValueSpace(n: Self.rows * Self.columns)
         valueActionSpace = try DiscreteValueSpace(n: Self.deltas.count)
         slippery = isSlippery
     }
 
+    /// Resets the agent to the fixed start tile.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: CliffWalking does not support reset options.
+    /// - Returns: The start state and reset metadata.
+    /// - Throws: If options are supplied.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -30,6 +42,11 @@ public struct CliffWalkingValueEnvironment: ValueEnvironment {
         return ValueReset(observation: state, info: ["prob": .double(1)])
     }
 
+    /// Moves the agent and applies cliff or goal rewards.
+    ///
+    /// - Parameter action: Direction index from zero through three.
+    /// - Returns: The next state and step result.
+    /// - Throws: If the action is invalid or the environment is not reset.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<Int> {
         guard valueActionSpace.containsValue(action) else {
             throw GymnazoError.invalidAction("Invalid action: \(action)")

@@ -1,3 +1,4 @@
+/// A typed observation transform used for dtype or representation changes.
 public typealias DtypeObservationValueEnvironment<
     Base: ValueEnvironment,
     Output: Sendable,
@@ -5,9 +6,11 @@ public typealias DtypeObservationValueEnvironment<
 > = TransformObservationValueEnvironment<Base, Output, OutputSpace>
 where OutputSpace.Value == Output
 
+/// A typed reward transform that clips rewards to configured bounds.
 public typealias ClipRewardValueEnvironment<Base: ValueEnvironment> =
     TransformRewardValueEnvironment<Base>
 
+/// Reshapes fixed-size float tensor observations without changing element count.
 public struct ReshapeObservationValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueSpace {
     public typealias Observation = TensorValue<Float>
@@ -20,6 +23,12 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
 
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a reshape wrapper with a target tensor shape.
+    ///
+    /// - Parameters:
+    ///   - base: Environment providing the source observations.
+    ///   - shape: Target observation shape.
+    /// - Throws: If shape dimensions are invalid or change the element count.
     public init(_ base: Base, shape: [Int]) throws {
         let count = try TensorValue<Float>.elementCount(for: shape)
         guard count == base.valueObservationSpace.low.count else {
@@ -63,6 +72,7 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
     }
 }
 
+/// Delays float tensor observations with zero-filled initial frames.
 public struct DelayObservationValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueSpace {
     public typealias Observation = TensorValue<Float>
@@ -77,6 +87,12 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
     public var valueObservationSpace: ObservationSpace { base.valueObservationSpace }
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a fixed observation-delay wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose observations are delayed.
+    ///   - delay: Number of prior observations to retain.
+    /// - Throws: If delay is negative.
     public init(_ base: Base, delay: Int) throws {
         guard delay >= 0 else {
             throw GymnazoError.invalidConfiguration("Observation delay must be non-negative.")
@@ -124,6 +140,7 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
     }
 }
 
+/// Appends normalized or raw elapsed time to float tensor observations.
 public struct TimeAwareObservationValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueSpace {
     public typealias Observation = TensorValue<Float>
@@ -139,6 +156,13 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
 
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a time-aware observation wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose observations receive elapsed time.
+    ///   - maxEpisodeSteps: Episode length used for time normalization.
+    ///   - normalizeTime: Whether appended time is normalized to zero through one.
+    /// - Throws: If maxEpisodeSteps is not positive.
     public init(
         _ base: Base,
         maxEpisodeSteps: Int,
@@ -192,6 +216,7 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
     }
 }
 
+/// Repeats actions and max-pools the last two float tensor observations.
 public struct MaxAndSkipObservationValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueSpace {
     public typealias Observation = TensorValue<Float>
@@ -205,6 +230,12 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
     public var valueObservationSpace: ObservationSpace { base.valueObservationSpace }
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a max-and-skip wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose actions and observations are skipped.
+    ///   - skip: Number of repeated actions per wrapper step.
+    /// - Throws: If skip is not positive.
     public init(_ base: Base, skip: Int = 4) throws {
         guard skip > 0 else {
             throw GymnazoError.invalidConfiguration("Frame skip must be positive.")
@@ -259,6 +290,7 @@ where Base.Observation == TensorValue<Float>, Base.ObservationSpace == BoxValueS
     }
 }
 
+/// Repeats the previous action with a seeded probability.
 public struct StickyActionValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.Action: Equatable {
     public typealias Observation = Base.Observation
@@ -275,6 +307,13 @@ where Base.Action: Equatable {
     public var valueObservationSpace: ObservationSpace { base.valueObservationSpace }
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a sticky-action wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose actions may be repeated.
+    ///   - repeatProbability: Probability of repeating the previous action.
+    ///   - seed: Seed for the repeat decision generator.
+    /// - Throws: If repeatProbability is outside zero through one.
     public init(
         _ base: Base,
         repeatProbability: Float,
@@ -316,6 +355,7 @@ where Base.Action: Equatable {
     public mutating func close() { base.close() }
 }
 
+/// Keeps selected keys from dictionary observations.
 public struct FilterDictionaryObservationValueEnvironment<Base: ValueEnvironment>:
     ValueEnvironment
 where
@@ -333,6 +373,12 @@ where
 
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a dictionary observation filter.
+    ///
+    /// - Parameters:
+    ///   - base: Environment providing dictionary observations.
+    ///   - keys: Dictionary keys to retain.
+    /// - Throws: If keys are duplicated or unknown.
     public init(_ base: Base, keys: [String]) throws {
         guard Set(keys).count == keys.count else {
             throw GymnazoError.invalidConfiguration("Filter keys must be unique.")
@@ -378,6 +424,7 @@ where
     }
 }
 
+/// Keeps selected indices from tuple observations.
 public struct FilterTupleObservationValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.Observation == [SpaceValue], Base.ObservationSpace == TupleValueSpace {
     public typealias Observation = [SpaceValue]
@@ -391,6 +438,12 @@ where Base.Observation == [SpaceValue], Base.ObservationSpace == TupleValueSpace
 
     public var valueActionSpace: ActionSpace { base.valueActionSpace }
 
+    /// Creates a tuple observation filter.
+    ///
+    /// - Parameters:
+    ///   - base: Environment providing tuple observations.
+    ///   - indices: Tuple indices to retain.
+    /// - Throws: If indices are duplicated or outside the tuple space.
     public init(_ base: Base, indices: [Int]) throws {
         guard Set(indices).count == indices.count,
             indices.allSatisfy(base.valueObservationSpace.spaces.indices.contains)

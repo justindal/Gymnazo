@@ -1,18 +1,31 @@
+/// A graph value with typed nodes and directed edges.
 public struct GraphValue<Node: Sendable, Edge: Sendable>: Sendable {
     public let nodes: [Node]
     public let edges: [GraphEdge<Edge>]
 
+    /// Creates a graph from ordered nodes and edges.
+    ///
+    /// - Parameters:
+    ///   - nodes: Node values in graph order.
+    ///   - edges: Directed edges between node indices.
     public init(nodes: [Node], edges: [GraphEdge<Edge>]) {
         self.nodes = nodes
         self.edges = edges
     }
 }
 
+/// A directed edge in a typed graph value.
 public struct GraphEdge<Value: Sendable>: Sendable {
     public let source: Int
     public let target: Int
     public let value: Value
 
+    /// Creates an edge between node indices.
+    ///
+    /// - Parameters:
+    ///   - source: Source node index.
+    ///   - target: Target node index.
+    ///   - value: Edge value.
     public init(source: Int, target: Int, value: Value) {
         self.source = source
         self.target = target
@@ -20,6 +33,7 @@ public struct GraphEdge<Value: Sendable>: Sendable {
     }
 }
 
+/// A graph space with independent node and edge spaces.
 public struct GraphValueSpace<NodeSpace: ValueSpace, EdgeSpace: ValueSpace>: ValueBatchingSpace {
     public let nodeSpace: NodeSpace
     public let edgeSpace: EdgeSpace
@@ -28,6 +42,16 @@ public struct GraphValueSpace<NodeSpace: ValueSpace, EdgeSpace: ValueSpace>: Val
     public let allowSelfLoops: Bool
     public let directed: Bool
 
+    /// Creates a graph space with optional node and edge count limits.
+    ///
+    /// - Parameters:
+    ///   - nodeSpace: Space for node values.
+    ///   - edgeSpace: Space for edge values.
+    ///   - maxNodes: Maximum number of nodes.
+    ///   - maxEdges: Maximum number of edges.
+    ///   - allowSelfLoops: Whether an edge may target its source.
+    ///   - directed: Whether edges are directed.
+    /// - Throws: If graph size limits are invalid.
     public init(
         nodeSpace: NodeSpace,
         edgeSpace: EdgeSpace,
@@ -50,6 +74,10 @@ public struct GraphValueSpace<NodeSpace: ValueSpace, EdgeSpace: ValueSpace>: Val
         self.directed = directed
     }
 
+    /// Returns whether graph counts, node values, and edge values are valid.
+    ///
+    /// - Parameter value: The graph to validate.
+    /// - Returns: True when graph structure and values match the space.
     public func containsValue(_ value: GraphValue<NodeSpace.Value, EdgeSpace.Value>) -> Bool {
         guard value.nodes.count <= maxNodes, value.edges.count <= maxEdges else { return false }
         guard value.nodes.allSatisfy(nodeSpace.containsValue) else { return false }
@@ -63,6 +91,11 @@ public struct GraphValueSpace<NodeSpace: ValueSpace, EdgeSpace: ValueSpace>: Val
         }
     }
 
+    /// Samples a graph with deterministic node and edge counts.
+    ///
+    /// - Parameter generator: The random generator used for sampling.
+    /// - Returns: A sampled graph.
+    /// - Throws: If a node or edge space cannot sample.
     public func sample(using generator: inout SeededGenerator) throws
         -> GraphValue<NodeSpace.Value, EdgeSpace.Value>
     {
@@ -93,6 +126,10 @@ public struct GraphValueSpace<NodeSpace: ValueSpace, EdgeSpace: ValueSpace>: Val
 
 extension GraphValueSpace: SpaceValueConvertible
 where NodeSpace: SpaceValueConvertible, EdgeSpace: SpaceValueConvertible {
+    /// Erases a graph as SpaceValue.
+    ///
+    /// - Parameter value: The graph to encode.
+    /// - Returns: The type-erased graph representation.
     public func encodeValue(_ value: GraphValue<NodeSpace.Value, EdgeSpace.Value>) -> SpaceValue {
         .graph(
             GraphSpaceValue(
@@ -108,6 +145,10 @@ where NodeSpace: SpaceValueConvertible, EdgeSpace: SpaceValueConvertible {
         )
     }
 
+    /// Decodes a type-erased graph when its case matches.
+    ///
+    /// - Parameter value: The erased value to decode.
+    /// - Returns: The typed graph, or nil for another value case.
     public func decodeValue(_ value: SpaceValue) -> GraphValue<NodeSpace.Value, EdgeSpace.Value>? {
         guard case .graph(let graph) = value else { return nil }
         var nodes: [NodeSpace.Value] = []
@@ -133,6 +174,11 @@ where NodeSpace: ValueFlatteningSpace, EdgeSpace: ValueFlatteningSpace {
         nil
     }
 
+    /// Flattens node and edge values while preserving graph structure.
+    ///
+    /// - Parameter value: The graph to flatten.
+    /// - Returns: A flattened graph representation.
+    /// - Throws: If the graph is outside the space.
     public func flattenValue(
         _ value: GraphValue<NodeSpace.Value, EdgeSpace.Value>
     ) throws -> FlattenedValue {
@@ -153,6 +199,11 @@ where NodeSpace: ValueFlatteningSpace, EdgeSpace: ValueFlatteningSpace {
         )
     }
 
+    /// Restores a typed graph from its flattened representation.
+    ///
+    /// - Parameter value: The flattened graph representation.
+    /// - Returns: The restored graph.
+    /// - Throws: If the representation is invalid for the space.
     public func unflattenValue(
         _ value: FlattenedValue
     ) throws -> GraphValue<NodeSpace.Value, EdgeSpace.Value> {

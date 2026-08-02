@@ -1,3 +1,4 @@
+/// Typed Swift-state Taxi environment.
 public struct TaxiValueEnvironment: ValueEnvironment {
     private static let map = [
         "+---------+",
@@ -20,6 +21,12 @@ public struct TaxiValueEnvironment: ValueEnvironment {
     private var fickleStep = false
     private var generator: SeededGenerator?
 
+    /// Creates a Taxi environment with optional rainy and fickle dynamics.
+    ///
+    /// - Parameters:
+    ///   - isRainy: Whether movement may drift to neighboring directions.
+    ///   - ficklePassenger: Whether the passenger destination may change.
+    /// - Throws: If the value-space configuration fails.
     public init(isRainy: Bool = false, ficklePassenger: Bool = false) throws {
         valueObservationSpace = try DiscreteValueSpace(n: 500)
         valueActionSpace = try DiscreteValueSpace(n: 6)
@@ -43,6 +50,13 @@ public struct TaxiValueEnvironment: ValueEnvironment {
         }
     }
 
+    /// Resets the taxi and samples a passenger task.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: Taxi does not support reset options.
+    /// - Returns: The initial state and action-mask metadata.
+    /// - Throws: If options are supplied or sampling fails.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -66,6 +80,11 @@ public struct TaxiValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Applies a movement, pickup, or drop-off action.
+    ///
+    /// - Parameter action: Movement, pickup, or drop-off action index.
+    /// - Returns: The next state and step result.
+    /// - Throws: If the action is invalid or the environment is not reset.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<Int> {
         guard valueActionSpace.containsValue(action) else {
             throw GymnazoError.invalidAction("Invalid action: \(action)")
@@ -163,6 +182,10 @@ public struct TaxiValueEnvironment: ValueEnvironment {
 
     public mutating func close() {}
 
+    /// Returns valid action flags for a taxi state.
+    ///
+    /// - Parameter state: Encoded taxi state.
+    /// - Returns: Boolean flags for each action in action-space order.
     public func actionMask(for state: Int) -> [Bool] {
         let value = Self.decode(state)
         var mask = [Bool](repeating: false, count: 6)

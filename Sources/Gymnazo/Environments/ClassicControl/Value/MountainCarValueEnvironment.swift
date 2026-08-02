@@ -1,5 +1,6 @@
 import Foundation
 
+/// Typed Swift-state MountainCar environment.
 public struct MountainCarValueEnvironment: ValueEnvironment {
     public let minPosition: Float = -1.2
     public let maxPosition: Float = 0.6
@@ -18,6 +19,10 @@ public struct MountainCarValueEnvironment: ValueEnvironment {
     private var needsReset = true
     private var isClosed = false
 
+    /// Creates a MountainCar environment with the requested goal velocity.
+    ///
+    /// - Parameter goalVelocity: Minimum velocity required at the goal.
+    /// - Throws: If the configuration is invalid.
     public init(goalVelocity: Float = 0) throws {
         self.goalVelocity = goalVelocity
         self.valueActionSpace = try DiscreteValueSpace(n: 3)
@@ -27,6 +32,13 @@ public struct MountainCarValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Resets the car to a seeded position in the starting interval.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: MountainCar does not support reset options.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If the environment is closed or options are supplied.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -49,6 +61,11 @@ public struct MountainCarValueEnvironment: ValueEnvironment {
         return ValueReset(observation: try observation())
     }
 
+    /// Advances MountainCar with one of its three discrete forces.
+    ///
+    /// - Parameter action: Discrete force index from zero through two.
+    /// - Returns: The next observation and step result.
+    /// - Throws: If the environment is closed, not reset, or action is invalid.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<TensorValue<Float>> {
         try ensureOpen()
         guard !needsReset, let state else {

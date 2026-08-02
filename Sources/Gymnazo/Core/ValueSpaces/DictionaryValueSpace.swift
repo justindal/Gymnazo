@@ -1,10 +1,18 @@
+/// A deterministic string-keyed product of typed value spaces.
 public struct DictionaryValueSpace: ValueBatchingSpace, SpaceValueConvertible {
     public let spaces: [String: AnyValueSpace]
 
+    /// Creates a dictionary space from keyed erased spaces.
+    ///
+    /// - Parameter spaces: Spaces keyed by their observation names.
     public init(_ spaces: [String: AnyValueSpace]) {
         self.spaces = spaces
     }
 
+    /// Returns whether all required keys and values belong to their spaces.
+    ///
+    /// - Parameter value: The dictionary value to validate.
+    /// - Returns: True when keys and values match the space.
     public func containsValue(_ value: [String: SpaceValue]) -> Bool {
         guard value.count == spaces.count, value.keys.allSatisfy({ spaces[$0] != nil }) else {
             return false
@@ -15,6 +23,11 @@ public struct DictionaryValueSpace: ValueBatchingSpace, SpaceValueConvertible {
         }
     }
 
+    /// Samples keys in stable sorted order.
+    ///
+    /// - Parameter generator: The random generator used for sampling.
+    /// - Returns: A sampled dictionary value.
+    /// - Throws: If an inner space cannot sample.
     public func sample(using generator: inout SeededGenerator) throws -> [String: SpaceValue] {
         var result: [String: SpaceValue] = [:]
         result.reserveCapacity(spaces.count)
@@ -27,10 +40,18 @@ public struct DictionaryValueSpace: ValueBatchingSpace, SpaceValueConvertible {
         return result
     }
 
+    /// Erases a dictionary value as SpaceValue.
+    ///
+    /// - Parameter value: The dictionary value to encode.
+    /// - Returns: The type-erased dictionary representation.
     public func encodeValue(_ value: [String: SpaceValue]) -> SpaceValue {
         .dictionary(value)
     }
 
+    /// Decodes a dictionary SpaceValue when its case matches.
+    ///
+    /// - Parameter value: The erased value to decode.
+    /// - Returns: The dictionary, or nil for another value case.
     public func decodeValue(_ value: SpaceValue) -> [String: SpaceValue]? {
         guard case .dictionary(let value) = value else { return nil }
         return value
@@ -44,6 +65,11 @@ extension DictionaryValueSpace: ValueFlatteningSpace {
         return dimensions.reduce(0, +)
     }
 
+    /// Flattens keyed values in stable key order.
+    ///
+    /// - Parameter value: The dictionary value to flatten.
+    /// - Returns: A flattened dictionary or vector representation.
+    /// - Throws: If the value is outside the space.
     public func flattenValue(_ value: [String: SpaceValue]) throws -> FlattenedValue {
         guard containsValue(value) else {
             throw GymnazoError.invalidState("Cannot flatten a value outside the dictionary space.")
@@ -71,6 +97,11 @@ extension DictionaryValueSpace: ValueFlatteningSpace {
         return .dictionary(flattened)
     }
 
+    /// Restores keyed values from a flattened dictionary.
+    ///
+    /// - Parameter value: The flattened dictionary representation.
+    /// - Returns: The restored dictionary value.
+    /// - Throws: If the representation is invalid for the space.
     public func unflattenValue(_ value: FlattenedValue) throws -> [String: SpaceValue] {
         var result: [String: SpaceValue] = [:]
         if let flatDimension {

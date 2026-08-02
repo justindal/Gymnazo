@@ -56,6 +56,10 @@ where Base.ObservationSpace: SpaceValueConvertible, Base.ActionSpace: SpaceValue
     }
 }
 
+/// An actor-owned type-erased value environment.
+///
+/// Only ``SpaceValue`` and typed metadata cross this actor boundary. The
+/// underlying environment storage remains isolated to the actor.
 public actor AnyValueEnvironment {
     public nonisolated let id: String?
     public nonisolated let observationSpace: AnyValueSpace
@@ -66,6 +70,11 @@ public actor AnyValueEnvironment {
     private var maxEpisodeSteps: Int?
     private var elapsedSteps = 0
 
+    /// Creates an actor-owned environment from a typed value environment.
+    ///
+    /// - Parameters:
+    ///   - id: Optional identifier used in contract errors.
+    ///   - base: The value environment to isolate.
     public init<Base: ValueEnvironment>(id: String? = nil, _ base: consuming Base)
     where Base.ObservationSpace: SpaceValueConvertible, Base.ActionSpace: SpaceValueConvertible {
         self.id = id
@@ -86,6 +95,13 @@ public actor AnyValueEnvironment {
         self.storage = storage
     }
 
+    /// Resets the actor-owned environment and validates its observation.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: Environment-specific reset options.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If the environment is closed, reset fails, or the observation is outside its space.
     public func reset(
         seed: UInt64? = nil,
         options: ValueResetOptions? = nil
@@ -106,6 +122,11 @@ public actor AnyValueEnvironment {
         return result
     }
 
+    /// Applies a type-erased action and returns a validated typed step.
+    ///
+    /// - Parameter action: The action encoded for the environment's action space.
+    /// - Returns: The next observation, reward, terminal flags, and metadata.
+    /// - Throws: If the lifecycle state is invalid, the action is outside the space, or the observation is invalid.
     public func step(_ action: SpaceValue) async throws -> ValueStep<SpaceValue> {
         switch state {
         case .initial:
@@ -157,6 +178,7 @@ public actor AnyValueEnvironment {
         self.maxEpisodeSteps = maxEpisodeSteps
     }
 
+    /// Closes the environment and releases its underlying storage.
     public func close() {
         guard state != .closed else { return }
         storage.close()

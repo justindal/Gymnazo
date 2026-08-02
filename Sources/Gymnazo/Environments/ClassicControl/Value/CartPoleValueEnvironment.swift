@@ -1,5 +1,6 @@
 import Foundation
 
+/// Typed Swift-state CartPole environment.
 public struct CartPoleValueEnvironment: ValueEnvironment {
     public let gravity: Float = 9.8
     public let cartMass: Float = 1
@@ -21,6 +22,7 @@ public struct CartPoleValueEnvironment: ValueEnvironment {
     private var needsReset = true
     private var isClosed = false
 
+    /// Creates a CartPole environment with the standard dynamics.
     public init() throws {
         self.totalMass = cartMass + poleMass
         self.poleMassLength = poleMass * poleHalfLength
@@ -47,6 +49,13 @@ public struct CartPoleValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Resets the environment and returns its initial observation.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: CartPole does not support reset options.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If the environment is closed or options are supplied.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -69,6 +78,11 @@ public struct CartPoleValueEnvironment: ValueEnvironment {
         return ValueReset(observation: try observation())
     }
 
+    /// Advances CartPole using a discrete left or right force.
+    ///
+    /// - Parameter action: Zero for left force or one for right force.
+    /// - Returns: The next observation and step result.
+    /// - Throws: If the environment is closed, not reset, or action is invalid.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<TensorValue<Float>> {
         try ensureOpen()
         guard !needsReset, let state else {

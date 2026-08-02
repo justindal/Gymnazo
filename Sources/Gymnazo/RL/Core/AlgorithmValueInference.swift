@@ -1,4 +1,10 @@
 extension DQN {
+    /// Selects an action from a typed tensor observation.
+    ///
+    /// - Parameters:
+    ///   - observation: The typed float observation.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The selected typed policy action.
     public func act(
         observation: TensorValue<Float>,
         deterministic: Bool = true
@@ -8,6 +14,12 @@ extension DQN {
 }
 
 extension PPO {
+    /// Selects an action from a typed tensor observation.
+    ///
+    /// - Parameters:
+    ///   - observation: The typed float observation.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The selected typed policy action.
     public func act(
         observation: TensorValue<Float>,
         deterministic: Bool = true
@@ -17,6 +29,12 @@ extension PPO {
 }
 
 extension SAC {
+    /// Selects an action from a typed tensor observation.
+    ///
+    /// - Parameters:
+    ///   - observation: The typed float observation.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The selected typed policy action.
     public func act(
         observation: TensorValue<Float>,
         deterministic: Bool = true
@@ -26,6 +44,12 @@ extension SAC {
 }
 
 extension TD3 {
+    /// Selects an action from a typed tensor observation.
+    ///
+    /// - Parameters:
+    ///   - observation: The typed float observation.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The selected typed policy action.
     public func act(
         observation: TensorValue<Float>,
         deterministic: Bool = true
@@ -35,6 +59,9 @@ extension TD3 {
 }
 
 extension PolicyAction {
+    /// Converts the policy action to the typed space representation.
+    ///
+    /// - Returns: The corresponding type-erased space value.
     public var spaceValue: SpaceValue {
         switch self {
         case .discrete(let value):
@@ -49,11 +76,22 @@ extension PolicyAction {
     }
 }
 
+/// Converts a policy action into an environment-specific typed action.
 public protocol PolicyActionValue: Sendable {
+    /// Converts a policy action into the conforming action type.
+    ///
+    /// - Parameter action: The policy action to convert.
+    /// - Returns: The conforming environment action.
+    /// - Throws: If the policy action case does not match the conforming type.
     static func policyValue(from action: PolicyAction) throws -> Self
 }
 
 extension Int: PolicyActionValue {
+    /// Extracts a discrete policy action.
+    ///
+    /// - Parameter action: The policy action to convert.
+    /// - Returns: The discrete action value.
+    /// - Throws: If action is not discrete.
     public static func policyValue(from action: PolicyAction) throws -> Int {
         guard case .discrete(let value) = action else {
             throw GymnazoError.invalidActionType(
@@ -66,6 +104,11 @@ extension Int: PolicyActionValue {
 }
 
 extension TensorValue<Float>: PolicyActionValue {
+    /// Extracts a continuous policy action as a flat tensor.
+    ///
+    /// - Parameter action: The policy action to convert.
+    /// - Returns: The continuous action as a one-dimensional tensor.
+    /// - Throws: If action is not continuous or tensor construction fails.
     public static func policyValue(
         from action: PolicyAction
     ) throws -> TensorValue<Float> {
@@ -84,6 +127,14 @@ where
     Environment.Observation == TensorValue<Float>,
     Environment.Action: PolicyActionValue
 {
+    /// Collects transitions by asking a policy for each observation batch.
+    ///
+    /// - Parameters:
+    ///   - steps: Number of vector frames to collect.
+    ///   - seed: Optional deterministic reset seed.
+    ///   - policy: Batched policy callback returning one action per slot.
+    /// - Returns: The typed collection result.
+    /// - Throws: If the policy returns the wrong action count or collection fails.
     public func collectPolicy(
         steps: Int,
         seed: UInt64? = nil,
@@ -103,6 +154,15 @@ where
 }
 
 extension DQN {
+    /// Collects typed transitions with DQN actions.
+    ///
+    /// - Parameters:
+    ///   - session: Exclusive typed collection session.
+    ///   - steps: Number of vector frames to collect.
+    ///   - seed: Optional deterministic reset seed.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The collected tensor observations and integer actions.
+    /// - Throws: If collection or policy inference fails.
     public func collect<Environment: ValueEnvironment>(
         from session: ValueCollectionSession<Environment>,
         steps: Int,
@@ -120,6 +180,15 @@ extension DQN {
 }
 
 extension PPO {
+    /// Collects typed transitions with PPO actions.
+    ///
+    /// - Parameters:
+    ///   - session: Exclusive typed collection session.
+    ///   - steps: Number of vector frames to collect.
+    ///   - seed: Optional deterministic reset seed.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The collected tensor observations and typed actions.
+    /// - Throws: If collection or policy inference fails.
     public func collect<Environment: ValueEnvironment>(
         from session: ValueCollectionSession<Environment>,
         steps: Int,
@@ -137,6 +206,15 @@ extension PPO {
 }
 
 extension SAC {
+    /// Collects typed transitions with SAC actions.
+    ///
+    /// - Parameters:
+    ///   - session: Exclusive typed collection session.
+    ///   - steps: Number of vector frames to collect.
+    ///   - seed: Optional deterministic reset seed.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The collected tensor observations and continuous actions.
+    /// - Throws: If collection or policy inference fails.
     public func collect<Environment: ValueEnvironment>(
         from session: ValueCollectionSession<Environment>,
         steps: Int,
@@ -154,6 +232,15 @@ extension SAC {
 }
 
 extension TD3 {
+    /// Collects typed transitions with TD3 actions.
+    ///
+    /// - Parameters:
+    ///   - session: Exclusive typed collection session.
+    ///   - steps: Number of vector frames to collect.
+    ///   - seed: Optional deterministic reset seed.
+    ///   - deterministic: Whether to disable policy sampling.
+    /// - Returns: The collected tensor observations and continuous actions.
+    /// - Throws: If collection or policy inference fails.
     public func collect<Environment: ValueEnvironment>(
         from session: ValueCollectionSession<Environment>,
         steps: Int,

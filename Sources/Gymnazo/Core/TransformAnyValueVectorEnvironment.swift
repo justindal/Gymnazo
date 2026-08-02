@@ -1,3 +1,4 @@
+/// Applies typed observation, action, and reward transforms to a vector actor.
 public actor TransformAnyValueVectorEnvironment {
     public nonisolated let numEnvs: Int
     public nonisolated let observationSpace: AnyValueSpace
@@ -9,6 +10,15 @@ public actor TransformAnyValueVectorEnvironment {
     private let transformRewards: @Sendable ([Double]) throws -> [Double]
     private var isPerforming = false
 
+    /// Wraps a vector with explicit transformed space contracts.
+    ///
+    /// - Parameters:
+    ///   - base: The vector to wrap.
+    ///   - observationSpace: Optional transformed observation space.
+    ///   - actionSpace: Optional transformed action space.
+    ///   - transformObservations: Batch observation transform.
+    ///   - transformActions: Batch action transform applied before stepping.
+    ///   - transformRewards: Batch reward transform.
     public init(
         _ base: AnyValueVectorEnvironment,
         observationSpace: AnyValueSpace? = nil,
@@ -26,6 +36,13 @@ public actor TransformAnyValueVectorEnvironment {
         self.transformRewards = transformRewards
     }
 
+    /// Resets the wrapped vector and transforms its observations.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional base seed.
+    ///   - options: Reset options passed to the base vector.
+    /// - Returns: The transformed reset result.
+    /// - Throws: If the base operation or observation transform fails.
     public func reset(
         seed: UInt64? = nil,
         options: ValueResetOptions? = nil
@@ -39,6 +56,11 @@ public actor TransformAnyValueVectorEnvironment {
         return ValueVectorReset(observations: observations, infos: result.infos)
     }
 
+    /// Transforms actions, steps the vector, and transforms its outputs.
+    ///
+    /// - Parameter actions: One action for each environment slot.
+    /// - Returns: The transformed step result.
+    /// - Throws: If a transform returns an invalid batch or the base operation fails.
     public func step(
         _ actions: [SpaceValue]
     ) async throws -> ValueVectorStep<SpaceValue> {
@@ -92,6 +114,7 @@ public actor TransformAnyValueVectorEnvironment {
         )
     }
 
+    /// Closes the wrapped vector.
     public func close() async throws {
         try begin()
         defer { isPerforming = false }

@@ -1,3 +1,4 @@
+/// Automatically resets a typed environment according to ``AutoresetMode``.
 public struct AutoResetValueEnvironment<Base: ValueEnvironment>: ValueEnvironment
 where Base.ObservationSpace: SpaceValueConvertible {
     public typealias Observation = Base.Observation
@@ -18,6 +19,11 @@ where Base.ObservationSpace: SpaceValueConvertible {
         base.valueActionSpace
     }
 
+    /// Creates an autoreset wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment to reset automatically.
+    ///   - mode: When completed slots are reset.
     public init(_ base: Base, mode: AutoresetMode = .nextStep) {
         self.base = base
         self.mode = mode

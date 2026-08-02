@@ -1,3 +1,4 @@
+/// Applies a typed transform to observations and exposes an explicit output space.
 public struct TransformObservationValueEnvironment<
     Base: ValueEnvironment,
     Output: Sendable,
@@ -16,6 +17,12 @@ public struct TransformObservationValueEnvironment<
         base.valueActionSpace
     }
 
+    /// Creates an observation-transforming wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment providing the source observations.
+    ///   - observationSpace: Space for transformed observations.
+    ///   - transform: Conversion applied to each observation.
     public init(
         _ base: Base,
         observationSpace: OutputSpace,
@@ -53,6 +60,7 @@ public struct TransformObservationValueEnvironment<
     }
 }
 
+/// Applies a typed transform to rewards.
 public struct TransformRewardValueEnvironment<Base: ValueEnvironment>: ValueEnvironment {
     public typealias Observation = Base.Observation
     public typealias Action = Base.Action
@@ -70,6 +78,11 @@ public struct TransformRewardValueEnvironment<Base: ValueEnvironment>: ValueEnvi
         base.valueActionSpace
     }
 
+    /// Creates a reward-transforming wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose rewards are transformed.
+    ///   - transform: Conversion applied to each reward.
     public init(
         _ base: Base,
         transform: @escaping @Sendable (Double) throws -> Double
@@ -101,6 +114,7 @@ public struct TransformRewardValueEnvironment<Base: ValueEnvironment>: ValueEnvi
     }
 }
 
+/// Transforms typed input actions into the wrapped environment's action type.
 public struct TransformActionValueEnvironment<
     Base: ValueEnvironment,
     Input: Sendable,
@@ -119,6 +133,12 @@ public struct TransformActionValueEnvironment<
         base.valueObservationSpace
     }
 
+    /// Creates an action-transforming wrapper with an explicit input space.
+    ///
+    /// - Parameters:
+    ///   - base: Environment receiving transformed actions.
+    ///   - actionSpace: Space for actions accepted by this wrapper.
+    ///   - transform: Conversion from wrapper actions to base actions.
     public init(
         _ base: Base,
         actionSpace: InputSpace,

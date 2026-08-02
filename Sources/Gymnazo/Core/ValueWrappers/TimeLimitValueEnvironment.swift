@@ -1,3 +1,4 @@
+/// Truncates a typed episode after a fixed number of steps.
 public struct TimeLimitValueEnvironment<Base: ValueEnvironment>: ValueEnvironment {
     public typealias Observation = Base.Observation
     public typealias Action = Base.Action
@@ -17,6 +18,12 @@ public struct TimeLimitValueEnvironment<Base: ValueEnvironment>: ValueEnvironmen
         base.valueActionSpace
     }
 
+    /// Creates a typed time-limit wrapper.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose episodes are limited.
+    ///   - maxEpisodeSteps: Maximum number of steps per episode.
+    /// - Throws: If maxEpisodeSteps is not positive.
     public init(_ base: Base, maxEpisodeSteps: Int) throws {
         guard maxEpisodeSteps > 0 else {
             throw GymnazoError.invalidMaxEpisodeSteps(maxEpisodeSteps)

@@ -1,3 +1,4 @@
+/// Typed Swift-state Blackjack environment.
 public struct BlackjackValueEnvironment: ValueEnvironment {
     private static let deck = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10]
 
@@ -10,6 +11,12 @@ public struct BlackjackValueEnvironment: ValueEnvironment {
     private var dealer: [Int] = []
     private var generator: SeededGenerator?
 
+    /// Creates a Blackjack environment with optional natural payouts.
+    ///
+    /// - Parameters:
+    ///   - natural: Whether a natural blackjack receives a bonus payout.
+    ///   - sab: Whether to use the simplified blackjack rules.
+    /// - Throws: If the value-space configuration fails.
     public init(natural: Bool = false, sab: Bool = false) throws {
         valueObservationSpace = TupleValueSpace([
             AnyValueSpace(try DiscreteValueSpace(n: 32)),
@@ -21,6 +28,13 @@ public struct BlackjackValueEnvironment: ValueEnvironment {
         self.sab = sab
     }
 
+    /// Deals a new hand using the supplied seed.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: Blackjack does not support reset options.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If options are supplied or dealing fails.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -41,6 +55,11 @@ public struct BlackjackValueEnvironment: ValueEnvironment {
         return ValueReset(observation: observation)
     }
 
+    /// Hits or sticks according to the discrete action.
+    ///
+    /// - Parameter action: Zero to stand or one to hit.
+    /// - Returns: The next observation and step result.
+    /// - Throws: If the action is invalid or the hand is finished.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<[SpaceValue]> {
         guard valueActionSpace.containsValue(action) else {
             throw GymnazoError.invalidAction("Invalid action: \(action)")

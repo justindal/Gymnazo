@@ -1,5 +1,6 @@
 import Foundation
 
+/// Records typed episode returns, lengths, durations, and terminal info.
 public struct RecordEpisodeStatisticsValueEnvironment<Base: ValueEnvironment>: ValueEnvironment {
     public typealias Observation = Base.Observation
     public typealias Action = Base.Action
@@ -26,6 +27,13 @@ public struct RecordEpisodeStatisticsValueEnvironment<Base: ValueEnvironment>: V
         base.valueActionSpace
     }
 
+    /// Creates a statistics wrapper with bounded history queues.
+    ///
+    /// - Parameters:
+    ///   - base: Environment whose episode statistics are recorded.
+    ///   - bufferLength: Maximum number of completed episodes retained.
+    ///   - statsKey: Info key used for the statistics dictionary.
+    /// - Throws: If bufferLength is not positive.
     public init(
         _ base: Base,
         bufferLength: Int = 100,

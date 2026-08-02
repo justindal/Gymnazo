@@ -37,6 +37,10 @@ public actor GymnazoRegistry {
     ///
     /// - Parameters:
     ///   - id: The unique identifier for the environment (e.g., "CartPole").
+    ///   - displayName: Human-readable name for UI display.
+    ///   - description: Description of the environment.
+    ///   - category: Environment category for grouping.
+    ///   - metadata: Optional rendering metadata.
     ///   - entryPoint: A closure that creates the environment from options.
     ///   - maxEpisodeSteps: Optional maximum steps per episode.
     ///   - rewardThreshold: Optional reward threshold for solving the environment.
@@ -108,6 +112,7 @@ public enum Gymnazo {
     ///   - displayName: Human-readable name for UI display.
     ///   - description: Description of the environment.
     ///   - category: Environment category for grouping.
+    ///   - metadata: Optional rendering metadata.
     ///   - entryPoint: A closure that creates the environment from options.
     ///   - maxEpisodeSteps: Optional maximum steps per episode.
     ///   - rewardThreshold: Optional reward threshold for solving the environment.

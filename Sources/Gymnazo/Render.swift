@@ -10,19 +10,27 @@ public enum RenderMode: String, Sendable, Codable, CaseIterable {
 }
 
 public enum RenderOutput {
+    /// An ANSI text frame.
     case ansi(String)
     #if canImport(CoreGraphics)
         case rgbArray(CGImage)
         case statePixels(CGImage)
     #endif
     case other(any Sendable)
+    /// A collection of frames captured by a render wrapper.
     case collection([RenderOutput])
 }
 
+/// Rendering capabilities and timing metadata for an environment.
 public struct EnvMetadata: Sendable, Codable, Equatable {
     public let renderModes: [RenderMode]
     public let renderFPS: Int?
 
+    /// Creates environment rendering metadata.
+    ///
+    /// - Parameters:
+    ///   - renderModes: Modes supported by the environment.
+    ///   - renderFPS: Suggested rendering frame rate.
     public init(renderModes: [RenderMode] = [], renderFPS: Int? = nil) {
         self.renderModes = renderModes
         self.renderFPS = renderFPS
@@ -54,6 +62,11 @@ public struct EnvMetadata: Sendable, Codable, Equatable {
 }
 
 extension Env {
+    /// Sets the render mode and returns the next frame.
+    ///
+    /// - Parameter mode: Rendering mode to use for the next frame.
+    /// - Returns: The rendered output, when the environment produces one.
+    /// - Throws: If rendering fails.
     @discardableResult
     public mutating func render(mode: RenderMode) throws -> RenderOutput? {
         renderMode = mode

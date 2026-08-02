@@ -1,5 +1,6 @@
 import Foundation
 
+/// Typed Swift-state Pendulum environment.
 public struct PendulumValueEnvironment: ValueEnvironment {
     public let maxSpeed: Float = 8
     public let maxTorque: Float = 2
@@ -17,6 +18,10 @@ public struct PendulumValueEnvironment: ValueEnvironment {
     private var needsReset = true
     private var isClosed = false
 
+    /// Creates a Pendulum environment with the supplied gravity.
+    ///
+    /// - Parameter g: Gravitational acceleration.
+    /// - Throws: If the configuration is invalid.
     public init(g: Float = 10) throws {
         guard g.isFinite else {
             throw GymnazoError.invalidConfiguration("Pendulum gravity must be finite.")
@@ -32,6 +37,13 @@ public struct PendulumValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Resets the pendulum to a seeded angle and angular velocity.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: Pendulum does not support reset options.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If the environment is closed or options are supplied.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -65,6 +77,11 @@ public struct PendulumValueEnvironment: ValueEnvironment {
         return ValueReset(observation: try observation())
     }
 
+    /// Advances the pendulum with one bounded torque.
+    ///
+    /// - Parameter action: A one-element tensor containing the torque.
+    /// - Returns: The next observation and step result.
+    /// - Throws: If the environment is closed, not reset, or action is invalid.
     public mutating func stepValue(
         _ action: TensorValue<Float>
     ) throws -> ValueStep<TensorValue<Float>> {

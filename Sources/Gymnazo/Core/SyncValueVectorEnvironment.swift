@@ -1,13 +1,20 @@
+/// Batched reset output for a typed vector environment.
 public struct ValueVectorReset<Observation: Sendable>: Sendable {
     public let observations: [Observation]
     public let infos: [ValueInfo]
 
+    /// Creates a batched reset result in environment order.
+    ///
+    /// - Parameters:
+    ///   - observations: Initial observations in slot order.
+    ///   - infos: Reset metadata in slot order.
     public init(observations: [Observation], infos: [ValueInfo]) {
         self.observations = observations
         self.infos = infos
     }
 }
 
+/// Batched step output with separate terminal and reset metadata.
 public struct ValueVectorStep<Observation: Sendable>: Sendable {
     public let observations: [Observation]
     public let rewards: [Double]
@@ -18,6 +25,17 @@ public struct ValueVectorStep<Observation: Sendable>: Sendable {
     public let finalInfos: [ValueInfo?]
     public let resetInfos: [ValueInfo?]
 
+    /// Creates a batched step result in environment order.
+    ///
+    /// - Parameters:
+    ///   - observations: Current observations in slot order.
+    ///   - rewards: Rewards in slot order.
+    ///   - terminations: True for terminated slots.
+    ///   - truncations: True for truncated slots.
+    ///   - infos: Step metadata in slot order.
+    ///   - finalObservations: Terminal observations when a slot finished.
+    ///   - finalInfos: Metadata associated with terminal observations.
+    ///   - resetInfos: Metadata from same-step or next-step autoresets.
     public init(
         observations: [Observation],
         rewards: [Double],
@@ -39,6 +57,7 @@ public struct ValueVectorStep<Observation: Sendable>: Sendable {
     }
 }
 
+/// Runs typed value environments sequentially with autoreset support.
 public struct SyncValueVectorEnvironment<Environment: ValueEnvironment> {
     public let numEnvs: Int
     public let autoresetMode: AutoresetMode
@@ -49,6 +68,12 @@ public struct SyncValueVectorEnvironment<Environment: ValueEnvironment> {
     private var hasReset = false
     private var isInvalid = false
 
+    /// Creates a non-empty synchronous typed vector.
+    ///
+    /// - Parameters:
+    ///   - environments: Environment instances in stable slot order.
+    ///   - autoresetMode: How completed slots are reset.
+    /// - Throws: If environments is empty.
     public init(
         environments: [Environment],
         autoresetMode: AutoresetMode = .nextStep
@@ -62,6 +87,13 @@ public struct SyncValueVectorEnvironment<Environment: ValueEnvironment> {
         self.needsReset = Array(repeating: true, count: environments.count)
     }
 
+    /// Resets all slots using deterministic slot-derived seeds.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional base seed; each slot receives a derived seed.
+    ///   - options: Reset options passed to every slot.
+    /// - Returns: Batched observations and reset metadata.
+    /// - Throws: If a slot reset fails or the vector is closed.
     public mutating func reset(
         seed: UInt64? = nil,
         options: ValueResetOptions? = nil
@@ -92,6 +124,11 @@ public struct SyncValueVectorEnvironment<Environment: ValueEnvironment> {
         }
     }
 
+    /// Steps all slots with one action per environment.
+    ///
+    /// - Parameter actions: One action for each environment slot.
+    /// - Returns: Batched observations, rewards, terminal flags, and metadata.
+    /// - Throws: If reset is required, action count is wrong, or a slot fails.
     public mutating func step(_ actions: [Environment.Action]) throws -> ValueVectorStep<
         Environment.Observation
     > {
@@ -196,6 +233,7 @@ public struct SyncValueVectorEnvironment<Environment: ValueEnvironment> {
         }
     }
 
+    /// Closes every slot and prevents further operations.
     public mutating func close() {
         guard !isClosed else { return }
         for index in environments.indices {

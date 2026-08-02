@@ -1,7 +1,14 @@
+/// A typed tensor of independent integer ranges with optional starts.
 public struct MultiDiscreteValueSpace: ValueBatchingSpace {
     public let nvec: TensorValue<Int>
     public let start: TensorValue<Int>
 
+    /// Creates a multi-discrete space from range sizes and optional starts.
+    ///
+    /// - Parameters:
+    ///   - nvec: Number of values in each component range.
+    ///   - start: Optional first value for each component.
+    /// - Throws: If shapes, ranges, or starts are invalid.
     public init(nvec: TensorValue<Int>, start: TensorValue<Int>? = nil) throws {
         let start =
             try start ?? TensorValue([Int](repeating: 0, count: nvec.count), shape: nvec.shape)
@@ -20,6 +27,12 @@ public struct MultiDiscreteValueSpace: ValueBatchingSpace {
         self.start = start
     }
 
+    /// Creates a one-dimensional multi-discrete space.
+    ///
+    /// - Parameters:
+    ///   - nvec: Number of values in each component range.
+    ///   - start: Optional first value for each component.
+    /// - Throws: If ranges or starts are invalid.
     public init(_ nvec: [Int], start: [Int]? = nil) throws {
         let counts = try TensorValue(nvec, shape: [nvec.count])
         let offsets = try start.map { try TensorValue($0, shape: [nvec.count]) }
@@ -30,6 +43,10 @@ public struct MultiDiscreteValueSpace: ValueBatchingSpace {
         nvec.shape
     }
 
+    /// Returns whether all integer components are within their ranges.
+    ///
+    /// - Parameter value: The tensor to validate.
+    /// - Returns: True when every component is in range.
     public func containsValue(_ value: TensorValue<Int>) -> Bool {
         guard value.shape == shape else { return false }
         return zip(zip(value.elements, start.elements), nvec.elements).allSatisfy { pair, count in
@@ -39,6 +56,11 @@ public struct MultiDiscreteValueSpace: ValueBatchingSpace {
         }
     }
 
+    /// Samples one integer from each component range.
+    ///
+    /// - Parameter generator: The random generator used for sampling.
+    /// - Returns: A sampled multi-discrete tensor.
+    /// - Throws: If the space configuration cannot be sampled.
     public func sample(using generator: inout SeededGenerator) throws
         -> TensorValue<Int>
     {

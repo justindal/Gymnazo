@@ -1,3 +1,4 @@
+/// Typed Swift-state FrozenLake environment.
 public struct FrozenLakeValueEnvironment: ValueEnvironment {
     private enum Direction: Int, CaseIterable {
         case left
@@ -21,6 +22,14 @@ public struct FrozenLakeValueEnvironment: ValueEnvironment {
     private var state = 0
     private var generator: SeededGenerator?
 
+    /// Creates a FrozenLake map with optional slipping and custom success rate.
+    ///
+    /// - Parameters:
+    ///   - desc: Optional custom map rows.
+    ///   - mapName: Bundled map name when desc is nil.
+    ///   - isSlippery: Whether actions drift to neighboring directions.
+    ///   - successRate: Probability of taking the selected direction.
+    /// - Throws: If the map or success rate is invalid.
     public init(
         desc: [String]? = nil,
         mapName: String = "4x4",
@@ -57,6 +66,13 @@ public struct FrozenLakeValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Resets the agent to one of the map's start tiles.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: FrozenLake does not support reset options.
+    /// - Returns: The start state and reset metadata.
+    /// - Throws: If options are supplied or the map has no start tiles.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -73,6 +89,11 @@ public struct FrozenLakeValueEnvironment: ValueEnvironment {
         return ValueReset(observation: state, info: ["prob": .double(1)])
     }
 
+    /// Samples a transition for the selected compass action.
+    ///
+    /// - Parameter action: Direction index from zero through three.
+    /// - Returns: The next state and step result.
+    /// - Throws: If the action is invalid or the environment is not reset.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<Int> {
         guard valueActionSpace.containsValue(action) else {
             throw GymnazoError.invalidAction("Invalid action: \(action)")

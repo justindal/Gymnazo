@@ -1,3 +1,4 @@
+/// Selects sequential or actor-owned parallel typed vector collection.
 public enum ValueVectorMode: String, Sendable, Codable {
     case sync
     case parallel
@@ -8,6 +9,10 @@ private enum AnyValueVectorEvent: Sendable {
     case step(Int, ValueStep<SpaceValue>)
 }
 
+/// An actor-owned vector of type-erased value environments.
+///
+/// Each slot owns its own environment actor. The vector preserves terminal
+/// observations and reset metadata independently from current observations.
 public actor AnyValueVectorEnvironment {
     public nonisolated let numEnvs: Int
     public nonisolated let autoresetMode: AutoresetMode
@@ -37,6 +42,13 @@ public actor AnyValueVectorEnvironment {
         self.needsReset = Array(repeating: true, count: environments.count)
     }
 
+    /// Resets every slot using deterministic slot-derived seeds.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional base seed; each slot receives a derived seed.
+    ///   - options: Reset options passed to every slot.
+    /// - Returns: Batched observations and reset metadata.
+    /// - Throws: If a slot reset fails or the vector is in an invalid state.
     public func reset(
         seed: UInt64? = nil,
         options: ValueResetOptions? = nil
@@ -57,6 +69,11 @@ public actor AnyValueVectorEnvironment {
         }
     }
 
+    /// Steps every slot with one typed action per environment.
+    ///
+    /// - Parameter actions: One action for each environment slot.
+    /// - Returns: Batched observations, rewards, terminal flags, and metadata.
+    /// - Throws: If the vector requires reset, action count is wrong, or a slot fails.
     public func step(
         _ actions: [SpaceValue]
     ) async throws -> ValueVectorStep<SpaceValue> {
@@ -136,6 +153,7 @@ public actor AnyValueVectorEnvironment {
         }
     }
 
+    /// Closes every slot after any active operation has completed.
     public func close() async throws {
         switch state {
         case .closed:

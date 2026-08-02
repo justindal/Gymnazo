@@ -1,9 +1,17 @@
 import Foundation
 
+/// A continuous typed tensor space with per-element bounds.
 public struct BoxValueSpace: ValueBatchingSpace {
     public let low: TensorValue<Float>
     public let high: TensorValue<Float>
 
+    /// Creates a box with scalar bounds broadcast across shape.
+    ///
+    /// - Parameters:
+    ///   - low: Lower bound applied to every element.
+    ///   - high: Upper bound applied to every element.
+    ///   - shape: Tensor dimensions.
+    /// - Throws: If the shape or bounds are invalid.
     public init(low: Float, high: Float, shape: [Int]) throws {
         let count = try TensorValue<Float>.elementCount(for: shape)
         try self.init(
@@ -12,6 +20,12 @@ public struct BoxValueSpace: ValueBatchingSpace {
         )
     }
 
+    /// Creates a box from equally shaped lower and upper tensors.
+    ///
+    /// - Parameters:
+    ///   - low: Lower bounds.
+    ///   - high: Upper bounds.
+    /// - Throws: If shapes differ or any bound is invalid.
     public init(low: TensorValue<Float>, high: TensorValue<Float>) throws {
         guard low.shape == high.shape else {
             throw GymnazoError.invalidConfiguration("Box bounds must have equal shapes.")
@@ -31,6 +45,10 @@ public struct BoxValueSpace: ValueBatchingSpace {
         low.shape
     }
 
+    /// Returns whether a tensor has the declared shape and bounds.
+    ///
+    /// - Parameter value: The tensor to validate.
+    /// - Returns: True when the tensor belongs to the space.
     public func containsValue(_ value: TensorValue<Float>) -> Bool {
         guard value.shape == shape else { return false }
         return zip(zip(value.elements, low.elements), high.elements).allSatisfy { pair, upper in
@@ -39,6 +57,11 @@ public struct BoxValueSpace: ValueBatchingSpace {
         }
     }
 
+    /// Samples a bounded or unbounded tensor using Swift randomness.
+    ///
+    /// - Parameter generator: The random generator used for sampling.
+    /// - Returns: A tensor in the space.
+    /// - Throws: If the space configuration cannot be sampled.
     public func sample(using generator: inout SeededGenerator) throws
         -> TensorValue<Float>
     {

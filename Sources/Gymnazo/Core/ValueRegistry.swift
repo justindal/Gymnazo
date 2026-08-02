@@ -1,3 +1,4 @@
+/// Registration metadata and construction closure for a typed environment.
 public struct ValueEnvSpec: Sendable {
     public typealias EntryPoint = @Sendable (EnvOptions) throws -> AnyValueEnvironment
 
@@ -11,6 +12,18 @@ public struct ValueEnvSpec: Sendable {
     public let rewardThreshold: Double?
     public let nondeterministic: Bool
 
+    /// Creates a typed environment specification.
+    ///
+    /// - Parameters:
+    ///   - id: Stable environment identifier.
+    ///   - entryPoint: Closure that constructs the actor-owned environment.
+    ///   - displayName: Optional human-readable name.
+    ///   - description: Optional environment description.
+    ///   - category: Optional environment category.
+    ///   - metadata: Optional rendering metadata.
+    ///   - maxEpisodeSteps: Optional default episode limit.
+    ///   - rewardThreshold: Optional reward threshold.
+    ///   - nondeterministic: Whether seeded execution may still vary.
     public init(
         id: String,
         entryPoint: @escaping EntryPoint,
@@ -34,33 +47,52 @@ public struct ValueEnvSpec: Sendable {
     }
 }
 
+/// Actor-isolated registry for typed value environments.
 public actor ValueGymnazoRegistry {
     public static let shared = ValueGymnazoRegistry()
 
     private var specs: [String: ValueEnvSpec] = [:]
     private var initialized = false
 
+    /// Creates an empty registry that installs bundled environments lazily.
     public init() {}
 
+    /// Registers or replaces a typed environment specification.
+    ///
+    /// - Parameter spec: The specification to register.
     public func register(_ spec: ValueEnvSpec) {
         specs[spec.id] = spec
     }
 
+    /// Returns registered ids in stable sorted order.
     public func ids() -> [String] {
         initializeIfNeeded()
         return specs.keys.sorted()
     }
 
+    /// Returns all registered typed environment specifications.
     public func environmentSpecs() -> [String: ValueEnvSpec] {
         initializeIfNeeded()
         return specs
     }
 
+    /// Returns whether an id is registered.
+    ///
+    /// - Parameter id: The environment identifier to check.
+    /// - Returns: `true` when the registry contains the identifier.
     public func isRegistered(_ id: String) -> Bool {
         initializeIfNeeded()
         return specs[id] != nil
     }
 
+    /// Constructs an actor-owned typed environment by id.
+    ///
+    /// - Parameters:
+    ///   - id: Registered environment identifier.
+    ///   - maxEpisodeSteps: Optional override for the episode limit.
+    ///   - options: Constructor options passed to the entry point.
+    /// - Returns: An actor-owned typed environment.
+    /// - Throws: If the id is unregistered or construction fails.
     public func make(
         _ id: String,
         maxEpisodeSteps: Int? = nil,
@@ -613,22 +645,43 @@ public actor ValueGymnazoRegistry {
 }
 
 extension Gymnazo {
+    /// Returns all registered typed environment specifications.
+    ///
+    /// - Returns: Specifications keyed by stable environment identifier.
     public static func valueRegistry() async -> [String: ValueEnvSpec] {
         await ValueGymnazoRegistry.shared.environmentSpecs()
     }
 
+    /// Returns registered typed environment ids in stable sorted order.
+    ///
+    /// - Returns: Registered environment identifiers.
     public static func valueIDs() async -> [String] {
         await ValueGymnazoRegistry.shared.ids()
     }
 
+    /// Returns whether a typed environment id is registered.
+    ///
+    /// - Parameter id: The environment identifier to check.
+    /// - Returns: True when the identifier is registered.
     public static func isValueRegistered(_ id: String) async -> Bool {
         await ValueGymnazoRegistry.shared.isRegistered(id)
     }
 
+    /// Registers or replaces a typed environment specification.
+    ///
+    /// - Parameter spec: The specification to register.
     public static func registerValue(_ spec: ValueEnvSpec) async {
         await ValueGymnazoRegistry.shared.register(spec)
     }
 
+    /// Creates one actor-owned typed environment by id.
+    ///
+    /// - Parameters:
+    ///   - id: Registered environment identifier.
+    ///   - maxEpisodeSteps: Optional override for the episode limit.
+    ///   - options: Constructor options passed to the entry point.
+    /// - Returns: An actor-owned typed environment.
+    /// - Throws: If the id is unregistered or construction fails.
     public static func makeValue(
         _ id: String,
         maxEpisodeSteps: Int? = nil,
@@ -641,6 +694,17 @@ extension Gymnazo {
         )
     }
 
+    /// Creates a typed vector with one actor-owned environment per slot.
+    ///
+    /// - Parameters:
+    ///   - id: Registered environment identifier.
+    ///   - numEnvs: Number of environment slots to create.
+    ///   - mode: Sequential or actor-owned parallel collection mode.
+    ///   - autoresetMode: How completed slots are reset.
+    ///   - maxEpisodeSteps: Optional episode limit applied to each slot.
+    ///   - options: Constructor options passed to each entry point.
+    /// - Returns: An actor-owned typed vector environment.
+    /// - Throws: If `numEnvs` is invalid, the id is unregistered, or construction fails.
     public static func makeValueVec(
         _ id: String,
         numEnvs: Int,

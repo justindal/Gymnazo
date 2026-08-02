@@ -1,5 +1,6 @@
 import Foundation
 
+/// Typed Swift-state Acrobot environment.
 public struct AcrobotValueEnvironment: ValueEnvironment {
     public let dt: Float = 0.2
     public let linkLength1: Float = 1
@@ -23,6 +24,12 @@ public struct AcrobotValueEnvironment: ValueEnvironment {
     private var needsReset = true
     private var isClosed = false
 
+    /// Creates an Acrobot environment with optional torque noise and dynamics.
+    ///
+    /// - Parameters:
+    ///   - torqueNoiseMax: Maximum magnitude of torque noise.
+    ///   - useNipsDynamics: Whether to use the alternate dynamics equation.
+    /// - Throws: If torqueNoiseMax is negative or non-finite.
     public init(torqueNoiseMax: Float = 0, useNipsDynamics: Bool = false) throws {
         guard torqueNoiseMax.isFinite, torqueNoiseMax >= 0 else {
             throw GymnazoError.invalidConfiguration(
@@ -44,6 +51,13 @@ public struct AcrobotValueEnvironment: ValueEnvironment {
         )
     }
 
+    /// Resets both links to a seeded angular state.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional deterministic reset seed.
+    ///   - options: Optional low and high initial-state bounds.
+    /// - Returns: The initial observation and reset metadata.
+    /// - Throws: If options or the environment state are invalid.
     public mutating func resetValue(
         seed: UInt64?,
         options: ValueResetOptions?
@@ -76,6 +90,11 @@ public struct AcrobotValueEnvironment: ValueEnvironment {
         return ValueReset(observation: try observation())
     }
 
+    /// Advances Acrobot with one of its three discrete torques.
+    ///
+    /// - Parameter action: Discrete torque index from zero through two.
+    /// - Returns: The next observation and step result.
+    /// - Throws: If the environment is closed, not reset, or action is invalid.
     public mutating func stepValue(_ action: Int) throws -> ValueStep<TensorValue<Float>> {
         try ensureOpen()
         guard !needsReset, let state else {

@@ -26,6 +26,7 @@ private actor ValueEnvironmentWorker<Environment: ValueEnvironment> {
     }
 }
 
+/// Runs one typed value environment per actor with structured parallel steps.
 public actor ParallelValueVectorEnvironment<Environment: ValueEnvironment> {
     public let numEnvs: Int
     public let autoresetMode: AutoresetMode
@@ -35,6 +36,12 @@ public actor ParallelValueVectorEnvironment<Environment: ValueEnvironment> {
     private var hasReset = false
     private var state: State = .ready
 
+    /// Creates a non-empty parallel typed vector.
+    ///
+    /// - Parameters:
+    ///   - factories: Sendable environment factories in stable slot order.
+    ///   - autoresetMode: How completed slots are reset.
+    /// - Throws: If factories is empty or a factory fails.
     public init(
         factories: [@Sendable () throws -> Environment],
         autoresetMode: AutoresetMode = .nextStep
@@ -48,6 +55,13 @@ public actor ParallelValueVectorEnvironment<Environment: ValueEnvironment> {
         self.needsReset = Array(repeating: true, count: factories.count)
     }
 
+    /// Resets every actor-owned slot with deterministic slot-derived seeds.
+    ///
+    /// - Parameters:
+    ///   - seed: Optional base seed; each slot receives a derived seed.
+    ///   - options: Reset options passed to every slot.
+    /// - Returns: Batched observations and reset metadata.
+    /// - Throws: If a slot reset fails or the vector is in an invalid state.
     public func reset(
         seed: UInt64? = nil,
         options: ValueResetOptions? = nil
@@ -86,6 +100,11 @@ public actor ParallelValueVectorEnvironment<Environment: ValueEnvironment> {
         }
     }
 
+    /// Steps every actor-owned slot with one action per environment.
+    ///
+    /// - Parameter actions: One action for each environment slot.
+    /// - Returns: Batched observations, rewards, terminal flags, and metadata.
+    /// - Throws: If reset is required, action count is wrong, or a slot fails.
     public func step(
         _ actions: [Environment.Action]
     ) async throws -> ValueVectorStep<Environment.Observation> {
@@ -216,6 +235,7 @@ public actor ParallelValueVectorEnvironment<Environment: ValueEnvironment> {
         }
     }
 
+    /// Closes every slot after active operations complete.
     public func close() async throws {
         switch state {
         case .closed:

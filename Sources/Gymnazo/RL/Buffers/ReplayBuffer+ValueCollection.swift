@@ -1,44 +1,61 @@
 import MLX
 
+/// Converts a typed action into replay-buffer elements.
 public protocol ReplayActionValue: Sendable {
+    /// Returns the flattened action values stored in replay.
+    ///
+    /// - Returns: Scalar action elements in replay order.
     var replayElements: [Float] { get }
 }
 
+/// Converts a typed scalar into a replay-buffer value.
 public protocol ReplayScalarValue: Sendable {
+    /// Returns the scalar value stored in replay.
+    ///
+    /// - Returns: The scalar converted to a replay float.
     var replayValue: Float { get }
 }
 
 extension Int: ReplayActionValue {
+    /// Returns the integer action as one replay element.
     public var replayElements: [Float] {
         [Float(self)]
     }
 }
 
 extension Float: ReplayScalarValue {
+    /// Returns the floating-point scalar unchanged.
     public var replayValue: Float {
         self
     }
 }
 
 extension Int: ReplayScalarValue {
+    /// Converts the integer scalar to a replay float.
     public var replayValue: Float {
         Float(self)
     }
 }
 
 extension Bool: ReplayScalarValue {
+    /// Converts `true` and `false` to one and zero.
     public var replayValue: Float {
         self ? 1 : 0
     }
 }
 
 extension TensorValue: ReplayActionValue where Element: ReplayScalarValue {
+    /// Flattens scalar tensor elements for replay storage.
     public var replayElements: [Float] {
         elements.map(\.replayValue)
     }
 }
 
 extension ReplayBuffer {
+    /// Adds typed collection frames to the replay buffer in one batch.
+    ///
+    /// - Parameter collection: Typed frames to convert and insert.
+    /// - Throws: If frame dimensions or action dimensions are inconsistent.
     public mutating func add<Action: ReplayActionValue>(
         _ collection: ValueCollection<TensorValue<Float>, Action>
     ) throws {
