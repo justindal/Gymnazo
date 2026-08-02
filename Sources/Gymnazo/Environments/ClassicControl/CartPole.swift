@@ -89,7 +89,7 @@ public struct CartPole: Env {
     public let theta_threshold_radians: Float = 12 * 2 * Float.pi / 360
     public let x_threshold: Float = 2.4
 
-    public var state: MLXArray? = nil
+    public var state: [Float]? = nil
     public var steps_beyond_terminated: Int? = nil
 
     public let actionSpace: any Space
@@ -98,7 +98,7 @@ public struct CartPole: Env {
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
 
-    private var _key: MLXArray?
+    private var randomGenerator: SeededGenerator?
 
     public init(renderMode: RenderMode? = nil) {
         self.renderMode = renderMode
@@ -143,43 +143,47 @@ public struct CartPole: Env {
             throw GymnazoError.stepBeforeReset
         }
 
-        let x = currentState[0].scalarValue(Float.self)
-        let x_dot = currentState[1].scalarValue(Float.self)
-        let theta = currentState[2].scalarValue(Float.self)
-        let theta_dot = currentState[3].scalarValue(Float.self)
+        guard a == 0 || a == 1 else {
+            throw GymnazoError.invalidAction("Invalid action: \(a). Must be 0 or 1.")
+        }
+
+        let x = currentState[0]
+        let xDot = currentState[1]
+        let theta = currentState[2]
+        let thetaDot = currentState[3]
 
         let force = a == 1 ? force_mag : -force_mag
         let costheta = cos(theta)
         let sintheta = sin(theta)
 
-        let temp = (force + polemass_length * theta_dot * theta_dot * sintheta) / total_mass
+        let temp = (force + polemass_length * thetaDot * thetaDot * sintheta) / total_mass
         let thetaacc =
             (gravity * sintheta - costheta * temp)
             / (length * (4.0 / 3.0 - masspole * costheta * costheta / total_mass))
         let xacc = temp - polemass_length * thetaacc * costheta / total_mass
 
-        var new_x = x
-        var new_x_dot = x_dot
-        var new_theta = theta
-        var new_theta_dot = theta_dot
+        var newX = x
+        var newXDot = xDot
+        var newTheta = theta
+        var newThetaDot = thetaDot
 
         if kinematics_integrator == "euler" {
-            new_x = x + tau * x_dot
-            new_x_dot = x_dot + tau * xacc
-            new_theta = theta + tau * theta_dot
-            new_theta_dot = theta_dot + tau * thetaacc
+            newX = x + tau * xDot
+            newXDot = xDot + tau * xacc
+            newTheta = theta + tau * thetaDot
+            newThetaDot = thetaDot + tau * thetaacc
         } else {
-            new_x_dot = x_dot + tau * xacc
-            new_x = x + tau * new_x_dot
-            new_theta_dot = theta_dot + tau * thetaacc
-            new_theta = theta + tau * new_theta_dot
+            newXDot = xDot + tau * xacc
+            newX = x + tau * newXDot
+            newThetaDot = thetaDot + tau * thetaacc
+            newTheta = theta + tau * newThetaDot
         }
 
-        self.state = MLXArray([new_x, new_x_dot, new_theta, new_theta_dot])
+        self.state = [newX, newXDot, newTheta, newThetaDot]
 
         let terminated = Bool(
-            new_x < -x_threshold || new_x > x_threshold || new_theta < -theta_threshold_radians
-                || new_theta > theta_threshold_radians
+            newX < -x_threshold || newX > x_threshold || newTheta < -theta_threshold_radians
+                || newTheta > theta_threshold_radians
         )
 
         var reward: Double = 0.0
@@ -199,7 +203,7 @@ public struct CartPole: Env {
         }
 
         return Step(
-            obs: self.state!,
+            obs: MLXArray(self.state!),
             reward: reward,
             terminated: terminated,
             truncated: false,
@@ -219,18 +223,15 @@ public struct CartPole: Env {
     ///   - `info`: Empty dictionary
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
-            self._key = MLX.key(seed)
-        } else if self._key == nil {
-            self._key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            self.randomGenerator = SeededGenerator(seed: seed)
+        } else if self.randomGenerator == nil {
+            self.randomGenerator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
 
-        let (stepKey, nextKey) = MLX.split(key: self._key!)
-        self._key = nextKey
-
-        self.state = MLX.uniform(low: -0.05, high: 0.05, [4], key: stepKey)
+        self.state = (0..<4).map { _ in randomGenerator!.uniform(in: -0.05...0.05) }
         self.steps_beyond_terminated = nil
 
-        return Reset(obs: self.state!, info: [:])
+        return Reset(obs: MLXArray(self.state!), info: [:])
     }
 
     /// Renders the environment.
@@ -258,8 +259,8 @@ public struct CartPole: Env {
 
     public var currentSnapshot: CartPoleSnapshot {
         guard let s = state else { return CartPoleSnapshot.zero }
-        let x = s[0].scalarValue(Float.self)
-        let theta = s[2].scalarValue(Float.self)
+        let x = s[0]
+        let theta = s[2]
         return CartPoleSnapshot(x: x, theta: theta, x_threshold: x_threshold)
     }
 }

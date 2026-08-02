@@ -60,30 +60,23 @@ public struct TrackData {
 /// Track generator matching Gymnasium's _create_track() logic.
 public struct TrackGenerator {
 
-    /// Generate a random track using the provided MLX key for randomness.
+    /// Generates a random track using the provided Swift generator.
     public static func createTrack(
-        key: inout MLXArray,
+        generator: inout SeededGenerator,
         roadColor: (Float, Float, Float),
         verbose: Bool = false
     ) -> TrackData? {
         var data = TrackData()
 
-        let (checkpointKey, nextKey) = MLX.split(key: key)
-        key = nextKey
-
         var checkpoints: [(Float, Float, Float)] = []
-        let noiseArray = MLX.uniform(
-            low: 0, high: Float(2 * Float.pi / Float(TrackConstants.checkpoints)),
-            [TrackConstants.checkpoints], key: checkpointKey)
-        let (radKey, nextKey2) = MLX.split(key: key)
-        key = nextKey2
-        let radArray = MLX.uniform(
-            low: TrackConstants.trackRad / 3, high: TrackConstants.trackRad,
-            [TrackConstants.checkpoints], key: radKey)
-
-        eval(noiseArray, radArray)
-        let noiseValues = noiseArray.asArray(Float.self)
-        let radValues = radArray.asArray(Float.self)
+        let noiseRange = Float(0)...Float(2 * Float.pi / Float(TrackConstants.checkpoints))
+        let radiusRange = (TrackConstants.trackRad / 3)...TrackConstants.trackRad
+        let noiseValues = (0..<TrackConstants.checkpoints).map { _ in
+            generator.uniform(in: noiseRange)
+        }
+        let radValues = (0..<TrackConstants.checkpoints).map { _ in
+            generator.uniform(in: radiusRange)
+        }
 
         for c in 0..<TrackConstants.checkpoints {
             var alpha = 2 * Float.pi * Float(c) / Float(TrackConstants.checkpoints) + noiseValues[c]

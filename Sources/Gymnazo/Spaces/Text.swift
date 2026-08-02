@@ -41,6 +41,10 @@ public struct TextSpace: Space {
 
     /// Samples character indices as an MLXArray (padded to maxLength with -1).
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        precondition(
+            mask == nil && probability == nil,
+            "Text masks require the typed text API"
+        )
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
         let charKey = keys[1]
@@ -66,6 +70,10 @@ public struct TextSpace: Space {
     public func sampleString(key: MLXArray, mask: MLXArray? = nil, probability: MLXArray? = nil)
         -> String
     {
+        precondition(
+            mask == nil && probability == nil,
+            "Text masks require the typed text API"
+        )
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
         let charKey = keys[1]
@@ -91,13 +99,17 @@ public struct TextSpace: Space {
 
     /// Returns `true` if the array represents valid character indices.
     public func contains(_ x: MLXArray) -> Bool {
-        if x.shape != [maxLength] { return false }
+        if x.shape != [maxLength] || !x.dtype.isInteger { return false }
         let vals = x.asArray(Int32.self)
         var validCount = 0
+        var reachedPadding = false
         for v in vals {
             if v >= 0 && v < Int32(charset.count) {
+                if reachedPadding { return false }
                 validCount += 1
-            } else if v != -1 {
+            } else if v == -1 {
+                reachedPadding = true
+            } else {
                 return false
             }
         }

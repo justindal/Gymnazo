@@ -55,7 +55,7 @@ public struct AutoReset: Wrapper {
         if mode == .nextStep {
             needsReset = true
             var info = result.info
-            info[EnvInfoKey.finalObservation] = sendableValue(result.obs)
+            info[EnvInfoKey.finalObservation] = .tensor(result.obs)
             info[EnvInfoKey.finalInfo] = .object(result.info.storage)
             return Step(
                 obs: result.obs,
@@ -72,7 +72,7 @@ public struct AutoReset: Wrapper {
         needsReset = false
 
         var info = resetResult.info
-        info[EnvInfoKey.finalObservation] = sendableValue(terminalObs)
+        info[EnvInfoKey.finalObservation] = .tensor(terminalObs)
         info[EnvInfoKey.finalInfo] = .object(terminalInfo.storage)
 
         return Step(
@@ -83,8 +83,4 @@ public struct AutoReset: Wrapper {
             info: info
         )
     }
-}
-
-private func sendableValue(_ value: MLXArray) -> InfoValue {
-    .sendable(MLXArrayBox(array: value))
 }

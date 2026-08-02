@@ -27,16 +27,6 @@ struct AsyncVectorEnvTests {
         )
     }
 
-    func makeSendableCartPoleEnvFns(count: Int) async throws -> [@Sendable () -> any Env] {
-        var boxes: [UnsafeEnvBox] = []
-        boxes.reserveCapacity(count)
-        for _ in 0..<count {
-            let env = try await makeCartPoleEnv()
-            boxes.append(UnsafeEnvBox(env: env))
-        }
-        return boxes.map { box in { box.env } }
-    }
-
     func makeSyncVectorEnv(count: Int) async throws -> SyncVectorEnv {
         var envs: [any Env] = []
         envs.reserveCapacity(count)
@@ -337,7 +327,7 @@ struct AsyncVectorEnvTests {
 
     @Test("makeVecAsync with envFns works")
     func testMakeVecAsyncWithEnvFns() async throws {
-        let envFns = try await makeSendableCartPoleEnvFns(count: 2)
+        let envFns: [() -> any Env] = [{ CartPole() }, { CartPole() }]
         let envs: AsyncVectorEnv = try await Gymnazo.makeVecAsync(envFns: envFns)
 
         #expect(envs.numEnvs == 2)

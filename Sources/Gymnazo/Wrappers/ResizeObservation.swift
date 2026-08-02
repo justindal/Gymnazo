@@ -61,13 +61,18 @@ public struct ResizeObservation: Wrapper {
     ///   - env: The environment to wrap (must have MLXArray observations with shape [H, W, ...])
     ///   - shape: Target (height, width) for the resized observations
     public init(env: any Env, shape: (Int, Int)) throws {
+        guard shape.0 > 0, shape.1 > 0 else {
+            throw GymnazoError.invalidResizeShape
+        }
         self.env = env
         self.targetHeight = shape.0
         self.targetWidth = shape.1
 
         guard let innerBox = env.observationSpace as? Box,
             let innerShape = innerBox.shape,
-            innerShape.count >= 2
+            innerShape.count >= 2,
+            innerShape[0] > 0,
+            innerShape[1] > 0
         else {
             throw GymnazoError.invalidResizeShape
         }
@@ -83,10 +88,11 @@ public struct ResizeObservation: Wrapper {
             newShape.append(contentsOf: innerShape[2...])
         }
 
+        let low = innerBox.low.take(indicesH, axis: 0).take(indicesW, axis: 1)
+        let high = innerBox.high.take(indicesH, axis: 0).take(indicesW, axis: 1)
         self.observationSpace = Box(
-            low: 0,
-            high: 255,
-            shape: newShape,
+            low: low.reshaped(newShape),
+            high: high.reshaped(newShape),
             dtype: innerBox.dtype ?? .uint8
         )
     }

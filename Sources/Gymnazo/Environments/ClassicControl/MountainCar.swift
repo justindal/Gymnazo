@@ -82,7 +82,7 @@ public struct MountainCar: Env {
     public let force: Float = 0.001
     public let gravity: Float = 0.0025
 
-    public var state: MLXArray? = nil
+    public var state: [Float]? = nil
 
     public let actionSpace: any Space
     public let observationSpace: any Space
@@ -90,7 +90,7 @@ public struct MountainCar: Env {
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
 
-    private var _key: MLXArray?
+    private var randomGenerator: SeededGenerator?
 
     public static var metadata: [String: Any] {
         [
@@ -133,8 +133,8 @@ public struct MountainCar: Env {
             throw GymnazoError.invalidAction("Invalid action: \(a). Must be 0, 1, or 2.")
         }
 
-        var position = currentState[0].scalarValue(Float.self)
-        var velocity = currentState[1].scalarValue(Float.self)
+        var position = currentState[0]
+        var velocity = currentState[1]
 
         velocity += Float(a - 1) * force + cos(3 * position) * (-gravity)
         velocity = min(max(velocity, -maxSpeed), maxSpeed)
@@ -146,14 +146,14 @@ public struct MountainCar: Env {
             velocity = 0
         }
 
-        self.state = MLXArray([position, velocity] as [Float32])
+        self.state = [position, velocity]
 
         let terminated = position >= goalPosition && velocity >= goalVelocity
 
         let reward: Double = -1.0
 
         return Step(
-            obs: self.state!,
+            obs: MLXArray(self.state!),
             reward: reward,
             terminated: terminated,
             truncated: false,
@@ -169,21 +169,17 @@ public struct MountainCar: Env {
     /// - Returns: A tuple containing the initial observation and info dictionary.
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
-            self._key = MLX.key(seed)
-        } else if self._key == nil {
-            self._key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            self.randomGenerator = SeededGenerator(seed: seed)
+        } else if self.randomGenerator == nil {
+            self.randomGenerator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
 
-        let (stepKey, nextKey) = MLX.split(key: self._key!)
-        self._key = nextKey
-
-        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0]
-            .scalarValue(Float.self)
+        let position = randomGenerator!.uniform(in: -0.6 ... -0.4)
         let velocity: Float = 0.0
 
-        self.state = MLXArray([position, velocity] as [Float32])
+        self.state = [position, velocity]
 
-        return Reset(obs: self.state!, info: [:])
+        return Reset(obs: MLXArray(self.state!), info: [:])
     }
 
     /// Render the environment.
@@ -208,8 +204,8 @@ public struct MountainCar: Env {
 
     public var currentSnapshot: MountainCarSnapshot {
         guard let s = state else { return MountainCarSnapshot.zero }
-        let position = s[0].scalarValue(Float.self)
-        let velocity = s[1].scalarValue(Float.self)
+        let position = s[0]
+        let velocity = s[1]
         return MountainCarSnapshot(
             position: position,
             velocity: velocity,

@@ -24,7 +24,14 @@ public struct Dict: Space {
 
     /// Samples from each sub-space and concatenates the results (sorted by key).
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        precondition(
+            mask == nil && probability == nil,
+            "Dictionary masks require the typed dictionary API"
+        )
         let sortedKeys = spaces.keys.sorted()
+        guard !sortedKeys.isEmpty else {
+            return MLXArray([Float]())
+        }
         let keys = MLX.split(key: key, into: sortedKeys.count)
         var samples: [MLXArray] = []
 

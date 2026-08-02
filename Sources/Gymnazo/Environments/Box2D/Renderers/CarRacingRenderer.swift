@@ -327,5 +327,13 @@
             }
             return stateImage.toMLXArray()
         }
+
+        @MainActor
+        public static func renderObservationBytes(snapshot: CarRacingSnapshot) -> [UInt8]? {
+            guard let stateImage = renderStatePixels(snapshot: snapshot) else {
+                return nil
+            }
+            return stateImage.rgbBytes()
+        }
     }
 #endif

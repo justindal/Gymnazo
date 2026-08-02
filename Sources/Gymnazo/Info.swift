@@ -1,10 +1,14 @@
 import MLX
 
-public struct Info: Sendable, ExpressibleByDictionaryLiteral {
+public struct Info: ExpressibleByDictionaryLiteral {
     public var storage: [String: InfoValue]
 
     public init(_ storage: [String: InfoValue] = [:]) {
         self.storage = storage
+    }
+
+    init(valueInfo: ValueInfo) {
+        self.storage = valueInfo.mapValues(InfoValue.init)
     }
 
     public init(dictionaryLiteral elements: (String, InfoValue)...) {
@@ -25,12 +29,40 @@ public struct Info: Sendable, ExpressibleByDictionaryLiteral {
     public var count: Int { storage.count }
 }
 
-public struct MLXArrayBox: @unchecked Sendable {
-    public let array: MLXArray
-    public init(array: MLXArray) { self.array = array }
+extension InfoValue {
+    fileprivate init(_ value: SpaceValue) {
+        switch value {
+        case .bool(let value):
+            self = .bool(value)
+        case .double(let value):
+            self = .double(value)
+        case .continuous(let elements, let shape):
+            self = .tensor(MLXArray(elements).reshaped(shape))
+        case .discrete(let value):
+            self = .int(value)
+        case .multiDiscrete(let values):
+            self = .array(values.map(InfoValue.int))
+        case .multiBinary(let values):
+            self = .array(values.map(InfoValue.bool))
+        case .text(let value):
+            self = .string(value)
+        case .tuple(let values), .sequence(let values):
+            self = .array(values.map(InfoValue.init))
+        case .dictionary(let values):
+            self = .object(values.mapValues(InfoValue.init))
+        case .floatTensor(let value):
+            self = .tensor(MLXArray(value.elements).reshaped(value.shape))
+        case .intTensor(let value):
+            self = .tensor(MLXArray(value.elements.map(Int32.init)).reshaped(value.shape))
+        case .boolTensor(let value):
+            self = .tensor(MLXArray(value.elements).reshaped(value.shape))
+        case .graph(let value):
+            self = .sendable(value)
+        }
+    }
 }
 
-public enum InfoValue: Sendable {
+public enum InfoValue {
     case bool(Bool)
     case int(Int)
     case double(Double)
@@ -38,6 +70,7 @@ public enum InfoValue: Sendable {
     case array([InfoValue])
     case object([String: InfoValue])
     case sendable(any Sendable)
+    case tensor(MLXArray)
 
     public init(_ value: Bool) { self = .bool(value) }
     public init(_ value: Int) { self = .int(value) }
@@ -82,6 +115,11 @@ extension InfoValue {
         return nil
     }
 
+    public var tensor: MLXArray? {
+        if case .tensor(let v) = self { return v }
+        return nil
+    }
+
     public func cast<T>(_ type: T.Type) -> T? {
         switch self {
         case .bool(let v):
@@ -100,10 +138,9 @@ extension InfoValue {
             if let result = v as? T {
                 return result
             }
-            if let box = v as? MLXArrayBox, T.self == MLXArray.self {
-                return box.array as? T
-            }
             return nil
+        case .tensor(let v):
+            return v as? T
         }
     }
 }

@@ -71,6 +71,7 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
     ) {
         precondition(maxNodes >= 0, "maxNodes must be non-negative")
         precondition(maxEdges >= 0, "maxEdges must be non-negative")
+        precondition(maxNodes > 0 || maxEdges == 0, "A graph without nodes cannot contain edges")
         guard let ns = nodeSpace.shape else {
             fatalError("Graph requires nodeSpace with a defined shape")
         }
@@ -111,6 +112,10 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
     ///
     /// - Note: `mask` and `probability` are currently ignored.
     public func sampleGraph(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> GraphSample {
+        precondition(
+            mask == nil && probability == nil,
+            "Graph feature masks require the typed graph API"
+        )
         let keys = MLX.split(key: key, into: 4)
         let nodeCountKey = keys[0]
         let edgeCountKey = keys[1]
@@ -124,7 +129,7 @@ public struct Graph<NodeSpace: TensorSpace, EdgeSpace: TensorSpace>: Space, AnyG
                 MLX.randInt(low: 1, high: maxNodes + 1, key: nodeCountKey).scalarValue(
                     Int32.self))
         let sampledEdges =
-            maxEdges == 0
+            maxEdges == 0 || sampledNodes == 0 || (!allowSelfLoops && sampledNodes == 1)
             ? 0
             : Int(
                 MLX.randInt(low: 0, high: maxEdges + 1, key: edgeCountKey).scalarValue(

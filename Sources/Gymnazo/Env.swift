@@ -4,7 +4,7 @@
 
 import MLX
 
-public protocol Env {
+public nonisolated protocol Env {
     var actionSpace: any Space { get }
     var observationSpace: any Space { get }
     var spec: EnvSpec? { get set }

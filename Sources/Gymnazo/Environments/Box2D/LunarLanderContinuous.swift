@@ -143,7 +143,7 @@ public struct LunarLanderContinuous: Env {
 
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
 
     public static var metadata: [String: Any] {
         [
@@ -198,15 +198,28 @@ public struct LunarLanderContinuous: Env {
     }
 
     public mutating func step(_ action: MLXArray) throws -> Step {
-        guard let worldId = worldId, let landerId = landerId else {
-            throw GymnazoError.stepBeforeReset
-        }
-
         let actionValues = action.reshaped([-1]).asArray(Float.self)
         precondition(
             actionValues.count == 2,
             "LunarLanderContinuous expects exactly 2 action values, got \(actionValues.count) for shape \(action.shape)"
         )
+        let result = try stepValues(actionValues)
+        return Step(
+            obs: MLXArray(result.observation.elements).reshaped(result.observation.shape),
+            reward: result.reward,
+            terminated: result.terminated,
+            truncated: result.truncated,
+            info: Info(valueInfo: result.info)
+        )
+    }
+
+    mutating func stepValues(_ actionValues: [Float]) throws -> ValueStep<TensorValue<Float>> {
+        guard let worldId = worldId, let landerId = landerId else {
+            throw GymnazoError.stepBeforeReset
+        }
+        guard actionValues.count == 2 else {
+            throw GymnazoError.invalidAction("LunarLanderContinuous expects two action values.")
+        }
         let mainAction = clip(actionValues[0], min: -1.0, max: 1.0)
         let lateralAction = clip(actionValues[1], min: -1.0, max: 1.0)
 
@@ -229,17 +242,12 @@ public struct LunarLanderContinuous: Env {
         let tip = (sin(angle), cos(angle))
         let side = (-tip.1, tip.0)
 
-        guard let key = _key else {
-            throw GymnazoError.invalidState("Missing RNG key")
+        guard var generator else {
+            throw GymnazoError.invalidState("Missing random generator")
         }
-        let (k1, k2, nextKey) = splitKey3(key)
-        _key = nextKey
-        let dispersion0 =
-            MLX.uniform(low: -1.0, high: 1.0, [1], key: k1)[0].scalarValue(Float.self)
-            / Self.scale
-        let dispersion1 =
-            MLX.uniform(low: -1.0, high: 1.0, [1], key: k2)[0].scalarValue(Float.self)
-            / Self.scale
+        let dispersion0 = generator.uniform(in: -1...1) / Self.scale
+        let dispersion1 = generator.uniform(in: -1...1) / Self.scale
+        self.generator = generator
 
         var mPower: Float = 0.0
         if mainAction > 0.0 {
@@ -292,9 +300,7 @@ public struct LunarLanderContinuous: Env {
         checkBodyContact()
         maybeForceSleepForLanding(timeStep: 1.0 / Self.fps)
 
-        let obs = try getObservation()
-        let stateArray = obs.asArray(Float.self)
-
+        let stateArray = try observationValues()
         let shaping =
             -100.0 * sqrt(stateArray[0] * stateArray[0] + stateArray[1] * stateArray[1])
             - 100.0 * sqrt(stateArray[2] * stateArray[2] + stateArray[3] * stateArray[3])
@@ -325,13 +331,13 @@ public struct LunarLanderContinuous: Env {
             reward = 100
         }
 
-        return Step(
-            obs: obs,
+        return ValueStep(
+            observation: try TensorValue(stateArray, shape: [8]),
             reward: Double(reward),
             terminated: terminated,
             truncated: false,
             info: renderMode == nil
-                ? Info()
+                ? [:]
                 : [
                     "lander_awake": .bool(isAwake),
                     "left_leg_contact": .bool(leftLegContact),
@@ -342,10 +348,26 @@ public struct LunarLanderContinuous: Env {
     }
 
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
+        let result = try resetValues(seed: seed, options: nil)
+        return Reset(
+            obs: MLXArray(result.observation.elements).reshaped(result.observation.shape),
+            info: Info(valueInfo: result.info)
+        )
+    }
+
+    mutating func resetValues(
+        seed: UInt64? = nil,
+        options: ValueResetOptions? = nil
+    ) throws -> ValueReset<TensorValue<Float>> {
+        guard options == nil || options?.isEmpty == true else {
+            throw GymnazoError.invalidConfiguration(
+                "LunarLanderContinuous does not support reset options."
+            )
+        }
         if let seed = seed {
-            _key = MLX.key(seed)
-        } else if _key == nil {
-            _key = MLX.key(UInt64.random(in: 0..<UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0..<UInt64.max))
         }
 
         destroyWorld()
@@ -363,17 +385,11 @@ public struct LunarLanderContinuous: Env {
         let W = Self.viewportW / Self.scale
         let H = Self.viewportH / Self.scale
 
-        guard let key = _key else {
-            throw GymnazoError.invalidState("Missing RNG key")
+        guard var generator else {
+            throw GymnazoError.invalidState("Missing random generator")
         }
-        let (terrainKey, nextKey) = MLX.split(key: key)
-        _key = nextKey
 
-        var heights = [Float](repeating: 0, count: Self.chunks + 1)
-        let heightArray = MLX.uniform(low: 0, high: H / 2, [Self.chunks + 1], key: terrainKey)
-        for i in 0...Self.chunks {
-            heights[i] = heightArray[i].scalarValue(Float.self)
-        }
+        var heights = (0...Self.chunks).map { _ in generator.uniform(in: 0...(H / 2)) }
 
         var chunkX = [Float](repeating: 0, count: Self.chunks)
         for i in 0..<Self.chunks {
@@ -404,33 +420,18 @@ public struct LunarLanderContinuous: Env {
         createTerrain()
         createLander()
 
-        guard let forceKey = _key else {
-            throw GymnazoError.invalidState("Missing RNG key")
-        }
-        let (forceKey1, forceKey2, finalKey) = splitKey3(forceKey)
-        _key = finalKey
-
-        let forceX = MLX.uniform(
-            low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey1)[0].scalarValue(
-                Float.self)
-        let forceY = MLX.uniform(
-            low: -Self.initialRandom, high: Self.initialRandom, [1], key: forceKey2)[0].scalarValue(
-                Float.self)
+        let forceX = generator.uniform(in: -Self.initialRandom...Self.initialRandom)
+        let forceY = generator.uniform(in: -Self.initialRandom...Self.initialRandom)
 
         if let landerId = landerId {
             b2Body_ApplyForceToCenter(landerId, b2Vec2(x: forceX, y: forceY), true)
         }
 
         if enableWind {
-            guard let windKeySource = _key else {
-                throw GymnazoError.invalidState("Missing RNG key")
-            }
-            let (windKey, turbKey, newKey) = splitKey3(windKeySource)
-            _key = newKey
-            windIdx = Int(MLX.randInt(low: -9999, high: 9999, key: windKey).scalarValue(Int32.self))
-            torqueIdx = Int(
-                MLX.randInt(low: -9999, high: 9999, key: turbKey).scalarValue(Int32.self))
+            windIdx = Int.random(in: -9999..<9999, using: &generator)
+            torqueIdx = Int.random(in: -9999..<9999, using: &generator)
         }
+        self.generator = generator
 
         lastMainPower = 0
         lastSidePower = 0
@@ -438,10 +439,10 @@ public struct LunarLanderContinuous: Env {
         b2World_Step(worldId!, 1.0 / Self.fps, 8)
         updateLegContacts()
         checkBodyContact()
-        let obs = try getObservation()
-        prevShaping = computeShaping(from: obs)
+        let values = try observationValues()
+        prevShaping = computeShaping(from: values)
 
-        return Reset(obs: obs, info: [:])
+        return ValueReset(observation: try TensorValue(values, shape: [8]))
     }
 
     @discardableResult
@@ -743,7 +744,7 @@ public struct LunarLanderContinuous: Env {
         }
     }
 
-    private func getObservation() throws -> MLXArray {
+    private func observationValues() throws -> [Float] {
         guard let landerId = landerId else {
             throw GymnazoError.invalidState("State is nil - call reset() first")
         }
@@ -765,31 +766,23 @@ public struct LunarLanderContinuous: Env {
         let angle = b2Rot_GetAngle(rot)
         let normAngVel = 20.0 * angVel / Self.fps
 
-        return MLXArray(
-            [
-                normX,
-                normY,
-                normVx,
-                normVy,
-                angle,
-                normAngVel,
-                leftLegContact ? 1.0 : 0.0,
-                rightLegContact ? 1.0 : 0.0,
-            ] as [Float32])
+        return [
+            normX,
+            normY,
+            normVx,
+            normVy,
+            angle,
+            normAngVel,
+            leftLegContact ? 1.0 : 0.0,
+            rightLegContact ? 1.0 : 0.0,
+        ]
     }
 
     private func clip(_ value: Float, min minVal: Float, max maxVal: Float) -> Float {
         Swift.min(Swift.max(value, minVal), maxVal)
     }
 
-    private func splitKey3(_ key: MLXArray) -> (MLXArray, MLXArray, MLXArray) {
-        let (k1, rest) = MLX.split(key: key)
-        let (k2, k3) = MLX.split(key: rest)
-        return (k1, k2, k3)
-    }
-
-    private func computeShaping(from obs: MLXArray) -> Float {
-        let s = obs.asArray(Float.self)
+    private func computeShaping(from s: [Float]) -> Float {
         return -100.0 * sqrt(s[0] * s[0] + s[1] * s[1])
             - 100.0 * sqrt(s[2] * s[2] + s[3] * s[3])
             - 100.0 * abs(s[4])

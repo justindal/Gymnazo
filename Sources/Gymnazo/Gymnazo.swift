@@ -46,6 +46,7 @@ public actor GymnazoRegistry {
         displayName: String? = nil,
         description: String? = nil,
         category: EnvCategory? = nil,
+        metadata: EnvMetadata? = nil,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -57,6 +58,7 @@ public actor GymnazoRegistry {
             displayName: displayName,
             description: description,
             category: category,
+            metadata: metadata,
             rewardThreshold: rewardThreshold,
             nondeterministic: nondeterministic,
             maxEpisodeSteps: maxEpisodeSteps
@@ -115,6 +117,7 @@ public enum Gymnazo {
         displayName: String? = nil,
         description: String? = nil,
         category: EnvCategory? = nil,
+        metadata: EnvMetadata? = nil,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -125,6 +128,7 @@ public enum Gymnazo {
             displayName: displayName,
             description: description,
             category: category,
+            metadata: metadata,
             entryPoint: entryPoint,
             maxEpisodeSteps: maxEpisodeSteps,
             rewardThreshold: rewardThreshold,
@@ -366,7 +370,7 @@ public enum Gymnazo {
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
     public static func makeVecAsync(
-        envFns: [@Sendable () -> any Env],
+        envFns: [() -> any Env],
         autoresetMode: AutoresetMode = .nextStep
     ) async throws -> AsyncVectorEnv {
         try await GymnazoRegistry.shared.makeVecAsync(
@@ -676,7 +680,7 @@ extension GymnazoRegistry {
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
     public func makeVecAsync(
-        envFns: [@Sendable () -> any Env],
+        envFns: [() -> any Env],
         autoresetMode: AutoresetMode = .nextStep
     ) async throws -> AsyncVectorEnv {
         try AsyncVectorEnv(

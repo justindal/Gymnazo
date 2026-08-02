@@ -26,6 +26,10 @@ public struct CarRacingSnapshot: Equatable, Sendable {
     }
 }
 
+struct CarRacingObservation: Sendable {
+    let pixels: [UInt8]
+}
+
 /// The continuous CarRacing environment matching Gymnasium's CarRacing-v3.
 ///
 /// A top-down racing environment where the agent controls a car using continuous
@@ -54,14 +58,11 @@ public struct CarRacing: Env {
     private var t: Float = 0
     private var newLap: Bool = false
 
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
 
-    private static let fallbackObservation: MLXArray = {
-        let pixels = [UInt8](repeating: 128, count: 96 * 96 * 3)
-        let arr = MLXArray(pixels).reshaped([96, 96, 3]).asType(.uint8)
-        eval(arr)
-        return arr
-    }()
+    private func fallbackObservationBytes() -> [UInt8] {
+        [UInt8](repeating: 128, count: 96 * 96 * 3)
+    }
 
     public static var metadata: [String: Any] {
         [
@@ -96,22 +97,14 @@ public struct CarRacing: Env {
     }
 
     private mutating func initColors() {
-        if domainRandomize {
-            let (colorKey, nextKey) = MLX.split(key: _key ?? MLX.key(0))
-            _key = nextKey
-            let (idxKey, finalKey) = MLX.split(key: nextKey)
-            _key = finalKey
-
-            let colorArray = MLX.uniform(low: 0, high: 210, [6], key: colorKey)
-            let idxArray = MLX.randInt(low: 0, high: 3, key: idxKey)
-            eval(colorArray, idxArray)
-
-            let colors = colorArray.asArray(Float.self)
+        if domainRandomize, var generator {
+            let colors = (0..<6).map { _ in generator.uniform(in: 0...210) }
             roadColor = (colors[0], colors[1], colors[2])
             bgColor = (colors[3], colors[4], colors[5])
             grassColor = bgColor
 
-            let idx = Int(idxArray.scalarValue(Int32.self))
+            let idx = Int.random(in: 0..<3, using: &generator)
+            self.generator = generator
             switch idx {
             case 0: grassColor.0 += 20
             case 1: grassColor.1 += 20
@@ -127,38 +120,35 @@ public struct CarRacing: Env {
     private mutating func reinitColors(randomize: Bool) {
         guard domainRandomize else { return }
         guard randomize else { return }
-
-        let (colorKey, nextKey) = MLX.split(key: _key ?? MLX.key(0))
-        _key = nextKey
-        let (idxKey, finalKey) = MLX.split(key: nextKey)
-        _key = finalKey
-
-        let colorArray = MLX.uniform(low: 0, high: 210, [6], key: colorKey)
-        let idxArray = MLX.randInt(low: 0, high: 3, key: idxKey)
-        eval(colorArray, idxArray)
-
-        let colors = colorArray.asArray(Float.self)
-        roadColor = (colors[0], colors[1], colors[2])
-        bgColor = (colors[3], colors[4], colors[5])
-        grassColor = bgColor
-
-        let idx = Int(idxArray.scalarValue(Int32.self))
-        switch idx {
-        case 0: grassColor.0 += 20
-        case 1: grassColor.1 += 20
-        default: grassColor.2 += 20
-        }
+        initColors()
     }
 
     public mutating func step(_ action: MLXArray) throws -> Step {
+        let result = try stepValues(action.asArray(Float.self))
+        let observation = MLXArray(result.observation.pixels).reshaped([96, 96, 3]).asType(.uint8)
+        eval(observation)
+        return Step(
+            obs: observation,
+            reward: result.reward,
+            terminated: result.terminated,
+            truncated: result.truncated,
+            info: Info(valueInfo: result.info)
+        )
+    }
+
+    mutating func stepValues(
+        _ action: [Float],
+        includeObservation: Bool = true
+    ) throws -> ValueStep<CarRacingObservation> {
         guard var car = car, let worldId = worldId, let trackData = trackData else {
             throw GymnazoError.stepBeforeReset
         }
-
-        let actionArray = action.asArray(Float.self)
-        car.steer(-actionArray[0])
-        car.gas(actionArray[1])
-        car.brake(actionArray[2])
+        guard action.count == 3 else {
+            throw GymnazoError.invalidAction("CarRacing expects three action values.")
+        }
+        car.steer(-action[0])
+        car.gas(action[1])
+        car.brake(action[2])
 
         var tileFrictions: [Int: Float] = [:]
         for tile in trackData.tiles {
@@ -176,11 +166,13 @@ public struct CarRacing: Env {
         let trueSpeed = sqrt(vel.x * vel.x + vel.y * vel.y)
         updateWheelTileContacts(awardReward: trueSpeed > 0.1)
 
-        let state = renderStatePixels()
+        let state = CarRacingObservation(
+            pixels: includeObservation ? renderStateBytes() : []
+        )
 
         var stepReward: Float = 0
         var terminated = false
-        var info = Info()
+        var info: ValueInfo = [:]
 
         reward -= 0.1
 
@@ -203,8 +195,8 @@ public struct CarRacing: Env {
             _ = try render()
         }
 
-        return Step(
-            obs: state,
+        return ValueStep(
+            observation: state,
             reward: Double(stepReward),
             terminated: terminated,
             truncated: false,
@@ -273,16 +265,28 @@ public struct CarRacing: Env {
     }
 
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
+        let randomize = options?["randomize"] as? Bool
+        let result = try resetValues(seed: seed, randomize: randomize)
+        let observation = MLXArray(result.observation.pixels).reshaped([96, 96, 3]).asType(.uint8)
+        eval(observation)
+        return Reset(obs: observation, info: Info(valueInfo: result.info))
+    }
+
+    mutating func resetValues(
+        seed: UInt64? = nil,
+        randomize: Bool? = nil,
+        includeObservation: Bool = true
+    ) throws -> ValueReset<CarRacingObservation> {
         if let seed = seed {
-            _key = MLX.key(seed)
-        } else if _key == nil {
-            _key = MLX.key(UInt64.random(in: 0..<UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0..<UInt64.max))
         }
 
         destroy()
 
         if domainRandomize {
-            let shouldRandomize = (options?["randomize"] as? Bool) ?? true
+            let shouldRandomize = randomize ?? true
             reinitColors(randomize: shouldRandomize)
         }
 
@@ -298,10 +302,14 @@ public struct CarRacing: Env {
 
         var attempts = 0
         while true {
-            guard _key != nil else {
-                throw GymnazoError.invalidState("Missing RNG key")
+            guard var generator else {
+                throw GymnazoError.invalidState("Missing random generator")
             }
-            trackData = TrackGenerator.createTrack(key: &_key!, roadColor: roadColor)
+            trackData = TrackGenerator.createTrack(
+                generator: &generator,
+                roadColor: roadColor
+            )
+            self.generator = generator
             if trackData != nil {
                 break
             }
@@ -321,38 +329,34 @@ public struct CarRacing: Env {
             initY: startTrack.y
         )
 
-        let state = renderStatePixels()
+        let state = CarRacingObservation(
+            pixels: includeObservation ? renderStateBytes() : []
+        )
 
         if renderMode == .human {
             _ = try render()
         }
 
-        return Reset(obs: state, info: [:])
-    }
-
-    private final class UnsafeBox<T>: @unchecked Sendable {
-        var value: T?
+        return ValueReset(observation: state)
     }
 
     private func renderStatePixels() -> MLXArray {
+        let observation = MLXArray(renderStateBytes()).reshaped([96, 96, 3]).asType(.uint8)
+        eval(observation)
+        return observation
+    }
+
+    private func renderStateBytes() -> [UInt8] {
         #if canImport(SwiftUI)
+            guard Thread.isMainThread else { return fallbackObservationBytes() }
             if let snapshot = currentSnapshot {
-                let box = UnsafeBox<MLXArray>()
-                if Thread.isMainThread {
-                    MainActor.assumeIsolated {
-                        box.value = CarRacingRenderer.renderObservation(snapshot: snapshot)
-                    }
-                } else {
-                    DispatchQueue.main.sync {
-                        box.value = CarRacingRenderer.renderObservation(snapshot: snapshot)
-                    }
+                let pixels = MainActor.assumeIsolated {
+                    CarRacingRenderer.renderObservationBytes(snapshot: snapshot)
                 }
-                if let obs = box.value {
-                    return obs
-                }
+                if let pixels { return pixels }
             }
         #endif
-        return Self.fallbackObservation
+        return fallbackObservationBytes()
     }
 
     @discardableResult
@@ -367,39 +371,23 @@ public struct CarRacing: Env {
             return nil
         case .rgbArray:
             #if canImport(SwiftUI)
+                guard Thread.isMainThread else { return nil }
                 if let snapshot = currentSnapshot {
-                    let box = UnsafeBox<CGImage>()
-                    if Thread.isMainThread {
-                        MainActor.assumeIsolated {
-                            box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
-                        }
-                    } else {
-                        DispatchQueue.main.sync {
-                            box.value = CarRacingRenderer.renderRGBArray(snapshot: snapshot)
-                        }
+                    let image = MainActor.assumeIsolated {
+                        CarRacingRenderer.renderRGBArray(snapshot: snapshot)
                     }
-                    if let image = box.value {
-                        return .rgbArray(image)
-                    }
+                    if let image { return .rgbArray(image) }
                 }
             #endif
             return nil
         case .statePixels:
             #if canImport(SwiftUI)
+                guard Thread.isMainThread else { return nil }
                 if let snapshot = currentSnapshot {
-                    let box = UnsafeBox<CGImage>()
-                    if Thread.isMainThread {
-                        MainActor.assumeIsolated {
-                            box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
-                        }
-                    } else {
-                        DispatchQueue.main.sync {
-                            box.value = CarRacingRenderer.renderStatePixels(snapshot: snapshot)
-                        }
+                    let image = MainActor.assumeIsolated {
+                        CarRacingRenderer.renderStatePixels(snapshot: snapshot)
                     }
-                    if let image = box.value {
-                        return .statePixels(image)
-                    }
+                    if let image { return .statePixels(image) }
                 }
             #endif
             return nil
