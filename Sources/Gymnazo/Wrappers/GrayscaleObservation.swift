@@ -73,10 +73,11 @@ public struct GrayscaleObservation: Wrapper {
         }
 
         let newShape: [Int] = keepDim ? [shape[0], shape[1], 1] : [shape[0], shape[1]]
+        let low = Self.grayscale(innerBox.low, keepDim: keepDim)
+        let high = Self.grayscale(innerBox.high, keepDim: keepDim)
         self.observationSpace = Box(
-            low: 0,
-            high: 255,
-            shape: newShape,
+            low: low.reshaped(newShape),
+            high: high.reshaped(newShape),
             dtype: innerBox.dtype ?? .uint8
         )
     }
@@ -98,19 +99,20 @@ public struct GrayscaleObservation: Wrapper {
     }
 
     private func toGrayscale(_ obs: MLXArray) -> MLXArray {
-        let r = obs[.ellipsis, 0].asType(.float32)
-        let g = obs[.ellipsis, 1].asType(.float32)
-        let b = obs[.ellipsis, 2].asType(.float32)
+        Self.grayscale(obs, keepDim: keepDim)
+            .asType(observationSpace.dtype ?? .uint8)
+    }
+
+    private static func grayscale(_ value: MLXArray, keepDim: Bool) -> MLXArray {
+        let r = value[.ellipsis, 0].asType(.float32)
+        let g = value[.ellipsis, 1].asType(.float32)
+        let b = value[.ellipsis, 2].asType(.float32)
 
         let gray = 0.299 * r + 0.587 * g + 0.114 * b
 
-        let result: MLXArray
         if keepDim {
-            result = gray.expandedDimensions(axis: -1)
-        } else {
-            result = gray
+            return gray.expandedDimensions(axis: -1)
         }
-
-        return result.asType(observationSpace.dtype ?? .uint8)
+        return gray
     }
 }

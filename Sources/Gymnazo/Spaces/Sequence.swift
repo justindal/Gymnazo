@@ -70,12 +70,49 @@ public struct SequenceSpace<Inner: TensorSpace>: Space, AnySequenceSpace {
     public func sampleSequence(key: MLXArray, mask: MLXArray?, probability: MLXArray?)
         -> SequenceSample
     {
+        precondition(mask == nil || probability == nil, "Provide either mask or probability")
         let keys = MLX.split(key: key, into: 2)
         let lenKey = keys[0]
         let valKey = keys[1]
 
-        let length = Int(
-            MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey).scalarValue(Int32.self))
+        let length: Int
+        if let source = mask ?? probability {
+            let count = maxLength - minLength + 1
+            precondition(
+                source.shape == [count], "Sequence length controls must match the length range")
+            let logits: MLXArray
+            if mask != nil {
+                let valid = MLX.logicalOr(source .== 0, source .== 1)
+                precondition(valid.all().item(Bool.self), "Sequence mask values must be 0 or 1")
+                if source.asType(.int32).sum().item(Int32.self) == 0 {
+                    length = minLength
+                    logits = MLXArray.zeros([count])
+                } else {
+                    logits = MLX.which(
+                        source.asType(.bool),
+                        MLXArray(Float(0)),
+                        MLXArray(-Float.infinity)
+                    )
+                    length =
+                        minLength
+                        + Int(MLX.categorical(logits, key: lenKey).item(Int32.self))
+                }
+            } else {
+                precondition(
+                    (source .>= 0).all().item(Bool.self), "Probabilities must be non-negative")
+                let total = source.asType(.float32).sum().item(Float.self)
+                precondition(abs(total - 1) <= 0.000_001, "Sequence probabilities must sum to one")
+                logits = MLX.log(source.asType(.float32) + 1e-9)
+                length =
+                    minLength
+                    + Int(MLX.categorical(logits, key: lenKey).item(Int32.self))
+            }
+        } else {
+            length = Int(
+                MLX.randInt(low: minLength, high: maxLength + 1, key: lenKey)
+                    .scalarValue(Int32.self)
+            )
+        }
         let values = space.sampleBatch(key: valKey, count: maxLength)
 
         var maskI32 = [Int32](repeating: 0, count: maxLength)

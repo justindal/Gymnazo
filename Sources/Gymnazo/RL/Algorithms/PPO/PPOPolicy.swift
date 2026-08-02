@@ -6,7 +6,7 @@ import MLXNN
 /// `PPOPolicy` owns the MLP feature extractor, action distribution, and value head.
 /// It supports discrete, continuous (Gaussian / SDE), multi-discrete, and multi-binary
 /// action spaces.
-public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
+public final class PPOPolicy: Module, ActorCriticPolicy {
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let netArch: NetArch
@@ -81,7 +81,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         orthoInit: Bool = true,
         useSDE: Bool = false,
         logStdInit: Float = 0.0,
-        fullStd: Bool = true
+        fullStd: Bool = true,
+        initializationKey: MLXArray? = nil
     ) throws {
         let resolvedKind = try Self.makeActionSpaceKind(actionSpace)
         if useSDE {
@@ -173,7 +174,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
                     mlpExtractor: mlpExtractorModule,
                     actionNet: actionLinear,
                     valueNet: valueLinear,
-                    shareFeatureExtractor: true
+                    shareFeatureExtractor: true,
+                    key: initializationKey
                 )
             } else {
                 try applyActorCriticOrthoInit(
@@ -183,9 +185,12 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
                     valueNet: valueLinear,
                     shareFeatureExtractor: false,
                     piFeatureExtractor: self.piFeatureExtractor,
-                    vfFeatureExtractor: self.vfFeatureExtractor
+                    vfFeatureExtractor: self.vfFeatureExtractor,
+                    key: initializationKey
                 )
             }
+        } else if var initializationKey {
+            try initializeModuleWeights(self, key: &initializationKey)
         }
     }
 
@@ -193,7 +198,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
         observationSpace: any Space,
         actionSpace: any Space,
         config: PPOPolicyConfig,
-        useSDE: Bool
+        useSDE: Bool,
+        initializationKey: MLXArray? = nil
     ) throws {
         try self.init(
             observationSpace: observationSpace,
@@ -206,7 +212,8 @@ public final class PPOPolicy: Module, ActorCriticPolicy, @unchecked Sendable {
             orthoInit: config.orthoInit,
             useSDE: useSDE,
             logStdInit: config.logStdInit,
-            fullStd: config.fullStd
+            fullStd: config.fullStd,
+            initializationKey: initializationKey
         )
     }
 

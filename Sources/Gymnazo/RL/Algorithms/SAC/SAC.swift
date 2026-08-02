@@ -20,9 +20,7 @@ public actor SAC {
     public nonisolated let optimizerConfig: SACOptimizerConfig
 
     private var env: (any Env)?
-    let policy: SACActor
-    let critic: SACCritic
-    let criticTarget: SACCritic
+    private let networks: SACNetworks
     private var actorOptimizer: Adam
     private var criticOptimizer: Adam
     private var entropyOptimizer: Adam?
@@ -34,12 +32,17 @@ public actor SAC {
     let randomSeed: UInt64?
     private let shareFeaturesExtractor: Bool
 
+    var policy: SACActor { networks.actor }
+    var critic: SACCritic { networks.critic }
+    var criticTarget: SACCritic { networks.criticTarget }
+
     var timesteps: Int = 0
     var totalTimesteps: Int = 0
     var gradientSteps: Int = 0
     var progressRemaining: Double = 1.0
 
     private var shouldContinue: Bool = true
+    private var isSessionRunning = false
     private var key: MLXArray
     private var compiledStep: (([MLXArray]) -> [MLXArray])?
 
@@ -55,7 +58,7 @@ public actor SAC {
     ///   - targetEntropy: Optional target entropy override. Defaults to `-actionDim`.
     ///   - seed: Optional PRNG seed for reproducibility.
     public init(
-        env: any Env,
+        env: sending any Env,
         learningRate: any LearningRateSchedule = ConstantLearningRate(3e-4),
         networksConfig: SACNetworksConfig = SACNetworksConfig(),
         config: OffPolicyConfig = OffPolicyConfig(),
@@ -71,16 +74,15 @@ public actor SAC {
             optimizerConfig: optimizerConfig,
             entCoef: entCoef,
             lr: Float(learningRate.value(at: 1.0)),
-            targetEntropy: targetEntropy
+            targetEntropy: targetEntropy,
+            initializationSeed: seed
         )
 
         self.env = env
         self.offPolicyConfig = config
         self.networksConfig = networksConfig
         self.optimizerConfig = optimizerConfig
-        self.policy = setup.networks.actor
-        self.critic = setup.networks.critic
-        self.criticTarget = setup.networks.criticTarget
+        self.networks = setup.networks
         self.actorOptimizer = setup.actorOptimizer
         self.criticOptimizer = setup.criticOptimizer
         self.entropyOptimizer = setup.entropyOptimizer
@@ -126,16 +128,15 @@ public actor SAC {
             optimizerConfig: optimizerConfig,
             entCoef: entCoef,
             lr: Float(learningRate.value(at: 1.0)),
-            targetEntropy: targetEntropy
+            targetEntropy: targetEntropy,
+            initializationSeed: seed
         )
 
         self.env = env
         self.offPolicyConfig = config
         self.networksConfig = networksConfig
         self.optimizerConfig = optimizerConfig
-        self.policy = setup.networks.actor
-        self.critic = setup.networks.critic
-        self.criticTarget = setup.networks.criticTarget
+        self.networks = setup.networks
         self.actorOptimizer = setup.actorOptimizer
         self.criticOptimizer = setup.criticOptimizer
         self.entropyOptimizer = setup.entropyOptimizer
@@ -150,13 +151,11 @@ public actor SAC {
     }
 
     init(
-        policy: SACActor,
-        critic: SACCritic,
-        criticTarget: SACCritic,
-        actorOptimizer: Adam,
-        criticOptimizer: Adam,
-        entropyOptimizer: Adam?,
-        logEntCoefModule: LogEntropyCoefModule,
+        networks: sending SACNetworks,
+        actorOptimizer: sending Adam,
+        criticOptimizer: sending Adam,
+        entropyOptimizer: sending Adam?,
+        logEntCoefModule: sending LogEntropyCoefModule,
         offPolicyConfig: OffPolicyConfig,
         networksConfig: SACNetworksConfig,
         optimizerConfig: SACOptimizerConfig,
@@ -168,13 +167,12 @@ public actor SAC {
         totalTimesteps: Int,
         progressRemaining: Double,
         gradientSteps: Int,
-        buffer: ReplayBuffer?,
-        envBox: EnvBox? = nil
+        buffer: sending ReplayBuffer?,
+        env: sending (any Env)? = nil
     ) {
-        self.env = envBox?.env
-        self.policy = policy
-        self.critic = critic
-        self.criticTarget = criticTarget
+        let shareFeaturesExtractor = networks.critic.shareFeaturesExtractor
+        self.env = env
+        self.networks = networks
         self.actorOptimizer = actorOptimizer
         self.criticOptimizer = criticOptimizer
         self.entropyOptimizer = entropyOptimizer
@@ -186,7 +184,7 @@ public actor SAC {
         self.targetEntropy = targetEntropy
         self.learningRate = learningRate
         self.randomSeed = seed
-        self.shareFeaturesExtractor = critic.shareFeaturesExtractor
+        self.shareFeaturesExtractor = shareFeaturesExtractor
         self.timesteps = timesteps
         self.totalTimesteps = totalTimesteps
         self.progressRemaining = progressRemaining
@@ -206,6 +204,8 @@ public actor SAC {
         callbacks: LearnCallbacks?,
         resetProgress: Bool = true
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         self.totalTimesteps = totalTimesteps
         if resetProgress { self.timesteps = 0 }
         shouldContinue = true
@@ -373,6 +373,8 @@ public actor SAC {
         deterministic: Bool = true,
         callbacks: EvaluateCallbacks? = nil
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         guard var environment = env else {
             throw GymnazoError.invalidState(
                 "SAC.evaluate requires an environment."
@@ -388,10 +390,7 @@ public actor SAC {
 
             while !done {
                 try Task.checkCancellation()
-                let action = callAsFunction(
-                    observation: obs,
-                    deterministic: deterministic
-                )
+                let action = inferenceAction(observation: obs, deterministic: deterministic)
                 let step = try environment.step(action)
                 episodeReward += step.reward
                 episodeLength += 1
@@ -426,10 +425,34 @@ public actor SAC {
     ///   - observation: The current environment observation.
     ///   - deterministic: If `true` (default), returns the mode action.
     /// - Returns: The unscaled action clipped to the environment action space.
-    public func callAsFunction(
-        observation: MLXArray,
+    public func act(
+        observation: [Float],
         deterministic: Bool = true
-    ) -> MLXArray {
+    ) -> PolicyAction {
+        let action = inferenceAction(
+            observation: MLXArray(observation), deterministic: deterministic)
+        return .continuous(action.reshaped([-1]).asArray(Float.self))
+    }
+
+    public func act(
+        observations: [TensorValue<Float>],
+        deterministic: Bool = true
+    ) throws -> [PolicyAction] {
+        guard !observations.isEmpty else { return [] }
+        let batch = try MLXValueCodec.encodeBatch(observations)
+        let actions = inferenceAction(observation: batch, deterministic: deterministic)
+        let values = actions.reshaped([-1]).asArray(Float.self)
+        guard values.count.isMultiple(of: observations.count) else {
+            throw GymnazoError.invalidState("SAC returned an invalid action batch.")
+        }
+        let dimension = values.count / observations.count
+        return observations.indices.map { index in
+            let start = index * dimension
+            return .continuous(Array(values[start..<(start + dimension)]))
+        }
+    }
+
+    private func inferenceAction(observation: MLXArray, deterministic: Bool) -> MLXArray {
         policy.setTrainingMode(false)
         let action = policy.predict(
             observation: observation,
@@ -439,6 +462,19 @@ public actor SAC {
         return action
     }
 
+    func actionValues(
+        observation: [Float],
+        deterministic: Bool = true
+    ) -> [Float] {
+        guard
+            case .continuous(let values) = act(
+                observation: observation, deterministic: deterministic)
+        else {
+            preconditionFailure("SAC produces continuous actions.")
+        }
+        return values
+    }
+
     /// Signals the training loop to stop after the current gradient step completes.
     public func stop() {
         shouldContinue = false
@@ -446,20 +482,22 @@ public actor SAC {
 
     public var numTimesteps: Int { timesteps }
 
+    func criticTargetParameterValues() -> [Float] {
+        let parameters = criticTarget.parameters().flattened().sorted { $0.0 < $1.0 }
+        let arrays = parameters.map(\.1)
+        eval(arrays)
+        return arrays.flatMap { $0.asArray(Float.self) }
+    }
+
     /// Attaches an environment to the agent.
     ///
     /// - Parameter env: The environment to attach.
-    public func setEnv(_ envBox: EnvBox) {
-        self.env = envBox.env
-    }
-
-    /// Detaches and returns the currently attached environment, leaving the slot empty.
-    ///
-    /// - Returns: The detached environment, or `nil` if none was attached.
-    public func takeEnv() -> (any Env)? {
-        let e = env
-        env = nil
-        return e
+    public func setEnv(_ environment: sending any Env) throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState(
+                "Cannot replace an environment during training or evaluation.")
+        }
+        env = environment
     }
 
     func restore(
@@ -490,12 +528,14 @@ public actor SAC {
         optimizerConfig: SACOptimizerConfig,
         entCoef: EntropyCoef,
         lr: Float,
-        targetEntropy: Float?
+        targetEntropy: Float?,
+        initializationSeed: UInt64? = nil
     ) throws -> NetworkSetup {
         let networks = try SACNetworks(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
-            config: networksConfig
+            config: networksConfig,
+            initializationSeed: initializationSeed
         )
         let actorOpt = optimizerConfig.actor.make(learningRate: lr)
         let criticOpt = optimizerConfig.critic.make(learningRate: lr)
@@ -585,10 +625,9 @@ public actor SAC {
                 key = k1
                 policy.resetNoise(key: noiseKey)
             }
-            let (sampleKey, k2) = MLX.split(key: key, stream: .cpu)
-            let (actionKey, nextKey) = MLX.split(key: k2, stream: .cpu)
+            let (actionKey, nextKey) = MLX.split(key: key, stream: .cpu)
             key = nextKey
-            let batch = try buf.sample(batchSize, key: sampleKey)
+            let batch = try buf.sample(batchSize)
 
             let values = step(
                 [
@@ -596,24 +635,22 @@ public actor SAC {
                     batch.rewards, batch.dones, actionKey,
                 ]
             )
-            try MLXEval.run {
-                eval(
-                    values[0],
-                    values[1],
-                    policy,
-                    critic,
-                    criticTarget,
-                    actorOptimizer,
-                    criticOptimizer,
-                    logEntCoefModule
-                )
-            }
+            try checkedEval(
+                values[0],
+                values[1],
+                policy,
+                critic,
+                criticTarget,
+                actorOptimizer,
+                criticOptimizer,
+                logEntCoefModule
+            )
             criticLossArrays.append(values[0])
             actorLossArrays.append(values[1])
 
             if gradientStep % targetUpdateInterval == 0 {
                 try softUpdate()
-                try MLXEval.run { eval(criticTarget.parameters()) }
+                try checkedEval(criticTarget.parameters())
             }
         }
         self.gradientSteps += gradientSteps
@@ -697,7 +734,13 @@ public actor SAC {
         if autoEntropy {
             entVG = valueAndGrad(model: entModule) {
                 (model: LogEntropyCoefModule, args: [MLXArray]) -> [MLXArray] in
-                [MLX.mean(-model.value * (args[0] + targetEnt))]
+                [
+                    SACMath.entropyLoss(
+                        logEntCoef: model.value,
+                        logProb: args[0],
+                        targetEntropy: targetEnt
+                    )
+                ]
             }
         } else {
             entVG = nil
@@ -738,13 +781,14 @@ public actor SAC {
                 minQ = minQ.map { MLX.minimum($0, q) } ?? q
             }
 
-            let nextQ =
-                minQ!
-                - entCoef
-                * MLX.stopGradient(nextLogProb).expandedDimensions(axis: -1)
-            let targetQ =
-                rewards.expandedDimensions(axis: -1)
-                + (1.0 - dones.expandedDimensions(axis: -1)) * gamma * nextQ
+            let targetQ = SACMath.target(
+                rewards: rewards,
+                dones: dones,
+                minQ: minQ!,
+                nextLogProb: MLX.stopGradient(nextLogProb),
+                entCoef: entCoef,
+                gamma: gamma
+            )
             let detachedTargetQ = MLX.stopGradient(targetQ)
 
             c.setTrainingMode(true)
@@ -842,6 +886,17 @@ public actor SAC {
             entCoef * logProb.expandedDimensions(axis: -1) - minQ!
         )
         return [loss, MLX.stopGradient(logProb)]
+    }
+
+    private func beginSession() throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState("Training or evaluation is already running.")
+        }
+        isSessionRunning = true
+    }
+
+    private func endSession() {
+        isSessionRunning = false
     }
 
     private func softUpdate(tau: Double? = nil) throws {

@@ -136,7 +136,7 @@ public final class Taxi: Env {
     private var taxiOrientation: Int = 0
     private var fickleStep: Bool = false
 
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
 
     #if canImport(SwiftUI)
         private var lastRGBFrame: CGImage?
@@ -418,46 +418,36 @@ public final class Taxi: Env {
         .array(actionMask(for: state).map { .int($0) })
     }
 
-    private func prepareKey(with seed: UInt64?) throws -> MLXArray {
+    private func prepareGenerator(with seed: UInt64?) {
         if let seed {
-            _key = MLX.key(seed)
-        } else if _key == nil {
-            _key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
-        guard let key = _key else {
-            throw GymnazoError.invalidState("Failed to initialize RNG key")
-        }
-        return key
     }
 
     public func reset(
         seed: UInt64? = nil,
         options: EnvOptions? = nil
     ) throws -> Reset {
-        let key = try prepareKey(with: seed)
-        let (sampleKey, nextKey) = MLX.split(key: key)
-        _key = nextKey
-
-        let epsilon = MLXArray(1e-9, dtype: .float32)
-        let probs = MLXArray(initialStateDistrib.map { Float($0) })
-        let logits = MLX.log(probs + epsilon)
-        let sampledState = MLX.categorical(logits, key: sampleKey)
-        s = Int(sampledState.scalarValue(Int32.self))
+        prepareGenerator(with: seed)
+        guard var generator else {
+            throw GymnazoError.invalidState("Missing random generator")
+        }
+        guard let sampledState = generator.weightedIndex(initialStateDistrib) else {
+            throw GymnazoError.invalidState("Initial-state probabilities are invalid")
+        }
+        s = sampledState
 
         lastAction = nil
         taxiOrientation = 0
 
         if ficklePassenger {
-            guard let fickleKeySource = _key else {
-                throw GymnazoError.invalidState("Missing RNG key")
-            }
-            let (fickleKey, nk) = MLX.split(key: fickleKeySource)
-            _key = nk
-            let fickleRand = MLX.uniform(0..<1, key: fickleKey).scalarValue(Float.self)
-            fickleStep = fickleRand < 0.3
+            fickleStep = generator.uniform(in: 0...1) < 0.3
         } else {
             fickleStep = false
         }
+        self.generator = generator
 
         return Reset(
             obs: toMLX(s),
@@ -474,16 +464,12 @@ public final class Taxi: Env {
             throw GymnazoError.invalidState("Invalid state or action")
         }
 
-        guard let key = _key else {
-            throw GymnazoError.invalidState("Missing RNG key")
+        guard var generator else {
+            throw GymnazoError.invalidState("Missing random generator")
         }
-        let (sampleKey, nextKey) = MLX.split(key: key)
-        _key = nextKey
-
-        let probs = transitions.map { Float($0.prob) }
-        let epsilon = MLXArray(1e-9, dtype: .float32)
-        let logits = MLX.log(MLXArray(probs) + epsilon)
-        let i = Int(MLX.categorical(logits, key: sampleKey).scalarValue(Int32.self))
+        guard let i = generator.weightedIndex(transitions.map { $0.prob }) else {
+            throw GymnazoError.invalidState("Transition probabilities are invalid")
+        }
 
         let (p, newState, reward, terminated) = transitions[i]
 
@@ -502,18 +488,16 @@ public final class Taxi: Env {
                 }
             }
 
-            guard let destKeySource = _key else {
-                throw GymnazoError.invalidState("Missing RNG key")
-            }
-            let (destKey, nk) = MLX.split(key: destKeySource)
-            _key = nk
-            let destRand = MLX.randInt(low: 0, high: possibleDestinations.count, key: destKey)
-            destIdx = possibleDestinations[Int(destRand.scalarValue(Int32.self))]
+            destIdx =
+                possibleDestinations[
+                    Int.random(in: possibleDestinations.indices, using: &generator)
+                ]
 
             s = Self.encode(taxiRow: taxiRow, taxiCol: taxiCol, passLoc: passLoc, destIdx: destIdx)
         } else {
             s = newState
         }
+        self.generator = generator
 
         lastAction = a
         if a <= 3 {

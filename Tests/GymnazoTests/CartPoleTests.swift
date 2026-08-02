@@ -134,13 +134,13 @@ struct CartPoleTests {
         var env = try await makeCartPole()
         _ = try env.reset(seed: 0)
 
-        let initialX = env.state![0].item(Float.self)
+        let initialX = env.state![0]
 
         for _ in 0..<5 {
             _ = try env.step(MLXArray(Int32(0)))
         }
 
-        let finalX = env.state![0].item(Float.self)
+        let finalX = env.state![0]
 
         #expect(finalX < initialX)
     }
@@ -150,13 +150,13 @@ struct CartPoleTests {
         var env = try await makeCartPole()
         _ = try env.reset(seed: 0)
 
-        let initialX = env.state![0].item(Float.self)
+        let initialX = env.state![0]
 
         for _ in 0..<5 {
             _ = try env.step(MLXArray(Int32(1)))
         }
 
-        let finalX = env.state![0].item(Float.self)
+        let finalX = env.state![0]
 
         #expect(finalX > initialX)
     }
@@ -242,8 +242,8 @@ struct CartPoleTests {
 
         let snapshot = env.currentSnapshot
 
-        let expectedX = env.state![0].item(Float.self)
-        let expectedTheta = env.state![2].item(Float.self)
+        let expectedX = env.state![0]
+        let expectedTheta = env.state![2]
 
         #expect(snapshot.x == expectedX)
         #expect(snapshot.theta == expectedTheta)

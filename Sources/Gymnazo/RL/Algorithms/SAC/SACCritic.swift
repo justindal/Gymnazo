@@ -10,7 +10,7 @@ import MLXNN
 ///
 /// Takes observations and scaled actions (in [-1, 1]) and outputs Q-values
 /// from multiple critic networks for clipped double Q-learning.
-public final class SACCritic: Module, ContinuousCritic, @unchecked Sendable {
+public final class SACCritic: Module, ContinuousCritic {
     public let observationSpace: any Space
     private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }
@@ -40,7 +40,8 @@ public final class SACCritic: Module, ContinuousCritic, @unchecked Sendable {
         featuresExtractor: (any FeaturesExtractor)? = nil,
         nCritics: Int = 2,
         shareFeaturesExtractor: Bool = false,
-        activation: @escaping () -> any UnaryLayer = { ReLU() }
+        activation: @escaping () -> any UnaryLayer = { ReLU() },
+        initializationKey: MLXArray? = nil
     ) throws {
         self.observationSpace = observationSpace
         self._actionSpace = actionSpace
@@ -71,6 +72,9 @@ public final class SACCritic: Module, ContinuousCritic, @unchecked Sendable {
         )
 
         super.init()
+        if var initializationKey {
+            try initializeModuleWeights(self, key: &initializationKey)
+        }
     }
 
     public func makeFeatureExtractor() -> any FeaturesExtractor {

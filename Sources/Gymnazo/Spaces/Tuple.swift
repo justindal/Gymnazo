@@ -28,6 +28,13 @@ public struct Tuple: Space {
 
     /// Samples from each sub-space and concatenates the results.
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        precondition(
+            mask == nil && probability == nil,
+            "Tuple masks require the typed tuple API"
+        )
+        guard !spaces.isEmpty else {
+            return MLXArray([Float]())
+        }
         let keys = MLX.split(key: key, into: spaces.count)
         var samples: [MLXArray] = []
 

@@ -10,7 +10,7 @@ private let logStdMax: Float = 2.0
 private let logStdMin: Float = -20.0
 
 /// Actor (Policy) Network for SAC
-public final class SACActor: Module, Policy, @unchecked Sendable {
+public final class SACActor: Module, Policy {
     public let observationSpace: any Space
     private let _actionSpace: any Space
     public var actionSpace: any Space { _actionSpace }
@@ -42,7 +42,8 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
         useSDE: Bool = false,
         logStdInit: Float = -3.0,
         fullStd: Bool = true,
-        clipMean: Float = 2.0
+        clipMean: Float = 2.0,
+        initializationKey: MLXArray? = nil
     ) throws {
         self.observationSpace = observationSpace
         self._actionSpace = actionSpace
@@ -91,12 +92,16 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
         self.sdeLogStd = MLX.zeros(logStdShape) + logStdInit
 
         super.init()
+        if var initializationKey {
+            try initializeModuleWeights(self, key: &initializationKey)
+        }
     }
 
     public convenience init(
         observationSpace: any Space,
         actionSpace: any Space,
-        config: SACActorConfig = SACActorConfig()
+        config: SACActorConfig = SACActorConfig(),
+        initializationKey: MLXArray? = nil
     ) throws {
         let extractor = try config.featuresExtractor.make(
             observationSpace: observationSpace,
@@ -113,7 +118,8 @@ public final class SACActor: Module, Policy, @unchecked Sendable {
             useSDE: config.useSDE,
             logStdInit: config.logStdInit,
             fullStd: config.fullStd,
-            clipMean: config.clipMean
+            clipMean: config.clipMean,
+            initializationKey: initializationKey
         )
     }
 

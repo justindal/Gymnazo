@@ -163,46 +163,64 @@ public func applyActorCriticOrthoInit(
     valueNet: Module,
     shareFeatureExtractor: Bool = true,
     piFeatureExtractor: Module? = nil,
-    vfFeatureExtractor: Module? = nil
+    vfFeatureExtractor: Module? = nil,
+    key: MLXArray? = nil
 ) throws {
+    var key = key
     if shareFeatureExtractor {
-        try applyOrthoInit(to: featuresExtractor, gain: ActorCriticInitGains.featuresExtractor)
+        try applyOrthoInit(
+            to: featuresExtractor, gain: ActorCriticInitGains.featuresExtractor, key: &key)
     } else {
         if let pi = piFeatureExtractor {
-            try applyOrthoInit(to: pi, gain: ActorCriticInitGains.featuresExtractor)
+            try applyOrthoInit(to: pi, gain: ActorCriticInitGains.featuresExtractor, key: &key)
         }
         if let vf = vfFeatureExtractor {
-            try applyOrthoInit(to: vf, gain: ActorCriticInitGains.featuresExtractor)
+            try applyOrthoInit(to: vf, gain: ActorCriticInitGains.featuresExtractor, key: &key)
         }
     }
 
-    try applyOrthoInit(to: mlpExtractor, gain: ActorCriticInitGains.mlpExtractor)
-    try applyOrthoInit(to: actionNet, gain: ActorCriticInitGains.actionNet)
-    try applyOrthoInit(to: valueNet, gain: ActorCriticInitGains.valueNet)
+    try applyOrthoInit(to: mlpExtractor, gain: ActorCriticInitGains.mlpExtractor, key: &key)
+    try applyOrthoInit(to: actionNet, gain: ActorCriticInitGains.actionNet, key: &key)
+    try applyOrthoInit(to: valueNet, gain: ActorCriticInitGains.valueNet, key: &key)
 }
 
 /// Recursively applies orthogonal initialization to a module and its children.
-private func applyOrthoInit(to module: Module, gain: Float) throws {
-    try initWeightsOrthogonal(module, gain: gain)
+private func applyOrthoInit(to module: Module, gain: Float, key: inout MLXArray?) throws {
+    let moduleKey: MLXArray?
+    if let currentKey = key {
+        let (next, updatedKey) = MLX.split(key: currentKey, stream: .cpu)
+        moduleKey = next
+        key = updatedKey
+    } else {
+        moduleKey = nil
+    }
+    try initWeightsOrthogonal(module, gain: gain, key: moduleKey)
 
-    for (_, item) in module.children() {
-        try applyOrthoInit(item: item, gain: gain)
+    let children = module.children()
+    for name in children.keys.sorted() {
+        guard let item = children[name] else { continue }
+        try applyOrthoInit(item: item, gain: gain, key: &key)
     }
 }
 
-private func applyOrthoInit(item: NestedItem<String, Module>, gain: Float) throws {
+private func applyOrthoInit(
+    item: NestedItem<String, Module>,
+    gain: Float,
+    key: inout MLXArray?
+) throws {
     switch item {
     case .none:
         return
     case .value(let module):
-        try applyOrthoInit(to: module, gain: gain)
+        try applyOrthoInit(to: module, gain: gain, key: &key)
     case .array(let items):
         for i in items {
-            try applyOrthoInit(item: i, gain: gain)
+            try applyOrthoInit(item: i, gain: gain, key: &key)
         }
     case .dictionary(let dict):
-        for (_, i) in dict {
-            try applyOrthoInit(item: i, gain: gain)
+        for name in dict.keys.sorted() {
+            guard let item = dict[name] else { continue }
+            try applyOrthoInit(item: item, gain: gain, key: &key)
         }
     }
 }

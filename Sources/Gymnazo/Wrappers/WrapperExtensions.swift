@@ -22,6 +22,9 @@ import MLX
 /// ```
 
 extension Env {
+    public func collectingRenders() -> RenderCollection {
+        RenderCollection(env: self)
+    }
 
     /// Wraps the environment with order enforcement.
     ///

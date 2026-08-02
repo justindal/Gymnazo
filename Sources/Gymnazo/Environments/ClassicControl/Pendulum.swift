@@ -84,7 +84,7 @@ public struct Pendulum: Env {
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
 
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
     private var lastTorque: Float? = nil
 
     public static var metadata: [String: Any] {
@@ -150,20 +150,20 @@ public struct Pendulum: Env {
 
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed = seed {
-            _key = MLX.key(seed)
-        } else if _key == nil {
-            _key = MLX.key(UInt64.random(in: 0..<UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0..<UInt64.max))
         }
 
         let xInit = (options?["x_init"] as? Float) ?? Float.pi
         let yInit = (options?["y_init"] as? Float) ?? 1.0
 
-        let (k1, k2, nextKey) = splitKey3(_key!)
-        _key = nextKey
-
-        let theta = MLX.uniform(low: -xInit, high: xInit, [1], key: k1)[0].scalarValue(Float.self)
-        let thetaDot = MLX.uniform(low: -yInit, high: yInit, [1], key: k2)[0].scalarValue(
-            Float.self)
+        guard var generator else {
+            throw GymnazoError.invalidState("Random generator is unavailable")
+        }
+        let theta = generator.uniform(in: -xInit...xInit)
+        let thetaDot = generator.uniform(in: -yInit...yInit)
+        self.generator = generator
 
         state = (theta: theta, thetaDot: thetaDot)
         lastTorque = nil
@@ -216,11 +216,6 @@ public struct Pendulum: Env {
         Swift.min(Swift.max(value, minVal), maxVal)
     }
 
-    private func splitKey3(_ key: MLXArray) -> (MLXArray, MLXArray, MLXArray) {
-        let (k1, rest) = MLX.split(key: key)
-        let (k2, k3) = MLX.split(key: rest)
-        return (k1, k2, k3)
-    }
 }
 
 #if canImport(SwiftUI)

@@ -42,9 +42,9 @@ extension TD3 {
 
     public static func load(
         from directory: URL,
-        env: (any Env)? = nil,
+        env: sending (any Env)? = nil,
         includeBuffer: Bool = true
-    ) throws -> TD3 {
+    ) async throws -> TD3 {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
         guard checkpoint.algorithmKind == .td3 else {
@@ -68,10 +68,18 @@ extension TD3 {
             ?? ConstantLearningRate(1e-3)
         let policyConfig = checkpoint.td3PolicyConfig ?? TD3PolicyConfig()
         let algorithmConfig = checkpoint.td3AlgorithmConfig ?? TD3AlgorithmConfig()
+        let observationSpace =
+            try SpaceDescriptor
+            .from(space: environment.observationSpace)
+            .makeSpace()
+        let actionSpace =
+            try SpaceDescriptor
+            .from(space: environment.actionSpace)
+            .makeSpace()
 
         let policy = try TD3Policy(
-            observationSpace: environment.observationSpace,
-            actionSpace: environment.actionSpace,
+            observationSpace: observationSpace,
+            actionSpace: actionSpace,
             learningRateSchedule: schedule,
             config: policyConfig
         )
@@ -107,8 +115,14 @@ extension TD3 {
                     seed: checkpoint.seed
                 )
                 var buffer = try ReplayBuffer(
-                    observationSpace: policy.observationSpace,
-                    actionSpace: policy.actionSpace,
+                    observationSpace:
+                        try SpaceDescriptor
+                        .from(space: policy.observationSpace)
+                        .makeSpace(),
+                    actionSpace:
+                        try SpaceDescriptor
+                        .from(space: policy.actionSpace)
+                        .makeSpace(),
                     config: bufferConfig,
                     numEnvs: 1
                 )
@@ -129,8 +143,12 @@ extension TD3 {
             progressRemaining: checkpoint.currentProgressRemaining,
             gradientSteps: checkpoint.numGradientSteps ?? 0,
             buffer: replayBuffer,
-            envBox: env.map(EnvBox.init)
+            env: nil
         )
+
+        if let env {
+            try await agent.setEnv(env)
+        }
 
         return agent
     }

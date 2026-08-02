@@ -20,6 +20,7 @@ public actor TabularAgent {
     private var timesteps: Int = 0
     private var totalTimesteps: Int = 0
     private var shouldContinue: Bool = true
+    private var isSessionRunning = false
 
     public init(
         updateRule: UpdateRule,
@@ -51,9 +52,9 @@ public actor TabularAgent {
         qTable: MLXArray,
         timesteps: Int,
         explorationRate: Double,
-        envBox: EnvBox? = nil
+        env: sending (any Env)? = nil
     ) {
-        self.env = envBox?.env
+        self.env = env
         self.updateRule = updateRule
         self.config = config
         self.numStates = numStates
@@ -67,7 +68,7 @@ public actor TabularAgent {
     }
 
     public init(
-        env: any Env,
+        env: sending any Env,
         updateRule: UpdateRule,
         config: TabularConfig = TabularConfig(),
         seed: UInt64? = nil
@@ -116,6 +117,8 @@ public actor TabularAgent {
         callbacks: LearnCallbacks?,
         resetProgress: Bool = true
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         self.totalTimesteps = totalTimesteps
         if resetProgress {
             self.timesteps = 0
@@ -210,6 +213,8 @@ public actor TabularAgent {
         deterministic: Bool = true,
         callbacks: EvaluateCallbacks? = nil
     ) async throws {
+        try beginSession()
+        defer { endSession() }
         guard var environment = env else {
             throw GymnazoError.invalidState("TabularAgent.evaluate requires an environment.")
         }
@@ -269,6 +274,14 @@ public actor TabularAgent {
         return action.scalarValue(Int32.self)
     }
 
+    public func act(
+        observation: SpaceValue,
+        deterministic: Bool = true
+    ) throws -> PolicyAction {
+        let state = try stateIndex(for: observation)
+        return .discrete(Int(predict(state: Int32(state), deterministic: deterministic)))
+    }
+
     public func stop() {
         shouldContinue = false
     }
@@ -283,20 +296,29 @@ public actor TabularAgent {
         return qTable.asArray(Float.self)
     }
 
-    public func setEnv(_ envBox: EnvBox) {
-        self.env = envBox.env
-    }
-
-    public func takeEnv() -> (any Env)? {
-        let e = env
-        env = nil
-        return e
+    public func setEnv(_ environment: sending any Env) throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState(
+                "Cannot replace an environment during training or evaluation.")
+        }
+        env = environment
     }
 
     public func restore(timesteps: Int, explorationRate: Double, qTable: MLXArray) {
         self.timesteps = timesteps
         self.explorationRate = explorationRate
         self.qTable = qTable
+    }
+
+    private func beginSession() throws {
+        guard !isSessionRunning else {
+            throw GymnazoError.invalidState("Training or evaluation is already running.")
+        }
+        isSessionRunning = true
+    }
+
+    private func endSession() {
+        isSessionRunning = false
     }
 
     private func tdUpdate(_ currentQ: MLXArray, reward: Double, _ futureQ: MLXArray) -> MLXArray {
@@ -324,5 +346,37 @@ public actor TabularAgent {
             idx += v * Int32(s)
         }
         return MLXArray(idx)
+    }
+
+    private func stateIndex(for observation: SpaceValue) throws -> Int {
+        let index: Int
+        switch observation {
+        case .discrete(let value):
+            index = value
+        case .tuple(let values):
+            guard values.count == stateStrides.count else {
+                throw GymnazoError.invalidState(
+                    "A tabular tuple observation has the wrong number of elements."
+                )
+            }
+            index = try zip(values, stateStrides).reduce(into: 0) { result, pair in
+                guard case .discrete(let value) = pair.0 else {
+                    throw GymnazoError.invalidActionType(
+                        expected: "discrete tuple observation",
+                        actual: String(describing: pair.0)
+                    )
+                }
+                result += value * pair.1
+            }
+        default:
+            throw GymnazoError.invalidActionType(
+                expected: "discrete or tuple observation",
+                actual: String(describing: observation)
+            )
+        }
+        guard (0..<numStates).contains(index) else {
+            throw GymnazoError.invalidState("A tabular observation is outside the state table.")
+        }
+        return index
     }
 }

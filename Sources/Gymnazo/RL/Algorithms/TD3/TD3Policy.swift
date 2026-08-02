@@ -6,7 +6,7 @@ import MLXOptimizers
 ///
 /// Owns the actor, target actor, critic, and target critic networks, along with their
 /// optimizers. Target networks are initialised as copies of the online networks.
-public final class TD3Policy: Module, Policy, @unchecked Sendable {
+public final class TD3Policy: Module, Policy {
     public let observationSpace: any Space
     public let actionSpace: any Space
     public let learningRateSchedule: any LearningRateSchedule
@@ -41,7 +41,8 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         nCritics: Int = 2,
         shareFeaturesExtractor: Bool = false,
         actorOptimizer: OptimizerConfig = .adam(),
-        criticOptimizer: OptimizerConfig = .adam()
+        criticOptimizer: OptimizerConfig = .adam(),
+        initializationSeed: UInt64? = nil
     ) throws {
         let resolvedNetArch =
             netArch
@@ -84,6 +85,12 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
 
         super.init()
 
+        if let initializationSeed {
+            var initializationKey = MLX.key(initializationSeed)
+            try initializeModuleWeights(actor, key: &initializationKey)
+            try initializeModuleWeights(critic, key: &initializationKey)
+        }
+
         try syncTargetsFromOnline()
     }
 
@@ -91,7 +98,8 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
         observationSpace: any Space,
         actionSpace: any Space,
         learningRateSchedule: any LearningRateSchedule = ConstantLearningRate(1e-3),
-        config: TD3PolicyConfig = TD3PolicyConfig()
+        config: TD3PolicyConfig = TD3PolicyConfig(),
+        initializationSeed: UInt64? = nil
     ) throws {
         try self.init(
             observationSpace: observationSpace,
@@ -104,7 +112,8 @@ public final class TD3Policy: Module, Policy, @unchecked Sendable {
             nCritics: config.nCritics,
             shareFeaturesExtractor: config.shareFeaturesExtractor,
             actorOptimizer: config.actorOptimizer,
-            criticOptimizer: config.criticOptimizer
+            criticOptimizer: config.criticOptimizer,
+            initializationSeed: initializationSeed
         )
     }
 

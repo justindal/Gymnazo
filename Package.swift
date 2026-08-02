@@ -14,6 +14,7 @@ let package = Package(
             targets: ["Gymnazo"]
         ),
         .library(name: "Box2D", targets: ["Box2D"]),
+        .executable(name: "GymnazoProfiler", targets: ["GymnazoProfiler"]),
     ],
     dependencies: [
         .package(
@@ -58,6 +59,13 @@ let package = Package(
         .testTarget(
             name: "GymnazoTests",
             dependencies: ["Gymnazo"]
+        ),
+        .executableTarget(
+            name: "GymnazoProfiler",
+            dependencies: [
+                "Gymnazo",
+                .product(name: "MLX", package: "mlx-swift"),
+            ]
         ),
     ]
 )

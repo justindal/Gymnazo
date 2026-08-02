@@ -1,11 +1,11 @@
 import MLX
 
-protocol TD3ActionNoise: Sendable {
+protocol TD3ActionNoise {
     func reset()
     func sample(shape: [Int], key: MLXArray?) -> MLXArray
 }
 
-final class TD3NormalActionNoise: TD3ActionNoise, @unchecked Sendable {
+final class TD3NormalActionNoise: TD3ActionNoise {
     private let std: Float
 
     init(std: Float) {
@@ -22,7 +22,7 @@ final class TD3NormalActionNoise: TD3ActionNoise, @unchecked Sendable {
     }
 }
 
-final class TD3OrnsteinUhlenbeckActionNoise: TD3ActionNoise, @unchecked Sendable {
+final class TD3OrnsteinUhlenbeckActionNoise: TD3ActionNoise {
     private let std: Float
     private let theta: Float
     private let dt: Float

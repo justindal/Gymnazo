@@ -72,7 +72,7 @@ Note: All observations and actions are `MLXArray`. For discrete actions, use `.i
 
 - ``Gymnazo/make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:options:)-(String,_,_,_,_,_,_,_)``
 - ``Gymnazo/make(_:maxEpisodeSteps:disableEnvChecker:disableRenderOrderEnforcing:recordEpisodeStatistics:recordBufferLength:recordStatsKey:options:)-(EnvSpec,_,_,_,_,_,_,_)``
-- ``Gymnazo/register(id:entryPoint:maxEpisodeSteps:rewardThreshold:nondeterministic:)``
+- ``Gymnazo/register(id:displayName:description:category:metadata:entryPoint:maxEpisodeSteps:rewardThreshold:nondeterministic:)``
 
 ### Vector Creation
 

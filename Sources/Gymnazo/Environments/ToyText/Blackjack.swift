@@ -108,8 +108,8 @@ public final class Blackjack: Env {
     private var playerCardSuits: [String] = []
     private var playerCardValueStrs: [String] = []
 
-    private var _key: MLXArray?
-    private var _renderKey: MLXArray?
+    private var generator: SeededGenerator?
+    private var renderGenerator: SeededGenerator?
 
     #if canImport(SwiftUI)
         private var lastRGBFrame: CGImage?
@@ -132,17 +132,12 @@ public final class Blackjack: Env {
         self.observationSpace = Tuple(Discrete(n: 32), Discrete(n: 11), Discrete(n: 2))
     }
 
-    private static func drawCard(key: MLXArray) -> Int {
-        let index = MLX.randInt(low: 0, high: deck.count, key: key)
-        return deck[Int(index.scalarValue(Int32.self))]
+    private static func drawCard(using generator: inout SeededGenerator) -> Int {
+        deck[Int.random(in: deck.indices, using: &generator)]
     }
 
-    private static func drawHand(key: MLXArray) -> (hand: [Int], nextKey: MLXArray) {
-        let (k1, temp) = MLX.split(key: key)
-        let (k2, nextKey) = MLX.split(key: temp)
-        let card1 = drawCard(key: k1)
-        let card2 = drawCard(key: k2)
-        return ([card1, card2], nextKey)
+    private static func drawHand(using generator: inout SeededGenerator) -> [Int] {
+        [drawCard(using: &generator), drawCard(using: &generator)]
     }
 
     private static func usableAce(_ hand: [Int]) -> Bool {
@@ -177,25 +172,23 @@ public final class Blackjack: Env {
     private static let suits = ["C", "D", "H", "S"]
     private static let faceCards = ["J", "Q", "K"]
 
-    private func generateCardDisplay(value: Int, key: MLXArray) -> (
-        valueStr: String, suit: String, nextKey: MLXArray
-    ) {
-        let (suitKey, temp) = MLX.split(key: key)
-        let suitIndex = MLX.randInt(low: 0, high: 4, key: suitKey).scalarValue(Int32.self)
-        let suit = Self.suits[Int(suitIndex)]
+    private func generateCardDisplay(
+        value: Int,
+        using generator: inout SeededGenerator
+    ) -> (valueStr: String, suit: String) {
+        let suit = Self.suits[Int.random(in: Self.suits.indices, using: &generator)]
 
         let valueStr: String
         if value == 1 {
             valueStr = "A"
         } else if value == 10 {
-            let (faceKey, nextKey) = MLX.split(key: temp)
-            let faceIndex = MLX.randInt(low: 0, high: 3, key: faceKey).scalarValue(Int32.self)
-            return (Self.faceCards[Int(faceIndex)], suit, nextKey)
+            let face = Self.faceCards[Int.random(in: Self.faceCards.indices, using: &generator)]
+            return (face, suit)
         } else {
             valueStr = String(value)
         }
 
-        return (valueStr, suit, temp)
+        return (valueStr, suit)
     }
 
     private func getObs() -> MLXArray {
@@ -209,65 +202,63 @@ public final class Blackjack: Env {
         options: EnvOptions? = nil
     ) throws -> Reset {
         if let seed {
-            _key = MLX.key(seed)
-            _renderKey = MLX.key(seed ^ 0x9E37_79B9_7F4A_7C15)
+            generator = SeededGenerator(seed: seed)
+            renderGenerator = SeededGenerator(seed: seed ^ 0x9E37_79B9_7F4A_7C15)
         } else {
-            if _key == nil {
-                let s = UInt64.random(in: 0...UInt64.max)
-                _key = MLX.key(s)
+            if generator == nil {
+                generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
             }
-            if _renderKey == nil {
-                let s = UInt64.random(in: 0...UInt64.max)
-                _renderKey = MLX.key(s)
+            if renderGenerator == nil {
+                renderGenerator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
             }
         }
 
-        guard var key = _key else {
-            throw GymnazoError.invalidState("Failed to initialize RNG key")
+        guard var generator else {
+            throw GymnazoError.invalidState("Failed to initialize random generator")
         }
-        guard var renderKey = _renderKey else {
-            throw GymnazoError.invalidState("Failed to initialize render RNG key")
+        guard var renderGenerator else {
+            throw GymnazoError.invalidState("Failed to initialize render random generator")
         }
 
-        let (dealerHand, k1) = Self.drawHand(key: key)
-        key = k1
-        var (playerHand, k2) = Self.drawHand(key: key)
-        key = k2
+        let dealerHand = Self.drawHand(using: &generator)
+        var playerHand = Self.drawHand(using: &generator)
 
         while Self.sumHand(playerHand) < 12 {
-            let (drawKey, nextKey) = MLX.split(key: key)
-            key = nextKey
-            playerHand.append(Self.drawCard(key: drawKey))
+            playerHand.append(Self.drawCard(using: &generator))
         }
-        _key = key
+        self.generator = generator
 
         dealer = dealerHand
         player = playerHand
 
         let obs = getObs()
 
-        let (dealerValStr, dealerSuit, displayKey) = generateCardDisplay(
-            value: dealer[0], key: renderKey)
+        let (dealerValStr, dealerSuit) = generateCardDisplay(
+            value: dealer[0], using: &renderGenerator)
         dealerTopCardValueStr = dealerValStr
         dealerTopCardSuit = dealerSuit
-        renderKey = displayKey
 
         playerCardSuits = []
         playerCardValueStrs = []
         for cardValue in player {
-            let (valStr, suit, nextKey) = generateCardDisplay(value: cardValue, key: renderKey)
+            let (valStr, suit) = generateCardDisplay(
+                value: cardValue,
+                using: &renderGenerator
+            )
             playerCardValueStrs.append(valStr)
             playerCardSuits.append(suit)
-            renderKey = nextKey
         }
-        _renderKey = renderKey
+        self.renderGenerator = renderGenerator
 
         return Reset(obs: obs, info: [:])
     }
 
     public func step(_ action: MLXArray) throws -> Step {
         let a = toInt(action)
-        guard var key = _key else {
+        guard actionSpace.contains(action) else {
+            throw GymnazoError.invalidAction("Invalid action: \(a)")
+        }
+        guard var generator else {
             throw GymnazoError.stepBeforeReset
         }
 
@@ -275,19 +266,20 @@ public final class Blackjack: Env {
         var reward: Double = 0.0
 
         if a == 1 {
-            let (drawKey, nextKey) = MLX.split(key: key)
-            key = nextKey
-            let newCard = Self.drawCard(key: drawKey)
+            let newCard = Self.drawCard(using: &generator)
             player.append(newCard)
 
-            if _renderKey == nil {
-                _renderKey = MLX.key(UInt64.random(in: 0...UInt64.max))
+            if renderGenerator == nil {
+                renderGenerator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
             }
-            guard let renderKey = _renderKey else {
-                throw GymnazoError.invalidState("Missing render RNG key")
+            guard var renderGenerator else {
+                throw GymnazoError.invalidState("Missing render random generator")
             }
-            let (valStr, suit, k) = generateCardDisplay(value: newCard, key: renderKey)
-            _renderKey = k
+            let (valStr, suit) = generateCardDisplay(
+                value: newCard,
+                using: &renderGenerator
+            )
+            self.renderGenerator = renderGenerator
             playerCardValueStrs.append(valStr)
             playerCardSuits.append(suit)
 
@@ -299,9 +291,7 @@ public final class Blackjack: Env {
             terminated = true
 
             while Self.sumHand(dealer) < 17 {
-                let (drawKey, nextKey) = MLX.split(key: key)
-                key = nextKey
-                dealer.append(Self.drawCard(key: drawKey))
+                dealer.append(Self.drawCard(using: &generator))
             }
 
             reward = Self.compare(Self.score(player), Self.score(dealer))
@@ -313,7 +303,7 @@ public final class Blackjack: Env {
             }
         }
 
-        _key = key
+        self.generator = generator
         return Step(
             obs: getObs(),
             reward: reward,

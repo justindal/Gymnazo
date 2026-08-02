@@ -52,6 +52,7 @@ public struct EnvSpec: Sendable {
     public var displayName: String?
     public var description: String?
     public var category: EnvCategory?
+    public var metadata: EnvMetadata
 
     public var rewardThreshold: Double? = nil
     public var nondeterministic: Bool = false
@@ -98,6 +99,7 @@ public struct EnvSpec: Sendable {
         displayName: String? = nil,
         description: String? = nil,
         category: EnvCategory? = nil,
+        metadata: EnvMetadata? = nil,
         rewardThreshold: Double? = nil,
         nondeterministic: Bool = false,
         maxEpisodeSteps: Int? = nil,
@@ -111,6 +113,7 @@ public struct EnvSpec: Sendable {
         self.displayName = displayName
         self.description = description
         self.category = category
+        self.metadata = metadata ?? EnvMetadata.bundled(id: id)
         self.rewardThreshold = rewardThreshold
         self.nondeterministic = nondeterministic
         self.maxEpisodeSteps = maxEpisodeSteps
@@ -385,6 +388,7 @@ extension GymnazoRegistry {
             rewardThreshold: 900
         )
     }
+
 }
 
 private struct RegistrationSupport {

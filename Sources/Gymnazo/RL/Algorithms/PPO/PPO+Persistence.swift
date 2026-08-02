@@ -29,8 +29,8 @@ extension PPO {
 
     public static func load(
         from directory: URL,
-        env: (any Env)? = nil
-    ) throws -> PPO {
+        env: sending (any Env)? = nil
+    ) async throws -> PPO {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
         guard checkpoint.algorithmKind == .ppo else {
@@ -48,8 +48,14 @@ extension PPO {
         let observationSpace: any Space
         let actionSpace: any Space
         if let env {
-            observationSpace = env.observationSpace
-            actionSpace = env.actionSpace
+            observationSpace =
+                try SpaceDescriptor
+                .from(space: env.observationSpace)
+                .makeSpace()
+            actionSpace =
+                try SpaceDescriptor
+                .from(space: env.actionSpace)
+                .makeSpace()
         } else {
             guard let ppoObservationSpace = checkpoint.ppoObservationSpace,
                 let ppoActionSpace = checkpoint.ppoActionSpace
@@ -89,8 +95,12 @@ extension PPO {
             totalTimesteps: checkpoint.totalTimesteps,
             progressRemaining: checkpoint.currentProgressRemaining,
             updates: checkpoint.numGradientSteps ?? 0,
-            envBox: env.map(EnvBox.init)
+            env: nil
         )
+
+        if let env {
+            try await agent.setEnv(env)
+        }
 
         return agent
     }

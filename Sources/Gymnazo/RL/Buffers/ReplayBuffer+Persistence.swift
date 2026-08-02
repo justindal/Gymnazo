@@ -21,7 +21,12 @@ extension ReplayBuffer: BufferPersisting {
         let n = count
         guard n > 0 else { return }
 
-        let obsSlice = n == bufferSize ? observations : observations[0..<n]
+        let observationCount =
+            config.optimizeMemoryUsage && n < bufferSize ? n + 1 : n
+        let obsSlice =
+            observationCount == bufferSize
+            ? observations
+            : observations[0..<observationCount]
         let actSlice = n == bufferSize ? actions : actions[0..<n]
         let rewSlice = n == bufferSize ? rewards : rewards[0..<n]
         let doneSlice = n == bufferSize ? dones : dones[0..<n]
@@ -109,6 +114,8 @@ extension ReplayBuffer: BufferPersisting {
         var toEval = [observations, actions, rewards, dones, timeouts]
         if let next = nextObservations { toEval.append(next) }
         try MLXEval.evaluate(toEval)
+
+        doneValues = dones.asArray(Float.self).map { $0 > 0.5 }
 
         position = meta.position
         isBufferFull = meta.isFull

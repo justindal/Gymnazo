@@ -190,33 +190,21 @@ public final class FrozenLake: Env {
         p: Float = 0.8,
         seed: Int? = nil
     ) -> [String] {
+        precondition(size > 0, "Map size must be positive")
+        precondition((0...1).contains(p), "Frozen-tile probability must be between zero and one")
         var valid: Bool = false
         var board: [[String]] = []
-
-        var master: MLXArray
-
-        if let seed = seed {
-            master = MLX.key(UInt64(seed))
-        } else {
-            master = MLX.key(UInt64.random(in: 0...UInt64.max))
-        }
+        var generator = SeededGenerator(
+            seed: seed.map { UInt64(truncatingIfNeeded: $0) }
+                ?? UInt64.random(in: 0...UInt64.max)
+        )
 
         while !valid {
-            let loopKey: (MLXArray, MLXArray) = MLX.split(key: master)
-            master = loopKey.1
-
-            let uniform: MLXArray = MLX.uniform(0..<1, [size, size], key: loopKey.0)
-
-            let boardML: MLXArray = MLX.which(uniform .< p, 0, 1)
-            eval(boardML)
-            let boardData = boardML.asArray(Int32.self)
-
             board = []
-            for i in 0..<size {
+            for _ in 0..<size {
                 var row: [String] = []
-                for j in 0..<size {
-                    let val = boardData[i * size + j]
-                    row.append(val == 0 ? "F" : "H")
+                for _ in 0..<size {
+                    row.append(generator.uniform(in: 0...1) < p ? "F" : "H")
                 }
                 board.append(row)
             }
@@ -255,26 +243,15 @@ public final class FrozenLake: Env {
     private var s: Int
     private var lastAction: Int?
 
-    private var _key: MLXArray?
-    private var _seed: UInt64?
+    private var generator: SeededGenerator?
+    private let initialStates: [Int]
 
-    private let initial_state_logits: MLXArray
-
-    private func prepareKey(with seed: UInt64?) throws -> MLXArray {
+    private func prepareGenerator(with seed: UInt64?) {
         if let seed {
-            self._seed = seed
-            self._key = MLX.key(seed)
-        } else if self._key == nil {
-            let randomSeed = UInt64.random(in: 0...UInt64.max)
-            self._seed = randomSeed
-            self._key = MLX.key(randomSeed)
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
-
-        guard let key = self._key else {
-            throw GymnazoError.invalidState("Failed to initialize RNG key")
-        }
-
-        return key
     }
 
     public init(
@@ -310,21 +287,15 @@ public final class FrozenLake: Env {
         self.observationSpace = Discrete(n: nS)
         self.actionSpace = Discrete(n: nA)
 
-        var startStateLogits: [Float] = [Float](repeating: -Float.infinity, count: nS)
-        var s_count: Int = 0
+        var initialStates: [Int] = []
         for r: Int in 0..<nrow {
             for c: Int in 0..<ncol {
                 if mapChars[r][c] == "S" {
-                    startStateLogits[r * ncol + c] = 0.0
-                    s_count += 1
+                    initialStates.append(r * ncol + c)
                 }
             }
         }
-
-        if s_count > 1 {
-            startStateLogits = startStateLogits.map { $0 == 0.0 ? 0.0 : -Float.infinity }
-        }
-        self.initial_state_logits = MLXArray(startStateLogits)
+        self.initialStates = initialStates
         let successProb: Double = Double(successRate)
         let failProb: Double = (1.0 - successProb) / 2.0
 
@@ -402,8 +373,7 @@ public final class FrozenLake: Env {
 
         self.s = 0
         self.lastAction = nil
-        self._key = nil
-        self._seed = nil
+        self.generator = nil
     }
 
     public convenience init(
@@ -460,13 +430,12 @@ public final class FrozenLake: Env {
         options: EnvOptions? = nil
     ) throws -> Reset {
 
-        let key = try self.prepareKey(with: seed)
-
-        let (resetKey, nextKey) = MLX.split(key: key)
-        self._key = nextKey
-
-        let s_ml: MLXArray = MLX.categorical(self.initial_state_logits, key: resetKey)
-        self.s = s_ml.scalarValue(Int.self)
+        prepareGenerator(with: seed)
+        guard var generator else {
+            throw GymnazoError.invalidState("Missing random generator")
+        }
+        self.s = initialStates[Int.random(in: initialStates.indices, using: &generator)]
+        self.generator = generator
         self.lastAction = nil
 
         return Reset(obs: toMLX(self.s), info: ["prob": 1.0])
@@ -479,17 +448,13 @@ public final class FrozenLake: Env {
         }
         let transitions = self.P[self.s][a]
 
-        guard let key = self._key else {
+        guard var generator else {
             throw GymnazoError.invalidState("Env must be seeded with reset(seed:)")
         }
-        let (stepKey, nextKey) = MLX.split(key: key)
-        self._key = nextKey
-
-        let probs = transitions.map { Float($0.prob) }
-        let epsilon = MLXArray(1e-9, dtype: .float32)
-        let prob_logits = MLX.log(MLXArray(probs) + epsilon)
-
-        let i = MLX.categorical(prob_logits, key: stepKey).scalarValue(Int.self)
+        guard let i = generator.weightedIndex(transitions.map { $0.prob }) else {
+            throw GymnazoError.invalidState("Transition probabilities are invalid")
+        }
+        self.generator = generator
 
         let (p, s, r, t) = transitions[i]
 

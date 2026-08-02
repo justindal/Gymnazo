@@ -30,4 +30,24 @@ struct SequenceSpaceTests {
         let sample = SequenceSample(values: values, mask: badMask)
         #expect(space.containsSequence(sample) == false)
     }
+
+    @Test
+    func lengthMaskAndProbabilitySelectLengths() {
+        let inner = MultiBinary(n: 2)
+        let space = SequenceSpace(space: inner, minLength: 1, maxLength: 3)
+
+        let mask = MLXArray([Int32(0), Int32(1), Int32(0)])
+        let masked = space.sampleSequence(key: MLX.key(1), mask: mask, probability: nil)
+        eval(masked.mask)
+        #expect(masked.mask.asArray(Bool.self) == [true, true, false])
+
+        let probability = MLXArray([Float(0), Float(0), Float(1)])
+        let weighted = space.sampleSequence(
+            key: MLX.key(2),
+            mask: nil,
+            probability: probability
+        )
+        eval(weighted.mask)
+        #expect(weighted.mask.asArray(Bool.self) == [true, true, true])
+    }
 }

@@ -42,12 +42,14 @@ public struct DQNNetworks {
     public init(
         observationSpace: any Space,
         nActions: Int,
-        config: DQNPolicyConfig = DQNPolicyConfig()
+        config: DQNPolicyConfig = DQNPolicyConfig(),
+        initializationSeed: UInt64? = nil
     ) throws {
         self.qNet = try DQNPolicy(
             observationSpace: observationSpace,
             nActions: nActions,
-            config: config
+            config: config,
+            initializationKey: initializationSeed.map(MLX.key)
         )
 
         self.qNetTarget = try DQNPolicy(
@@ -68,12 +70,14 @@ public struct DQNNetworks {
     public init(
         observationSpace: any Space,
         actionSpace: Discrete,
-        config: DQNPolicyConfig = DQNPolicyConfig()
+        config: DQNPolicyConfig = DQNPolicyConfig(),
+        initializationSeed: UInt64? = nil
     ) throws {
         try self.init(
             observationSpace: observationSpace,
             nActions: actionSpace.n,
-            config: config
+            config: config,
+            initializationSeed: initializationSeed
         )
     }
 

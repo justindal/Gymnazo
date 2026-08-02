@@ -4,7 +4,7 @@
 [![](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fjustindal%2FGymnazo%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/justindal/Gymnazo)
 [![Swift Tests](https://github.com/justindal/Gymnazo/actions/workflows/main.yml/badge.svg)](https://github.com/justindal/Gymnazo/actions/workflows/main.yml)
 
-Gymnazo is a reinforcement learning toolkit written in Swift for Apple platforms. It provides a collection of Gymnasium-style environments and utilities for building and testing reinforcement learning algorithms, with implementations of common reinforcement learning algorithms, inspired by Stable-Baselines3. Gymnazo uses [MLX Swift](https://github.com/ml-explore/mlx-swift) to benefit Apple Silicon devices.
+Gymnazo is a reinforcement learning toolkit written in Swift for Apple platforms. It provides Gymnasium-style environments, vector collection, and utilities for building and testing reinforcement learning algorithms, with implementations inspired by Stable-Baselines3. Gymnazo uses [MLX Swift](https://github.com/ml-explore/mlx-swift) to benefit Apple Silicon devices.
 
 ## Requirements
 
@@ -24,7 +24,7 @@ Add Gymnazo to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/justindal/Gymnazo.git", from: "0.1.0")
+    .package(url: "https://github.com/justindal/Gymnazo.git", from: "0.12.0")
 ]
 ```
 
@@ -46,10 +46,21 @@ Then add it to your target:
 xcodebuild \
   -scheme Gymnazo-Package \
   -destination 'platform=macOS,arch=arm64' \
+  -parallel-testing-enabled NO \
   test
 ```
 
 Or open the package in Xcode and build/test.
+
+The package also includes an Apple Silicon profiler for typed collection, replay insertion, DQN training, memory usage, and compile warm-up:
+
+```bash
+xcodebuild \
+  -scheme GymnazoProfiler \
+  -destination 'platform=macOS,arch=arm64' \
+  -configuration Release \
+  build
+```
 
 ## Quick Start
 
@@ -89,25 +100,38 @@ struct Demo {
 ```
 
 ## Vector Environments
-> Note: Vector environments are currently still in development and may not be fully functional. This information may be outdated.
 
-For parallel training, Gymnazo provides vector environments (sync + async):
+Gymnazo provides compatibility vector environments plus a typed Swift-value vector boundary. Use the typed boundary when environment state should stay out of MLX and concurrency transfers:
 
 ```swift
 import Gymnazo
+
+let vector = try await Gymnazo.makeValueVec(
+    "CartPole",
+    numEnvs: 4,
+    mode: .parallel,
+    autoresetMode: .sameStep
+)
+let reset = try await vector.reset(seed: 42)
+let step = try await vector.step([
+    .discrete(0), .discrete(1), .discrete(0), .discrete(1)
+])
+_ = (reset.observations, step.rewards)
+try await vector.close()
+```
+
+The compatibility vector APIs remain available for existing `Env`/`MLXArray` integrations:
+
+```swift
 import MLX
 
-// synchronous vector environment with 4 CartPoles
 let syncEnv = try await Gymnazo.makeVec("CartPole", numEnvs: 4)
-let reset = try syncEnv.reset(seed: 42)
-_ = reset.observations
-
-// asynchronous vector environment with 4 CartPoles
-let asyncEnv = try await Gymnazo.makeVecAsync("CartPole", numEnvs: 4)
 let actions = MLXArray([1, 0, 1, 0])
-let step = try await asyncEnv.stepAsync(actions)
+let step = try syncEnv.step(actions)
 _ = step.rewards
 ```
+
+`AsyncVectorEnv` preserves the compatibility API but serializes access through the main actor. Use `makeValueVec(..., mode: .parallel)` for actor-owned parallel collection.
 
 ## Wrappers
 
@@ -139,6 +163,8 @@ let chainedEnv = try CartPole()
     .observationsNormalized()
 ```
 
+Typed value environments provide the same composition model without `MLXArray` crossing environment boundaries. Available typed wrappers include time limits, autoreset, episode statistics, observation/action/reward transforms, reshape, delay, time-aware observations, max-and-skip, sticky actions, reward clipping, and dictionary/tuple filtering.
+
 ## Environment Catalog
 
 Gymnazo currently contains the following environments:
@@ -166,6 +192,7 @@ Gymnazo includes common reinforcement learning algorithm implementations inspire
 | `DQN` | Deep Q-Network | Discrete |
 | `SAC` | Soft Actor-Critic | Continuous |
 | `PPO` | Proximal Policy Optimization | Discrete + Continuous + MultiDiscrete + MultiBinary |
+| `TD3` | Twin Delayed DDPG | Continuous |
 | `TabularAgent` | Q-Learning / SARSA | Discrete (small) |
 
 ```swift
@@ -189,12 +216,14 @@ let loaded = try DQN.load(from: url, env: env)
 
 See the [Reinforcement Learning guide](https://swiftpackageindex.com/justindal/Gymnazo/main/documentation/gymnazo/reinforcement-learning) for detailed usage, configuration, and callbacks.
 
+For typed policy inference and collection, see the [typed value boundary guide](https://swiftpackageindex.com/justindal/Gymnazo/main/documentation/gymnazo/typed-value-boundary).
+
 ## TODO
-- [ ] switch from kwargs-based configs to object-based configs
-- [ ] add more common RL algorithms
-- [ ] fix Vector Environments and better use Swift concurrency
-- [ ] add more wrapper types
-- [ ] select device for MLX operations
+- [ ] add end-to-end training lifecycle coverage for all bundled algorithms
+- [ ] move ExploreRL training collection to typed vectors and typed replay/rollout ingestion
+- [ ] expand exact seeded traces to every bundled environment
+- [ ] extend Apple Silicon profiling to PPO rollout insertion
+- [ ] add optional environment families after typed boundary validation
 
 
 

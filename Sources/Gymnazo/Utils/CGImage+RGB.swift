@@ -3,8 +3,7 @@
     import MLX
 
     extension CGImage {
-        /// Convert a CGImage to an MLXArray with shape [height, width, 3] and dtype uint8.
-        public func toMLXArray() -> MLXArray? {
+        public func rgbBytes() -> [UInt8]? {
             let width = self.width
             let height = self.height
             let bytesPerPixel = 4
@@ -44,6 +43,12 @@
                 }
             }
 
+            return rgbData
+        }
+
+        /// Convert a CGImage to an MLXArray with shape [height, width, 3] and dtype uint8.
+        public func toMLXArray() -> MLXArray? {
+            guard let rgbData = rgbBytes() else { return nil }
             return MLXArray(rgbData).reshaped([height, width, 3]).asType(.uint8)
         }
 

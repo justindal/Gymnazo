@@ -11,12 +11,12 @@ public struct RolloutBuffer: RolloutBuffering {
     private let actionDim: Int
     private var observations: [MLXArray]
     private var actions: [MLXArray]
-    private var rewards: [Float]
-    private var episodeStarts: [Float]
-    private var values: [Float]
-    private var logProbs: [Float]
-    private var advantages: [Float]
-    private var returns: [Float]
+    private var rewards: [MLXArray]
+    private var episodeStarts: [MLXArray]
+    private var values: [MLXArray]
+    private var logProbs: [MLXArray]
+    private var advantages: [MLXArray]
+    private var returns: [MLXArray]
 
     public init(
         bufferSize: Int,
@@ -25,7 +25,7 @@ public struct RolloutBuffer: RolloutBuffering {
         numEnvs: Int = 1
     ) {
         precondition(bufferSize > 0, "RolloutBuffer requires bufferSize > 0")
-        precondition(numEnvs == 1, "RolloutBuffer currently supports only numEnvs == 1")
+        precondition(numEnvs > 0, "RolloutBuffer requires numEnvs > 0")
         self.bufferSize = bufferSize
         self.observationSpace = observationSpace
         self.actionSpace = actionSpace
@@ -63,22 +63,32 @@ public struct RolloutBuffer: RolloutBuffering {
 
     public mutating func append(_ step: RolloutStep) {
         precondition(count < bufferSize, "RolloutBuffer is full")
-        let action = Self.prepareAction(step.action, actionSpace: actionSpace, actionDim: actionDim)
-        let reward = Self.scalarFloat(step.reward)
-        let episodeStart = Self.scalarFloat(step.episodeStart)
-        let value = Self.scalarFloat(step.value)
-        let logProb = Self.scalarFloat(step.logProb)
+        let observation = Self.prepareObservation(
+            step.observation,
+            observationSpace: observationSpace,
+            numEnvs: numEnvs
+        )
+        let action = Self.prepareAction(
+            step.action,
+            actionSpace: actionSpace,
+            actionDim: actionDim,
+            numEnvs: numEnvs
+        )
+        let reward = Self.prepareScalars(step.reward, numEnvs: numEnvs)
+        let episodeStart = Self.prepareScalars(step.episodeStart, numEnvs: numEnvs)
+        let value = Self.prepareScalars(step.value, numEnvs: numEnvs)
+        let logProb = Self.prepareScalars(step.logProb, numEnvs: numEnvs)
 
-        eval(step.observation, action, step.reward, step.episodeStart, step.value, step.logProb)
+        eval(observation, action, reward, episodeStart, value, logProb)
 
-        observations.append(step.observation)
+        observations.append(observation)
         actions.append(action)
         rewards.append(reward)
         episodeStarts.append(episodeStart)
         values.append(value)
         logProbs.append(logProb)
-        advantages.append(0.0)
-        returns.append(0.0)
+        advantages.append(MLX.zeros([numEnvs]))
+        returns.append(MLX.zeros([numEnvs]))
         count += 1
     }
 
@@ -91,13 +101,13 @@ public struct RolloutBuffer: RolloutBuffering {
         guard count > 0 else { return }
         let gammaF = Float(gamma)
         let gaeLambdaF = Float(gaeLambda)
-        let doneValue = Self.scalarFloat(dones)
-        let lastValue = Self.scalarFloat(lastValues)
+        let doneValue = Self.prepareScalars(dones, numEnvs: numEnvs)
+        let lastValue = Self.prepareScalars(lastValues, numEnvs: numEnvs)
 
-        var lastGAE: Float = 0.0
+        var lastGAE = MLX.zeros([numEnvs])
         for step in stride(from: count - 1, through: 0, by: -1) {
-            let nextNonTerminal: Float
-            let nextValue: Float
+            let nextNonTerminal: MLXArray
+            let nextValue: MLXArray
             if step == count - 1 {
                 nextNonTerminal = 1.0 - doneValue
                 nextValue = lastValue
@@ -116,34 +126,47 @@ public struct RolloutBuffer: RolloutBuffering {
     }
 
     public func batches(batchSize: Int) -> [RolloutBatch] {
-        batches(batchSize: batchSize, key: nil)
+        var generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
+        return batches(batchSize: batchSize, generator: &generator)
     }
 
-    public func batches(batchSize: Int, key: MLXArray?) -> [RolloutBatch] {
+    func batches(batchSize: Int, generator: inout SeededGenerator) -> [RolloutBatch] {
         guard count > 0 else { return [] }
-        let safeBatchSize = max(1, min(batchSize, count))
-        let permutation: [Int]
-        if let key {
-            let randomValues = MLX.uniform(0.0..<1.0, [count], key: key, stream: .cpu)
-            eval(randomValues)
-            let randomList = randomValues.asArray(Float.self)
-            permutation = (0..<count).sorted { randomList[$0] < randomList[$1] }
-        } else {
-            permutation = Array(0..<count).shuffled()
+        let sampleCount = count * numEnvs
+        let safeBatchSize = max(1, min(batchSize, sampleCount))
+        var permutation = Array(0..<sampleCount)
+        if sampleCount > 1 {
+            for index in stride(from: sampleCount - 1, through: 1, by: -1) {
+                let next = Int(generator.next() % UInt64(index + 1))
+                permutation.swapAt(index, next)
+            }
         }
+        let observationShape = observationSpace.shape ?? []
+        let flatObservations = MLX.stacked(Array(observations.prefix(count)), axis: 0)
+            .reshaped([sampleCount] + observationShape)
+        let flatActions = MLX.stacked(Array(actions.prefix(count)), axis: 0)
+            .reshaped([sampleCount, actionDim])
+        let flatValues = MLX.stacked(Array(values.prefix(count)), axis: 0)
+            .reshaped([sampleCount])
+        let flatLogProbs = MLX.stacked(Array(logProbs.prefix(count)), axis: 0)
+            .reshaped([sampleCount])
+        let flatAdvantages = MLX.stacked(Array(advantages.prefix(count)), axis: 0)
+            .reshaped([sampleCount])
+        let flatReturns = MLX.stacked(Array(returns.prefix(count)), axis: 0)
+            .reshaped([sampleCount])
         var result: [RolloutBatch] = []
-        result.reserveCapacity((count + safeBatchSize - 1) / safeBatchSize)
+        result.reserveCapacity((sampleCount + safeBatchSize - 1) / safeBatchSize)
 
         var start = 0
-        while start < count {
-            let end = min(start + safeBatchSize, count)
-            let indices = Array(permutation[start..<end])
-            let obsBatch = MLX.stacked(indices.map { observations[$0] }, axis: 0)
-            let actionBatch = MLX.stacked(indices.map { actions[$0] }, axis: 0)
-            let valuesBatch = MLXArray(indices.map { values[$0] })
-            let logProbsBatch = MLXArray(indices.map { logProbs[$0] })
-            let advantagesBatch = MLXArray(indices.map { advantages[$0] })
-            let returnsBatch = MLXArray(indices.map { returns[$0] })
+        while start < sampleCount {
+            let end = min(start + safeBatchSize, sampleCount)
+            let indices = MLXArray(permutation[start..<end].map(Int32.init))
+            let obsBatch = flatObservations[indices]
+            let actionBatch = flatActions[indices]
+            let valuesBatch = flatValues[indices]
+            let logProbsBatch = flatLogProbs[indices]
+            let advantagesBatch = flatAdvantages[indices]
+            let returnsBatch = flatReturns[indices]
             eval(obsBatch, actionBatch, valuesBatch, logProbsBatch, advantagesBatch, returnsBatch)
             result.append(
                 RolloutBatch(
@@ -162,17 +185,13 @@ public struct RolloutBuffer: RolloutBuffering {
     }
 
     public func valuesAndReturns() -> (values: [Float], returns: [Float]) {
-        (
-            values: Array(values.prefix(count)),
-            returns: Array(returns.prefix(count))
+        let valueTensor = MLX.stacked(Array(values.prefix(count)), axis: 0).reshaped([-1])
+        let returnTensor = MLX.stacked(Array(returns.prefix(count)), axis: 0).reshaped([-1])
+        eval(valueTensor, returnTensor)
+        return (
+            values: valueTensor.asArray(Float.self),
+            returns: returnTensor.asArray(Float.self)
         )
-    }
-
-    private static func scalarFloat(_ value: MLXArray) -> Float {
-        let casted = value.asType(.float32)
-        let flattened = casted.reshaped([-1])
-        eval(flattened)
-        return flattened.singletonValue(Float.self)
     }
 
     private static func actionDimension(_ actionSpace: any Space) -> Int {
@@ -194,29 +213,37 @@ public struct RolloutBuffer: RolloutBuffering {
     private static func prepareAction(
         _ action: MLXArray,
         actionSpace: any Space,
-        actionDim: Int
+        actionDim: Int,
+        numEnvs: Int
     ) -> MLXArray {
         if boxSpace(from: actionSpace) != nil {
-            return action.asType(.float32).reshaped([actionDim])
+            return action.asType(.float32).reshaped([numEnvs, actionDim])
         }
         if actionSpace is Discrete {
-            var discreteAction = action.asType(.int32)
-            if discreteAction.ndim == 0 {
-                discreteAction = discreteAction.reshaped([1])
-            } else if discreteAction.ndim > 1 {
-                discreteAction = discreteAction.reshaped([-1])
-                if discreteAction.shape[0] != 1 {
-                    discreteAction = discreteAction[0].reshaped([1])
-                }
-            }
-            return discreteAction
+            return action.asType(.int32).reshaped([numEnvs, 1])
         }
         if actionSpace is MultiDiscrete {
-            return action.asType(.int32).reshaped([actionDim])
+            return action.asType(.int32).reshaped([numEnvs, actionDim])
         }
         if actionSpace is MultiBinary {
-            return action.asType(.float32).reshaped([actionDim])
+            return action.asType(.float32).reshaped([numEnvs, actionDim])
         }
-        return action.reshaped([actionDim])
+        return action.reshaped([numEnvs, actionDim])
+    }
+
+    private static func prepareObservation(
+        _ observation: MLXArray,
+        observationSpace: any Space,
+        numEnvs: Int
+    ) -> MLXArray {
+        let shape = observationSpace.shape ?? []
+        return observation.reshaped([numEnvs] + shape)
+    }
+
+    private static func prepareScalars(
+        _ values: MLXArray,
+        numEnvs: Int
+    ) -> MLXArray {
+        values.asType(.float32).reshaped([numEnvs])
     }
 }

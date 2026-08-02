@@ -88,7 +88,7 @@ public struct MountainCarContinuous: Env {
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
 
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
     private var lastForce: Float? = nil
 
     public static var metadata: [String: Any] {
@@ -165,16 +165,15 @@ public struct MountainCarContinuous: Env {
     /// - Returns: A tuple containing the initial observation and info dictionary.
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
-            self._key = MLX.key(seed)
-        } else if self._key == nil {
-            self._key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
-
-        let (stepKey, nextKey) = MLX.split(key: self._key!)
-        self._key = nextKey
-
-        let position = MLX.uniform(low: Float(-0.6), high: Float(-0.4), [1], key: stepKey)[0]
-            .scalarValue(Float.self)
+        guard var generator else {
+            throw GymnazoError.invalidState("Random generator is unavailable")
+        }
+        let position = generator.uniform(in: -0.6 ... -0.4)
+        self.generator = generator
         state = (position: position, velocity: 0.0)
         lastForce = nil
 

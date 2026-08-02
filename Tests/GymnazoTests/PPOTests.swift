@@ -15,6 +15,13 @@ private actor PPOTrainMetricCollector {
     }
 }
 
+private func maxAbsDifference(_ lhs: [Float], _ rhs: [Float]) -> Float {
+    guard lhs.count == rhs.count else { return .infinity }
+    return zip(lhs, rhs).reduce(0) { maximum, values in
+        max(maximum, abs(values.0 - values.1))
+    }
+}
+
 private struct TruncatingPPOEnv: Env {
     let observationSpace: any Space = Box(low: -1, high: 1, shape: [4])
     let actionSpace: any Space = Discrete(n: 2)
@@ -36,6 +43,67 @@ private struct TruncatingPPOEnv: Env {
 
 @Suite("PPO", .serialized)
 struct PPOTests {
+    @Test
+    @MainActor
+    func seededNetworksMatchAndDifferentSeedsDiffer() async throws {
+        let policyConfig = PPOPolicyConfig(
+            netArch: .shared([16]),
+            featuresExtractor: .flatten,
+            orthoInit: true
+        )
+        let first = try PPO(
+            observationSpace: Box(low: -1, high: 1, shape: [4]),
+            actionSpace: Discrete(n: 2),
+            policyConfig: policyConfig,
+            seed: 101
+        )
+        let second = try PPO(
+            observationSpace: Box(low: -1, high: 1, shape: [4]),
+            actionSpace: Discrete(n: 2),
+            policyConfig: policyConfig,
+            seed: 101
+        )
+        let different = try PPO(
+            observationSpace: Box(low: -1, high: 1, shape: [4]),
+            actionSpace: Discrete(n: 2),
+            policyConfig: policyConfig,
+            seed: 102
+        )
+
+        #expect(await first.policyParameterValues() == second.policyParameterValues())
+        #expect(await first.policyParameterValues() != different.policyParameterValues())
+    }
+
+    @Test
+    @MainActor
+    func seededLearningProducesMatchingWeights() async throws {
+        let policyConfig = PPOPolicyConfig(
+            netArch: .shared([16]),
+            featuresExtractor: .flatten,
+            orthoInit: true
+        )
+        let config = PPOConfig(nSteps: 4, batchSize: 2, nEpochs: 1)
+        let first = try PPO(
+            env: SeededDiscreteTrainingEnvironment(),
+            policyConfig: policyConfig,
+            config: config,
+            seed: 43
+        )
+        let second = try PPO(
+            env: SeededDiscreteTrainingEnvironment(),
+            policyConfig: policyConfig,
+            config: config,
+            seed: 43
+        )
+
+        try await first.learn(totalTimesteps: 12, callbacks: nil)
+        try await second.learn(totalTimesteps: 12, callbacks: nil)
+
+        let firstValues = await first.policyParameterValues()
+        let secondValues = await second.policyParameterValues()
+        #expect(maxAbsDifference(firstValues, secondValues) < 1e-5)
+    }
+
     @Test
     @MainActor
     func learnEmitsFiniteMetrics() async throws {
@@ -65,14 +133,12 @@ struct PPOTests {
             sdeSampleFreq: -1
         )
         let ppo = try PPO(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace,
+            env: env,
             learningRate: ConstantLearningRate(3e-4),
             policyConfig: policyConfig,
             config: config,
             seed: 42
         )
-        await ppo.setEnv(EnvBox(env))
 
         let collector = PPOTrainMetricCollector()
         let callbacks = LearnCallbacks(
@@ -114,8 +180,7 @@ struct PPOTests {
     func learnAndEvaluateSmoke() async throws {
         let env = try await Gymnazo.make("CartPole")
         let ppo = try PPO(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace,
+            env: env,
             policyConfig: PPOPolicyConfig(
                 netArch: .shared([32, 32]),
                 featuresExtractor: .flatten,
@@ -142,17 +207,20 @@ struct PPOTests {
             ),
             seed: 7
         )
-        await ppo.setEnv(EnvBox(env))
 
         try await ppo.learn(totalTimesteps: 32, callbacks: nil as LearnCallbacks?)
         try await ppo.evaluate(
             episodes: 1, deterministic: true, callbacks: nil as EvaluateCallbacks?)
 
         var evalEnv = try await Gymnazo.make("CartPole")
-        let observation = try evalEnv.reset(seed: 77).obs
-        let action = await ppo(observation: observation, deterministic: true)
-        eval(action)
-        #expect(action.size > 0)
+        let observationValues = try evalEnv.reset(seed: 77).obs
+            .reshaped([-1])
+            .asArray(Float.self)
+        let actionValues = await ppo.actionValues(
+            observation: observationValues,
+            deterministic: true
+        )
+        #expect(!actionValues.isEmpty)
     }
 
     @Test
@@ -160,8 +228,7 @@ struct PPOTests {
     func learnBootstrapsTruncatedStepsWithoutFinalObservation() async throws {
         let env = TruncatingPPOEnv()
         let ppo = try PPO(
-            observationSpace: env.observationSpace,
-            actionSpace: env.actionSpace,
+            env: env,
             policyConfig: PPOPolicyConfig(
                 netArch: .shared([32, 32]),
                 featuresExtractor: .flatten,
@@ -188,7 +255,6 @@ struct PPOTests {
             ),
             seed: 11
         )
-        await ppo.setEnv(EnvBox(env))
 
         try await ppo.learn(totalTimesteps: 16, callbacks: nil as LearnCallbacks?)
 

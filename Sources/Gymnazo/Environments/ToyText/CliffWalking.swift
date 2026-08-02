@@ -121,7 +121,7 @@ public final class CliffWalking: Env {
     private var s: Int = 0
     private var lastAction: Int?
 
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
 
     #if canImport(SwiftUI)
         private var lastRGBFrame: CGImage?
@@ -200,23 +200,19 @@ public final class CliffWalking: Env {
         return outcomes
     }
 
-    private func prepareKey(with seed: UInt64?) throws -> MLXArray {
+    private func prepareGenerator(with seed: UInt64?) {
         if let seed {
-            _key = MLX.key(seed)
-        } else if _key == nil {
-            _key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
-        guard let key = _key else {
-            throw GymnazoError.invalidState("Failed to initialize RNG key")
-        }
-        return key
     }
 
     public func reset(
         seed: UInt64? = nil,
         options: EnvOptions? = nil
     ) throws -> Reset {
-        _ = try prepareKey(with: seed)
+        prepareGenerator(with: seed)
 
         s = Self.startState
         lastAction = nil
@@ -230,16 +226,13 @@ public final class CliffWalking: Env {
             throw GymnazoError.invalidState("Invalid state or action")
         }
 
-        guard let key = _key else {
-            throw GymnazoError.invalidState("Missing RNG key")
+        guard var generator else {
+            throw GymnazoError.invalidState("Missing random generator")
         }
-        let (sampleKey, nextKey) = MLX.split(key: key)
-        _key = nextKey
-
-        let probs = transitions.map { Float($0.prob) }
-        let epsilon = MLXArray(1e-9, dtype: .float32)
-        let logits = MLX.log(MLXArray(probs) + epsilon)
-        let i = Int(MLX.categorical(logits, key: sampleKey).scalarValue(Int32.self))
+        guard let i = generator.weightedIndex(transitions.map { $0.prob }) else {
+            throw GymnazoError.invalidState("Transition probabilities are invalid")
+        }
+        self.generator = generator
 
         let (p, newState, reward, terminated) = transitions[i]
 

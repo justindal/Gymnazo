@@ -42,8 +42,8 @@ public struct Box: Space {
         self.dtype = dtype
 
         let count = shape.reduce(1, *)
-        self.boundedBelow = [Bool](repeating: !low.isInfinite, count: count)
-        self.boundedAbove = [Bool](repeating: !high.isInfinite, count: count)
+        self.boundedBelow = [Bool](repeating: low > -.infinity, count: count)
+        self.boundedAbove = [Bool](repeating: high < .infinity, count: count)
 
         let flatLow = [Float](repeating: low, count: count)
         let flatHigh = [Float](repeating: high, count: count)
@@ -71,8 +71,14 @@ public struct Box: Space {
 
         let flatLow = lowC.reshaped([-1]).asArray(Float.self)
         let flatHigh = highC.reshaped([-1]).asArray(Float.self)
-        self.boundedBelow = flatLow.map { !$0.isInfinite }
-        self.boundedAbove = flatHigh.map { !$0.isInfinite }
+        precondition(
+            zip(flatLow, flatHigh).allSatisfy {
+                !$0.isNaN && !$1.isNaN && $0 <= $1
+            },
+            "Box: every low bound must be <= its high bound and neither may be NaN"
+        )
+        self.boundedBelow = flatLow.map { $0 > -.infinity }
+        self.boundedAbove = flatHigh.map { $0 < .infinity }
 
         let (effLow, effHigh) = Box.computeEffectiveBounds(
             flatLow: flatLow,
@@ -111,6 +117,9 @@ public struct Box: Space {
             let xs = x.shape
             guard shp == xs else { return false }
         }
+        if dtype?.isInteger == true, !x.dtype.isInteger {
+            return false
+        }
         let xC = x.asType(dtype ?? .float32)
 
         let geLow = xC .>= low
@@ -123,18 +132,14 @@ public struct Box: Space {
 
     /// Sample a random value from the space.
     ///
-    /// For unbounded dimensions, samples from a default range:
-    /// - Unbounded: samples from [-1e6, 1e6]
-    /// - Bounded below only: samples from [low, low + 1e6]
-    /// - Bounded above only: samples from [high - 1e6, high]
+    /// Fully bounded dimensions use a uniform distribution. Lower-bounded and
+    /// upper-bounded dimensions use shifted exponential distributions, while
+    /// fully unbounded dimensions use a standard normal distribution.
     ///
     public func sample(key: MLXArray, mask: MLXArray?, probability: MLXArray?) -> MLXArray {
+        precondition(mask == nil && probability == nil, "Box does not support mask or probability")
         let shp = shape ?? low.shape
-        let (k, _) = MLX.split(key: key)
-        let u01 = MLX.uniform(0..<1, shp, key: k).asType(dtype ?? .float32)
-
-        let span = effectiveHigh - effectiveLow
-        return effectiveLow + u01 * span
+        return sample(shape: shp, key: key)
     }
 }
 
@@ -143,14 +148,38 @@ extension Box: TensorSpace {
         precondition(count >= 0, "count must be non-negative")
         let elementShape = shape ?? low.shape
         let batchShape = [count] + elementShape
-        let u01 = MLX.uniform(0..<1, batchShape, key: key).asType(dtype ?? .float32)
-
-        let span = effectiveHigh - effectiveLow
-        return effectiveLow + u01 * span
+        return sample(shape: batchShape, key: key)
     }
 }
 
 extension Box {
+    private func sample(shape sampleShape: [Int], key: MLXArray) -> MLXArray {
+        let keys = MLX.split(key: key, into: 2)
+        let uniform = MLX.uniform(0..<1, sampleShape, key: keys[0]).asType(.float32)
+        let exponential = -MLX.log(MLX.maximum(1 - uniform, 1e-7))
+        let normal = MLXRandom.normal(sampleShape, key: keys[1]).asType(.float32)
+        let belowShape =
+            sampleShape.count == (shape ?? low.shape).count
+            ? (shape ?? low.shape)
+            : [1] + (shape ?? low.shape)
+        let below = MLXArray(boundedBelow).reshaped(belowShape)
+        let above = MLXArray(boundedAbove).reshaped(belowShape)
+        let bounded = MLX.logicalAnd(below, above)
+        let lowerOnly = MLX.logicalAnd(below, MLX.logicalNot(above))
+        let upperOnly = MLX.logicalAnd(MLX.logicalNot(below), above)
+        let uniformSample = effectiveLow + uniform * (effectiveHigh - effectiveLow)
+        let sample = MLX.which(
+            bounded,
+            uniformSample,
+            MLX.which(
+                lowerOnly,
+                low + exponential,
+                MLX.which(upperOnly, high - exponential, normal)
+            )
+        )
+        return sample.asType(dtype ?? .float32)
+    }
+
     fileprivate static func full(shape: [Int], value: Float, dtype: DType) -> MLXArray {
         let count = shape.reduce(1, *)
         let flat = MLXArray([Float](repeating: value, count: count))

@@ -37,6 +37,10 @@ public actor GymnazoRegistry {
     ///
     /// - Parameters:
     ///   - id: The unique identifier for the environment (e.g., "CartPole").
+    ///   - displayName: Human-readable name for UI display.
+    ///   - description: Description of the environment.
+    ///   - category: Environment category for grouping.
+    ///   - metadata: Optional rendering metadata.
     ///   - entryPoint: A closure that creates the environment from options.
     ///   - maxEpisodeSteps: Optional maximum steps per episode.
     ///   - rewardThreshold: Optional reward threshold for solving the environment.
@@ -46,6 +50,7 @@ public actor GymnazoRegistry {
         displayName: String? = nil,
         description: String? = nil,
         category: EnvCategory? = nil,
+        metadata: EnvMetadata? = nil,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -57,6 +62,7 @@ public actor GymnazoRegistry {
             displayName: displayName,
             description: description,
             category: category,
+            metadata: metadata,
             rewardThreshold: rewardThreshold,
             nondeterministic: nondeterministic,
             maxEpisodeSteps: maxEpisodeSteps
@@ -106,6 +112,7 @@ public enum Gymnazo {
     ///   - displayName: Human-readable name for UI display.
     ///   - description: Description of the environment.
     ///   - category: Environment category for grouping.
+    ///   - metadata: Optional rendering metadata.
     ///   - entryPoint: A closure that creates the environment from options.
     ///   - maxEpisodeSteps: Optional maximum steps per episode.
     ///   - rewardThreshold: Optional reward threshold for solving the environment.
@@ -115,6 +122,7 @@ public enum Gymnazo {
         displayName: String? = nil,
         description: String? = nil,
         category: EnvCategory? = nil,
+        metadata: EnvMetadata? = nil,
         entryPoint: @escaping @Sendable (EnvOptions) throws -> any Env,
         maxEpisodeSteps: Int? = nil,
         rewardThreshold: Double? = nil,
@@ -125,6 +133,7 @@ public enum Gymnazo {
             displayName: displayName,
             description: description,
             category: category,
+            metadata: metadata,
             entryPoint: entryPoint,
             maxEpisodeSteps: maxEpisodeSteps,
             rewardThreshold: rewardThreshold,
@@ -366,7 +375,7 @@ public enum Gymnazo {
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
     public static func makeVecAsync(
-        envFns: [@Sendable () -> any Env],
+        envFns: [() -> any Env],
         autoresetMode: AutoresetMode = .nextStep
     ) async throws -> AsyncVectorEnv {
         try await GymnazoRegistry.shared.makeVecAsync(
@@ -676,7 +685,7 @@ extension GymnazoRegistry {
     /// - Returns: An `AsyncVectorEnv` managing the created sub-environments.
     @MainActor
     public func makeVecAsync(
-        envFns: [@Sendable () -> any Env],
+        envFns: [() -> any Env],
         autoresetMode: AutoresetMode = .nextStep
     ) async throws -> AsyncVectorEnv {
         try AsyncVectorEnv(

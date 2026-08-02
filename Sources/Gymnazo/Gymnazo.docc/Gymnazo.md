@@ -18,6 +18,7 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - <doc:Creating-Environments>
 - <doc:Reinforcement-Learning>
 - <doc:Spaces>
+- <doc:Typed-Value-Boundary>
 - <doc:Wrappers-Gym>
 - <doc:Vector-Environments>
 
@@ -51,6 +52,11 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``AutoresetMode``
 - ``VectorStepResult``
 - ``VectorResetResult``
+- ``AnyValueVectorEnvironment``
+- ``SyncValueVectorEnvironment``
+- ``ParallelValueVectorEnvironment``
+- ``ValueCollectionSession``
+- ``ValueVectorMode``
 
 ### Wrappers
 
@@ -66,6 +72,7 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``NormalizeReward``   
 - ``ClipAction``
 - ``RescaleAction``
+- ``RenderCollection``
 
 ### Reinforcement Learning
 
@@ -80,3 +87,5 @@ Gymnazo provides a collection of environments and utilities for developing and t
 - ``Gymnazo``
 - ``EnvSpec``
 - ``EnvOptions``
+- ``ValueEnvSpec``
+- ``ValueGymnazoRegistry``

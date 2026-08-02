@@ -30,13 +30,34 @@ public struct MultiBinary: Space {
         guard let shape else {
             fatalError("MultiBinary requires a defined shape")
         }
+        precondition(mask == nil || probability == nil, "Provide either mask or probability")
         let u01 = MLX.uniform(low: 0, high: 1, shape, key: key).asType(.float32)
+        if let mask {
+            precondition(mask.shape == shape, "MultiBinary mask shape must match the space")
+            let valid = MLX.logicalOr(
+                MLX.logicalOr(mask .== 0, mask .== 1),
+                mask .== 2
+            )
+            precondition(valid.all().item(Bool.self), "MultiBinary mask values must be 0, 1, or 2")
+            let random = (u01 .>= 0.5).asType(.int32)
+            return MLX.which(mask .== 2, random, mask.asType(.int32))
+        }
+        if let probability {
+            precondition(
+                probability.shape == shape,
+                "MultiBinary probability shape must match the space"
+            )
+            let valid = MLX.logicalAnd(probability .>= 0, probability .<= 1)
+            precondition(valid.all().item(Bool.self), "Probabilities must be between zero and one")
+            return (u01 .< probability).asType(.int32)
+        }
         return (u01 .>= 0.5).asType(.int32)
     }
 
     /// Returns `true` if `x` is in `{0,1}` elementwise and has the correct shape.
     public func contains(_ x: MLXArray) -> Bool {
         if let shape, x.shape != shape { return false }
+        if !x.dtype.isInteger && x.dtype != .bool { return false }
         let xI = x.asType(.int32)
         let ge0 = (xI .>= 0).all().scalarValue(Bool.self)
         let le1 = (xI .<= 1).all().scalarValue(Bool.self)

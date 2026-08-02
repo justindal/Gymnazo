@@ -12,6 +12,35 @@ struct BufferTests {
     }
 
     @Test
+    func replayCapacityAccountsForAllStoredTensors() throws {
+        let observationSpace = Box(low: -1.0, high: 1.0, shape: [4])
+        let actionSpace = Discrete(n: 2)
+        let buffer = try ReplayBuffer(
+            observationSpace: observationSpace,
+            actionSpace: actionSpace,
+            config: .init(bufferSize: 100, memoryBudgetBytes: 240)
+        )
+
+        #expect(buffer.bufferSize == 4)
+        #expect(buffer.allocationInfo.requested == 100)
+        #expect(buffer.allocationInfo.wasCapped)
+    }
+
+    @Test
+    func replayCapacityAccountsForVectorActionStorage() throws {
+        let observationSpace = Box(low: -1.0, high: 1.0, shape: [1])
+        let actionSpace = MultiDiscrete([2, 2, 2, 2])
+        let buffer = try ReplayBuffer(
+            observationSpace: observationSpace,
+            actionSpace: actionSpace,
+            config: .init(bufferSize: 100, memoryBudgetBytes: 100)
+        )
+
+        #expect(buffer.bufferSize == 2)
+        #expect(buffer.allocationInfo.wasCapped)
+    }
+
+    @Test
     func replayCountsAndShapes() throws {
         let obsSpace = Box(
             low: MLXArray([-1.0 as Float, -1.0 as Float]),
@@ -402,7 +431,8 @@ struct BufferTests {
         #expect(!stats.values.contains(where: { !$0.isFinite }))
         #expect(!stats.returns.contains(where: { !$0.isFinite }))
 
-        let batches = buffer.batches(batchSize: 2, key: MLX.key(77))
+        var generator = SeededGenerator(seed: 77)
+        let batches = buffer.batches(batchSize: 2, generator: &generator)
         #expect(batches.count == 2)
 
         for batch in batches {
@@ -413,5 +443,79 @@ struct BufferTests {
             #expect(batch.advantages.shape == [2])
             #expect(batch.returns.shape == [2])
         }
+    }
+
+    @Test
+    func rolloutComputesGAEPerEnvironment() {
+        var buffer = RolloutBuffer(
+            bufferSize: 2,
+            observationSpace: Box(low: -100, high: 100, shape: [1]),
+            actionSpace: Discrete(n: 2),
+            numEnvs: 2
+        )
+        buffer.append(
+            RolloutStep(
+                observation: MLXArray([Float(0), 1], [2, 1]),
+                action: MLXArray([Int32(0), 1], [2, 1]),
+                reward: MLXArray([Float(1), 10]),
+                episodeStart: MLXArray([Float(1), 1]),
+                value: MLXArray([Float(0), 0]),
+                logProb: MLXArray([Float(-0.1), -0.2])
+            )
+        )
+        buffer.append(
+            RolloutStep(
+                observation: MLXArray([Float(2), 3], [2, 1]),
+                action: MLXArray([Int32(1), 0], [2, 1]),
+                reward: MLXArray([Float(2), 20]),
+                episodeStart: MLXArray([Float(0), 1]),
+                value: MLXArray([Float(0), 0]),
+                logProb: MLXArray([Float(-0.3), -0.4])
+            )
+        )
+
+        buffer.computeReturnsAndAdvantages(
+            lastValues: MLXArray([Float(0), 0]),
+            dones: MLXArray([Float(0), 1]),
+            gamma: 1,
+            gaeLambda: 1
+        )
+
+        let statistics = buffer.valuesAndReturns()
+        #expect(statistics.returns == [3, 10, 2, 20])
+
+        var generator = SeededGenerator(seed: 91)
+        let batches = buffer.batches(batchSize: 4, generator: &generator)
+        #expect(batches.count == 1)
+        #expect(batches[0].observations.shape == [4, 1])
+        #expect(batches[0].actions.shape == [4, 1])
+        #expect(batches[0].returns.shape == [4])
+    }
+
+    @Test
+    func replayInsertsTypedVectorCollectionAtOneBoundary() async throws {
+        let session = try ValueCollectionSession(
+            environments: [
+                try CartPoleValueEnvironment(),
+                try CartPoleValueEnvironment(),
+            ]
+        )
+        let collection = try await session.collect(steps: 3, seed: 97) { observations in
+            observations.indices.map { $0 % 2 }
+        }
+        var buffer = try ReplayBuffer(
+            observationSpace: Box(low: -100, high: 100, shape: [4]),
+            actionSpace: Discrete(n: 2),
+            config: .init(bufferSize: 10, seed: 101),
+            numEnvs: 2
+        )
+
+        try buffer.add(collection)
+
+        #expect(buffer.count == 6)
+        let sample = try buffer.sample(4)
+        #expect(sample.obs.shape == [4, 4])
+        #expect(sample.nextObs.shape == [4, 4])
+        #expect(sample.actions.shape == [4, 1])
     }
 }

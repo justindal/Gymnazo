@@ -141,13 +141,13 @@ struct MountainCarTests {
         var env = try await makeMountainCar()
         _ = try env.reset(seed: 42)
 
-        let initialVel = env.state![1].item(Float.self)
+        let initialVel = env.state![1]
 
         for _ in 0..<10 {
             _ = try env.step(MLXArray(Int32(2)))
         }
 
-        let finalVel = env.state![1].item(Float.self)
+        let finalVel = env.state![1]
 
         #expect(finalVel != initialVel, "Velocity should change after pushing")
     }
@@ -157,13 +157,13 @@ struct MountainCarTests {
         var env = try await makeMountainCar()
         _ = try env.reset(seed: 42)
 
-        let initialVel = env.state![1].item(Float.self)
+        let initialVel = env.state![1]
 
         for _ in 0..<10 {
             _ = try env.step(MLXArray(Int32(0)))
         }
 
-        let finalVel = env.state![1].item(Float.self)
+        let finalVel = env.state![1]
 
         #expect(finalVel != initialVel, "Velocity should change after pushing")
     }
@@ -205,7 +205,7 @@ struct MountainCarTests {
         var env = try await makeMountainCar()
         _ = try env.reset()
 
-        env.state = MLXArray([-1.15, -0.05] as [Float32])
+        env.state = [-1.15, -0.05]
 
         var hitBoundary = false
         for _ in 0..<100 {
@@ -230,7 +230,7 @@ struct MountainCarTests {
         var env = try await makeMountainCar()
         _ = try env.reset()
 
-        env.state = MLXArray([env.goalPosition + 0.01, 0.01])
+        env.state = [env.goalPosition + 0.01, 0.01]
 
         let result = try env.step(MLXArray(Int32(1)))
 
@@ -244,11 +244,11 @@ struct MountainCarTests {
         var env = try await makeMountainCar(goalVelocity: 0.04)
         _ = try env.reset()
 
-        env.state = MLXArray([env.goalPosition + 0.01, 0.01] as [Float32])
+        env.state = [env.goalPosition + 0.01, 0.01]
         let slow = try env.step(MLXArray(Int32(1)))
         #expect(slow.terminated == false)
 
-        env.state = MLXArray([env.goalPosition + 0.01, 0.05] as [Float32])
+        env.state = [env.goalPosition + 0.01, 0.05]
         let fast = try env.step(MLXArray(Int32(1)))
         #expect(fast.terminated == true)
     }
@@ -258,7 +258,7 @@ struct MountainCarTests {
         var env = try await makeMountainCar()
         _ = try env.reset()
 
-        env.state = MLXArray([env.goalPosition - 0.1, 0.0])
+        env.state = [env.goalPosition - 0.1, 0.0]
 
         let result = try env.step(MLXArray(Int32(1)))
 

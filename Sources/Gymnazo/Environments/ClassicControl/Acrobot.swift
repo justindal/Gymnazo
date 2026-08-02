@@ -69,7 +69,7 @@ public struct Acrobot: Env {
     public var spec: EnvSpec? = nil
     public var renderMode: RenderMode? = nil
 
-    private var _key: MLXArray?
+    private var generator: SeededGenerator?
 
     public static var metadata: [String: Any] {
         [
@@ -111,15 +111,11 @@ public struct Acrobot: Env {
         var torque = availableTorques[a]
 
         if torqueNoiseMax > 0 {
-            guard let key = _key else {
+            guard var generator else {
                 throw GymnazoError.stepBeforeReset
             }
-            let (noiseKey, nextKey) = MLX.split(key: key)
-            _key = nextKey
-            let noise = MLX.uniform(low: -torqueNoiseMax, high: torqueNoiseMax, [1], key: noiseKey)[
-                0
-            ].scalarValue(Float.self)
-            torque += noise
+            torque += generator.uniform(in: -torqueNoiseMax...torqueNoiseMax)
+            self.generator = generator
         }
 
         let sAugmented = currentState + [torque]
@@ -148,26 +144,21 @@ public struct Acrobot: Env {
 
     public mutating func reset(seed: UInt64? = nil, options: EnvOptions? = nil) throws -> Reset {
         if let seed {
-            self._key = MLX.key(seed)
-        } else if self._key == nil {
-            self._key = MLX.key(UInt64.random(in: 0...UInt64.max))
+            generator = SeededGenerator(seed: seed)
+        } else if generator == nil {
+            generator = SeededGenerator(seed: UInt64.random(in: 0...UInt64.max))
         }
-
-        let (stepKey, nextKey) = MLX.split(key: self._key!)
-        self._key = nextKey
 
         let low: Float = (options?["low"] as? Float) ?? -0.1
         let high: Float = (options?["high"] as? Float) ?? 0.1
-
-        let randomState = MLX.uniform(low: low, high: high, [4], key: stepKey)
-        eval(randomState)
-
-        self.state = [
-            randomState[0].scalarValue(Float.self),
-            randomState[1].scalarValue(Float.self),
-            randomState[2].scalarValue(Float.self),
-            randomState[3].scalarValue(Float.self),
-        ]
+        guard low <= high else {
+            throw GymnazoError.invalidConfiguration("Acrobot reset low must not exceed high")
+        }
+        guard var generator else {
+            throw GymnazoError.invalidState("Random generator is unavailable")
+        }
+        state = (0..<4).map { _ in generator.uniform(in: low...high) }
+        self.generator = generator
 
         return Reset(obs: try getObservation(), info: [:])
     }

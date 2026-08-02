@@ -26,12 +26,21 @@ public struct SACNetworks {
     public init(
         observationSpace: any Space,
         actionSpace: any Space,
-        config: SACNetworksConfig = SACNetworksConfig()
+        config: SACNetworksConfig = SACNetworksConfig(),
+        initializationSeed: UInt64? = nil
     ) throws {
+        var initializationKey = initializationSeed.map(MLX.key)
+        func nextInitializationKey() -> MLXArray? {
+            guard let key = initializationKey else { return nil }
+            let (next, updatedKey) = MLX.split(key: key, stream: .cpu)
+            initializationKey = updatedKey
+            return next
+        }
         let actor = try SACActor(
             observationSpace: observationSpace,
             actionSpace: actionSpace,
-            config: config.actor
+            config: config.actor,
+            initializationKey: nextInitializationKey()
         )
 
         let criticNetArch = config.critic.netArch ?? config.actor.netArch.critic
@@ -56,7 +65,8 @@ public struct SACNetworks {
             featuresExtractor: criticExtractor,
             nCritics: config.critic.nCritics,
             shareFeaturesExtractor: config.critic.shareFeaturesExtractor,
-            activation: { criticActivation.make() }
+            activation: { criticActivation.make() },
+            initializationKey: nextInitializationKey()
         )
 
         let targetExtractor = try criticExtractorConfig.make(
@@ -71,7 +81,8 @@ public struct SACNetworks {
             featuresExtractor: targetExtractor,
             nCritics: config.critic.nCritics,
             shareFeaturesExtractor: false,
-            activation: { criticActivation.make() }
+            activation: { criticActivation.make() },
+            initializationKey: nextInitializationKey()
         )
 
         self.actor = actor
