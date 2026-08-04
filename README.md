@@ -172,6 +172,7 @@ Gymnazo currently contains the following environments:
 | Category            | Environments                                                                 |
 | ------------------- | ---------------------------------------------------------------------------- |
 | **Classic Control** | `CartPole`, `MountainCar`, `MountainCarContinuous`, `Acrobot`, `Pendulum`    |
+| **Arcade**          | `FlappyBird`, `Snake`, `2048`                                                 |
 | **Box2D**           | `LunarLander`, `LunarLanderContinuous`, `CarRacing`, `CarRacingDiscrete`     |
 | **ToyText**         | `FrozenLake`, `Taxi`, `CliffWalking`, `Blackjack`                            |
 

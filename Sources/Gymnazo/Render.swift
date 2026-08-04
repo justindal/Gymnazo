@@ -48,6 +48,12 @@ public struct EnvMetadata: Sendable, Codable, Equatable {
             return EnvMetadata(renderModes: [.human, .rgbArray], renderFPS: 30)
         case "Acrobot":
             return EnvMetadata(renderModes: [.human, .rgbArray], renderFPS: 15)
+        case "FlappyBird":
+            return EnvMetadata(renderModes: [.human, .rgbArray], renderFPS: 30)
+        case "Snake":
+            return EnvMetadata(renderModes: [.human, .rgbArray], renderFPS: 12)
+        case "2048":
+            return EnvMetadata(renderModes: [.human, .rgbArray], renderFPS: 10)
         case "LunarLander", "LunarLanderContinuous":
             return EnvMetadata(renderModes: [.human, .rgbArray], renderFPS: 50)
         case "CarRacing", "CarRacingDiscrete":

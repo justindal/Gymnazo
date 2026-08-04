@@ -76,6 +76,22 @@ public actor AnyValueEnvironment {
     ///   - id: Optional identifier used in contract errors.
     ///   - base: The value environment to isolate.
     public init<Base: ValueEnvironment>(id: String? = nil, _ base: consuming Base)
+    where
+        Base.ObservationSpace: ValueFlatteningSpace,
+        Base.ActionSpace: ValueFlatteningSpace
+    {
+        self.id = id
+        self.observationSpace = AnyValueSpace(base.valueObservationSpace)
+        self.actionSpace = AnyValueSpace(base.valueActionSpace)
+        self.storage = ValueEnvironmentStorage(base)
+    }
+
+    /// Creates an actor-owned environment from a typed value environment.
+    ///
+    /// - Parameters:
+    ///   - id: Optional identifier used in contract errors.
+    ///   - base: The value environment to isolate.
+    public init<Base: ValueEnvironment>(id: String? = nil, _ base: consuming Base)
     where Base.ObservationSpace: SpaceValueConvertible, Base.ActionSpace: SpaceValueConvertible {
         self.id = id
         self.observationSpace = AnyValueSpace(base.valueObservationSpace)

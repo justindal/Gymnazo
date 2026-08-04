@@ -129,6 +129,7 @@ extension GymnazoRegistry {
     public func registerDefaultEnvironments() {
         registerToyText()
         registerClassicControl()
+        registerArcade()
         registerBox2D()
     }
 
@@ -314,6 +315,44 @@ extension GymnazoRegistry {
                 return Pendulum(renderMode: renderMode, g: g)
             },
             maxEpisodeSteps: 200
+        )
+    }
+
+    private func registerArcade() {
+        registerIfNeeded(
+            id: "FlappyBird",
+            displayName: "Flappy Bird",
+            description: "Fly through moving pipe gaps by choosing when to flap.",
+            category: .arcade,
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                return FlappyBird(renderMode: renderMode)
+            },
+            maxEpisodeSteps: 10_000
+        )
+
+        registerIfNeeded(
+            id: "Snake",
+            displayName: "Snake",
+            description: "Grow a snake by collecting food without hitting walls or its body.",
+            category: .arcade,
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                return Snake(renderMode: renderMode)
+            },
+            maxEpisodeSteps: 1_000
+        )
+
+        registerIfNeeded(
+            id: "2048",
+            displayName: "2048",
+            description: "Combine matching tiles to reach the highest possible value.",
+            category: .arcade,
+            entryPoint: { options in
+                let renderMode = RegistrationSupport.renderMode(from: options)
+                return TwentyFortyEight(renderMode: renderMode)
+            },
+            maxEpisodeSteps: 10_000
         )
     }
 

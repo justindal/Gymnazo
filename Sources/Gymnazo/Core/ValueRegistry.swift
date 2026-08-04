@@ -221,6 +221,36 @@ public actor ValueGymnazoRegistry {
         )
         install(
             ValueEnvSpec(
+                id: "FlappyBird",
+                entryPoint: Self.flappyBirdEntryPoint(id: "FlappyBird"),
+                displayName: "Flappy Bird",
+                description: "Fly through moving pipe gaps by choosing when to flap.",
+                category: .arcade,
+                maxEpisodeSteps: 10_000
+            )
+        )
+        install(
+            ValueEnvSpec(
+                id: "Snake",
+                entryPoint: Self.snakeEntryPoint(id: "Snake"),
+                displayName: "Snake",
+                description: "Grow a snake by collecting food without hitting walls or its body.",
+                category: .arcade,
+                maxEpisodeSteps: 1_000
+            )
+        )
+        install(
+            ValueEnvSpec(
+                id: "2048",
+                entryPoint: Self.twentyFortyEightEntryPoint(id: "2048"),
+                displayName: "2048",
+                description: "Combine matching tiles to reach the highest possible value.",
+                category: .arcade,
+                maxEpisodeSteps: 10_000
+            )
+        )
+        install(
+            ValueEnvSpec(
                 id: "LunarLander",
                 entryPoint: Self.lunarLanderEntryPoint(
                     id: "LunarLander",
@@ -286,6 +316,39 @@ public actor ValueGymnazoRegistry {
                     "CartPole does not support creation options.")
             }
             return AnyValueEnvironment(id: id, try CartPoleValueEnvironment())
+        }
+    }
+
+    private static func flappyBirdEntryPoint(id: String) -> ValueEnvSpec.EntryPoint {
+        { options in
+            guard options.isEmpty else {
+                throw GymnazoError.invalidConfiguration(
+                    "FlappyBird does not support creation options."
+                )
+            }
+            return AnyValueEnvironment(id: id, try FlappyBirdValueEnvironment())
+        }
+    }
+
+    private static func snakeEntryPoint(id: String) -> ValueEnvSpec.EntryPoint {
+        { options in
+            guard options.isEmpty else {
+                throw GymnazoError.invalidConfiguration(
+                    "Snake does not support creation options."
+                )
+            }
+            return AnyValueEnvironment(id: id, try SnakeValueEnvironment())
+        }
+    }
+
+    private static func twentyFortyEightEntryPoint(id: String) -> ValueEnvSpec.EntryPoint {
+        { options in
+            guard options.isEmpty else {
+                throw GymnazoError.invalidConfiguration(
+                    "2048 does not support creation options."
+                )
+            }
+            return AnyValueEnvironment(id: id, try TwentyFortyEightValueEnvironment())
         }
     }
 
