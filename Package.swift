@@ -19,7 +19,7 @@ let package = Package(
     dependencies: [
         .package(
             url: "https://github.com/ml-explore/mlx-swift",
-            from: "0.29.1"
+            from: "0.31.6"
         ),
         .package(
             url: "https://github.com/apple/swift-collections.git",
