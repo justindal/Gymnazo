@@ -49,6 +49,7 @@ public final class EvalCallback<P: Policy>: Callback {
     private var evalEnv: any Env
     private let policy: P
     private var bestMeanReward: Double = -.infinity
+    private var bestSavedMeanReward: Double = -.infinity
     private var lastEvalTimestep: Int = 0
     private var evalCount: Int = 0
 
@@ -107,17 +108,17 @@ public final class EvalCallback<P: Policy>: Callback {
                 )
             }
 
-            if result.meanReward > bestMeanReward {
-                bestMeanReward = result.meanReward
-
-                if let savePath = bestModelSavePath {
-                    if config.verbose >= 1 {
-                        print(
-                            "New best mean reward: \(String(format: "%.2f", bestMeanReward)). Saving model..."
-                        )
-                    }
-                    try policy.save(to: savePath)
+            bestMeanReward = max(bestMeanReward, result.meanReward)
+            if let savePath = bestModelSavePath,
+                result.meanReward > bestSavedMeanReward
+            {
+                if config.verbose >= 1 {
+                    print(
+                        "Saving model at mean reward \(String(format: "%.2f", result.meanReward))..."
+                    )
                 }
+                try policy.save(to: savePath)
+                bestSavedMeanReward = result.meanReward
             }
         } catch {
             if config.verbose >= 1 {

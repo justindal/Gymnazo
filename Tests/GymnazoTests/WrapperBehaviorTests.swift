@@ -26,6 +26,19 @@ struct WrapperBehaviorTests {
     }
 
     @Test
+    func timeLimitMarksSimultaneousTerminationAsTerminal() throws {
+        var limited = try TimeLimit(env: SeededDiscreteTrainingEnvironment(), maxEpisodeSteps: 3)
+        _ = try limited.reset(seed: 7)
+        _ = try limited.step(MLXArray(Int32(0)))
+        _ = try limited.step(MLXArray(Int32(0)))
+        let final = try limited.step(MLXArray(Int32(0)))
+
+        #expect(final.terminated)
+        #expect(final.truncated)
+        #expect(final.info[EnvInfoKey.timeLimitTruncated]?.bool == false)
+    }
+
+    @Test
     @MainActor
     func testRenderAllowedBeforeResetWhenDisabled() async throws {
         var env = try await Gymnazo.make(

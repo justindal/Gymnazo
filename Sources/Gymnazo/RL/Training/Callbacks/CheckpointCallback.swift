@@ -83,6 +83,7 @@ public final class BestModelCallback: Callback {
     public let verbose: Int
 
     private var bestValue: Double = -.infinity
+    private var bestSavedValue: Double = -.infinity
     private let valueProvider: () -> Double?
     private let saveAction: (URL) throws -> Void
 
@@ -108,13 +109,15 @@ public final class BestModelCallback: Callback {
     public func onStep(locals: CallbackLocals) -> Bool {
         guard let currentValue = valueProvider() else { return true }
 
-        if currentValue > bestValue {
-            bestValue = currentValue
-
+        bestValue = max(bestValue, currentValue)
+        if currentValue > bestSavedValue {
             do {
                 try saveAction(savePath)
+                bestSavedValue = currentValue
                 if verbose >= 1 {
-                    print("New best value: \(String(format: "%.4f", bestValue)). Model saved.")
+                    print(
+                        "New best saved value: \(String(format: "%.4f", currentValue)). Model saved."
+                    )
                 }
             } catch {
                 if verbose >= 1 {

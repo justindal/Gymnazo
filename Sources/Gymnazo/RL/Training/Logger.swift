@@ -83,8 +83,7 @@ public final class StandardLogger: Logger {
     private var outputs: [LogFormat]
     private var currentValues: [String: LogValue] = [:]
     private var history: [String: [(step: Int, value: Double)]] = [:]
-    private var csvHeaders: Set<String> = []
-    private var csvInitialized: [URL: Bool] = [:]
+    private var csvHeaders: [URL: [String]] = [:]
 
     private enum LogValue {
         case scalar(Double)
@@ -168,33 +167,35 @@ public final class StandardLogger: Logger {
     }
 
     private func appendToCSV(url: URL, step: Int) {
-        var scalarValues: [(String, Double)] = []
-        for (key, value) in currentValues {
-            if case .scalar(let v) = value {
-                scalarValues.append((key, v))
-            }
-        }
-
-        scalarValues.sort { $0.0 < $1.0 }
-
-        let isNew = csvInitialized[url] != true
-
-        if isNew {
-            let headerKeys = scalarValues.map { $0.0 }
-            csvHeaders = Set(headerKeys)
-            let header = "step," + headerKeys.joined(separator: ",") + "\n"
-
-            do {
-                try header.write(to: url, atomically: true, encoding: .utf8)
-                csvInitialized[url] = true
-            } catch {
-                return
-            }
-        }
-
-        let row = "\(step)," + scalarValues.map { formatNumber($0.1) }.joined(separator: ",") + "\n"
-
         do {
+            let scalarValues = currentValues.compactMapValues { value -> Double? in
+                if case .scalar(let scalar) = value { return scalar }
+                return nil
+            }
+            let headers: [String]
+            if let existing = csvHeaders[url] {
+                let added = scalarValues.keys.filter { !existing.contains($0) }.sorted()
+                headers = existing + added
+                if !added.isEmpty {
+                    let lines = try String(contentsOf: url, encoding: .utf8)
+                        .split(separator: "\n", omittingEmptySubsequences: true)
+                    let header = (["step"] + headers.map(csvEscaped)).joined(separator: ",")
+                    let padding = String(repeating: ",", count: added.count)
+                    let rows = lines.dropFirst().map { String($0) + padding }
+                    try ([header] + rows).joined(separator: "\n")
+                        .appending("\n")
+                        .write(to: url, atomically: true, encoding: .utf8)
+                    csvHeaders[url] = headers
+                }
+            } else {
+                headers = scalarValues.keys.sorted()
+                let header = (["step"] + headers.map(csvEscaped)).joined(separator: ",") + "\n"
+                try header.write(to: url, atomically: true, encoding: .utf8)
+                csvHeaders[url] = headers
+            }
+
+            let fields = headers.map { scalarValues[$0].map(formatNumber) ?? "" }
+            let row = ([String(step)] + fields).joined(separator: ",") + "\n"
             let handle = try FileHandle(forWritingTo: url)
             handle.seekToEndOfFile()
             if let data = row.data(using: .utf8) {
@@ -204,6 +205,13 @@ public final class StandardLogger: Logger {
         } catch {
             return
         }
+    }
+
+    private func csvEscaped(_ value: String) -> String {
+        guard value.contains(",") || value.contains("\"") || value.contains("\n") else {
+            return value
+        }
+        return "\"\(value.replacingOccurrences(of: "\"", with: "\"\""))\""
     }
 
     private func appendToJSON(url: URL, step: Int) {

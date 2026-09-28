@@ -37,7 +37,7 @@ public final class TimeLimit: Wrapper {
         let truncated = result.truncated || timeLimitTruncated
         var info = result.info
         if timeLimitTruncated {
-            info[EnvInfoKey.timeLimitTruncated] = true
+            info[EnvInfoKey.timeLimitTruncated] = .bool(!result.terminated)
         }
         return Step(
             obs: result.obs,
