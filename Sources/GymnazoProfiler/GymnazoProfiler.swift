@@ -32,11 +32,15 @@ struct GymnazoProfiler {
             let vectorEnvironments = 8
             let replay = try await profileReplay(vectorEnvironments: vectorEnvironments)
             let training = try await profileTraining()
+            let vectorTraining = try await profileVectorTraining(
+                vectorEnvironments: vectorEnvironments)
+            let ppo = try await profilePPO()
+            let cnn = try await profileCNN()
             let report = ProfileReport(
                 architecture: "arm64",
                 environment: "CartPole",
                 vectorEnvironments: vectorEnvironments,
-                measurements: replay + training
+                measurements: replay + training + vectorTraining + ppo + cnn
             )
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -137,14 +141,14 @@ struct GymnazoProfiler {
             ),
             seed: 19
         )
-        let warmSteps = 64
+        let warmSteps = 256
         let warmUp = try await measured(
             name: "trainingWarmUp",
             operations: warmSteps
         ) {
             try await model.learn(totalTimesteps: warmSteps, callbacks: nil)
         }
-        let steadySteps = 256
+        let steadySteps = 2_048
         let steady = try await measured(
             name: "trainingSteadyState",
             operations: steadySteps
@@ -158,7 +162,7 @@ struct GymnazoProfiler {
         return [warmUp.measurement, steady.measurement]
     }
 
-    private static func measured<Value>(
+    static func measured<Value>(
         name: String,
         operations: Int,
         operation: () async throws -> Value

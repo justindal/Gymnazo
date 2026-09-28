@@ -2,6 +2,7 @@ import MLX
 
 protocol TD3ActionNoise {
     func reset()
+    func reset(indices: [Bool])
     func sample(shape: [Int], key: MLXArray?) -> MLXArray
 }
 
@@ -13,6 +14,7 @@ final class TD3NormalActionNoise: TD3ActionNoise {
     }
 
     func reset() {}
+    func reset(indices: [Bool]) {}
 
     func sample(shape: [Int], key: MLXArray?) -> MLXArray {
         if let key {
@@ -45,6 +47,14 @@ final class TD3OrnsteinUhlenbeckActionNoise: TD3ActionNoise {
 
     func reset() {
         previousNoise = nil
+    }
+
+    func reset(indices: [Bool]) {
+        guard let previousNoise, indices.contains(true) else { return }
+        let mask = MLXArray(indices).reshaped([indices.count, 1])
+        let reset = MLX.which(mask, MLX.zeros(like: previousNoise) + initialNoise, previousNoise)
+        eval(reset)
+        self.previousNoise = reset
     }
 
     func sample(shape: [Int], key: MLXArray?) -> MLXArray {

@@ -55,10 +55,20 @@ extension ReplayBuffer {
     /// Adds typed collection frames to the replay buffer in one batch.
     ///
     /// - Parameter collection: Typed frames to convert and insert.
-    /// - Throws: If frame dimensions or action dimensions are inconsistent.
+    /// - Throws: If collection size, frame dimensions, or action dimensions are inconsistent.
     public mutating func add<Action: ReplayActionValue>(
         _ collection: ValueCollection<TensorValue<Float>, Action>
     ) throws {
+        guard collection.reset.observations.count == numEnvs else {
+            throw GymnazoError.invalidConfiguration(
+                "Collection environment count must match replay environment count."
+            )
+        }
+        guard numEnvs == 1 || (!config.optimizeMemoryUsage && config.frameStack == nil) else {
+            throw GymnazoError.invalidConfiguration(
+                "Multi-environment replay requires independent next observations and uncompressed frames."
+            )
+        }
         var observationValues: [TensorValue<Float>] = []
         var nextObservationValues: [TensorValue<Float>] = []
         var actionValues: [[Float]] = []
@@ -67,8 +77,14 @@ extension ReplayBuffer {
         var truncationValues: [Bool] = []
 
         for frame in collection.frames {
-            guard frame.observations.count == frame.actions.count,
-                frame.observations.count == frame.step.observations.count
+            guard frame.observations.count == numEnvs,
+                frame.observations.count == frame.actions.count,
+                frame.observations.count == frame.step.observations.count,
+                frame.observations.count == frame.step.rewards.count,
+                frame.observations.count == frame.step.terminations.count,
+                frame.observations.count == frame.step.truncations.count,
+                frame.observations.count == frame.step.resetInfos.count,
+                frame.observations.count == frame.step.finalObservations.count
             else {
                 throw GymnazoError.invalidState(
                     "A value collection frame has inconsistent batch dimensions."
@@ -105,20 +121,13 @@ extension ReplayBuffer {
         )
         let rewardBatch = MLXArray(rewardValues)
 
-        for index in observationValues.indices {
-            try add(
-                obs: observationBatch[index],
-                action: actionBatch[index],
-                reward: rewardBatch[index],
-                nextObs: nextObservationBatch[index],
-                terminated: terminationValues[index],
-                truncated: truncationValues[index]
-            )
-        }
-        if let nextObservations {
-            eval(observations, nextObservations, actions, rewards, dones, timeouts)
-        } else {
-            eval(observations, actions, rewards, dones, timeouts)
-        }
+        try addBatch(
+            obs: observationBatch,
+            actions: actionBatch,
+            rewards: rewardBatch,
+            nextObs: nextObservationBatch,
+            terminations: terminationValues,
+            truncations: truncationValues
+        )
     }
 }

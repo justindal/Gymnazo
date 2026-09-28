@@ -85,9 +85,9 @@ public struct ReplayBuffer: Buffer {
     var isBufferFull: Bool = false
     private var randomGenerator: SeededGenerator
     let storageObsShape: [Int]
-    private let storageObsDtype: DType
-    private let actionDim: Int
-    private let resolvedStackAxis: Int
+    let storageObsDtype: DType
+    let actionDim: Int
+    let resolvedStackAxis: Int
 
     public var count: Int { isBufferFull ? bufferSize : position }
 
@@ -117,6 +117,12 @@ public struct ReplayBuffer: Buffer {
             storageObsDtype: storageObsDtype,
             actionDim: actionDim
         )
+        if numEnvs > 1 && (resolved.config.optimizeMemoryUsage || resolved.config.frameStack != nil)
+        {
+            throw GymnazoError.invalidConfiguration(
+                "Multi-environment replay requires independent next observations and uncompressed frames."
+            )
+        }
 
         let resolvedAxis: Int
         if let frameStack = resolved.config.frameStack,
@@ -191,7 +197,7 @@ public struct ReplayBuffer: Buffer {
         try validateAction(action)
 
         let doneValue: Float = (terminated || truncated) ? 1.0 : 0.0
-        let timeoutValue: Float = truncated ? 1.0 : 0.0
+        let timeoutValue: Float = truncated && !terminated ? 1.0 : 0.0
 
         observations[position] = storedObs
         actions[position] = action.reshaped([-1])
@@ -381,7 +387,8 @@ public struct ReplayBuffer: Buffer {
             if index == 0 { return true }
             return doneValues[index - 1]
         }
-        if index == position { return true }
+        let oldestValidIndex = config.optimizeMemoryUsage ? (position + 1) % bufferSize : position
+        if index == oldestValidIndex { return true }
         let previous = previousIndex(index)
         return doneValues[previous]
     }

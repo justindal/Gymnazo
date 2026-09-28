@@ -52,14 +52,17 @@ xcodebuild \
 
 Or open the package in Xcode and build/test.
 
-The package also includes an Apple Silicon profiler for typed collection, replay insertion, DQN training, memory usage, and compile warm-up:
+The package also includes an Apple Silicon profiler for typed collection, batched replay insertion, single and vector DQN training, PPO, CNN training, memory usage, and compile warm-up:
 
 ```bash
 xcodebuild \
   -scheme GymnazoProfiler \
   -destination 'platform=macOS,arch=arm64' \
   -configuration Release \
+  -derivedDataPath /tmp/gymnazo-profiler \
+  ENABLE_TESTABILITY=NO ENABLE_CODE_COVERAGE=NO \
   build
+/tmp/gymnazo-profiler/Build/Products/Release/GymnazoProfiler
 ```
 
 ## Quick Start
@@ -223,7 +226,6 @@ For typed policy inference and collection, see the [typed value boundary guide](
 - [ ] add end-to-end training lifecycle coverage for all bundled algorithms
 - [ ] move ExploreRL training collection to typed vectors and typed replay/rollout ingestion
 - [ ] expand exact seeded traces to every bundled environment
-- [ ] extend Apple Silicon profiling to PPO rollout insertion
 - [ ] add optional environment families after typed boundary validation
 
 

@@ -108,3 +108,44 @@ Use the chainable wrapper helpers `observationsReshaped(to:)`, `maxAndSkip(_:)`,
 - ``FilterDictionaryObservationValueEnvironment``
 - ``TensorValue``
 - ``MLXValueCodec``
+
+## Batched training
+
+DQN, PPO, SAC, and TD3 accept homogeneous typed environments directly. Each vector
+frame uses a batched policy call, while all MLX arrays and optimizer state remain
+inside the algorithm actor. Environments run synchronously as Swift values.
+
+```swift
+let model = try DQN(
+    observationSpace: Box(low: -100, high: 100, shape: [4]),
+    actionSpace: Discrete(n: 2),
+    seed: 42
+)
+let environments = try (0..<8).map { _ in try CartPoleValueEnvironment() }
+try await model.learn(environments: environments, totalTimesteps: 50_000)
+```
+
+Observations must be `TensorValue<Float>`, and actions must conform to
+`PolicyActionValue`. Built-in conversions cover discrete `Int` actions and
+continuous `TensorValue<Float>` actions.
+
+Timesteps count individual transitions. Training always completes a vector frame,
+so the final count can exceed the requested target by fewer than the number of
+environments. PPO's `nSteps` counts vector frames. Off-policy step-based training
+frequency also counts vector frames; `asCollectedSteps` counts individual
+transitions, while fixed gradient steps remain fixed per training call. Account
+for this when choosing the update-to-data ratio.
+
+Same-step autoreset preserves terminal observations for replay and PPO truncation
+bootstrapping. Each invocation resets and closes its supplied environments;
+`resetProgress: false` retains model progress, not live environment state.
+Typed training delivers episode, progress, and training callbacks, but does not
+render snapshot callbacks. Multi-environment off-policy training requires separate
+next-observation storage and disables compressed replay frame stacks, whose
+current storage layout assumes a single environment's consecutive transitions.
+
+PPO prepares rollout tensors once and gathers minibatches on demand. Supported
+flatten and NatureCNN training steps capture models and optimizer state through
+MLX compilation. SDE and unsupported extractors retain eager training. Evaluation
+occurs outside compiled functions at update boundaries, including optimizer state;
+metrics are read only for callbacks or PPO's KL early-stopping decision.
