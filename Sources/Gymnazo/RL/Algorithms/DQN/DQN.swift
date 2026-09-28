@@ -21,7 +21,7 @@ public actor DQN {
     var gradientSteps: Int = 0
     var progressRemaining: Double = 1.0
 
-    private var shouldContinue: Bool = true
+    var shouldContinue: Bool = true
     private var isSessionRunning = false
     private var key: MLXArray
     private var compiledStep: (([MLXArray]) -> [MLXArray])?
@@ -60,7 +60,8 @@ public actor DQN {
         self.key = MLX.key(seed ?? UInt64.random(in: 0..<UInt64.max))
 
         let lr = Float(learningRate.value(at: 1.0))
-        self.optimizer = optimizerConfig.optimizer.make(learningRate: lr)
+        self.optimizer = optimizerConfig.optimizer.makeScheduled(
+            learningRate: lr, schedule: learningRate)
     }
 
     public init(
@@ -92,7 +93,8 @@ public actor DQN {
         self.key = MLX.key(seed ?? UInt64.random(in: 0..<UInt64.max))
 
         let lr = Float(learningRate.value(at: 1.0))
-        self.optimizer = optimizerConfig.optimizer.make(learningRate: lr)
+        self.optimizer = optimizerConfig.optimizer.makeScheduled(
+            learningRate: lr, schedule: learningRate)
     }
 
     init(
@@ -378,6 +380,7 @@ public actor DQN {
 
     public var numTimesteps: Int { timesteps }
     public var epsilon: Double { explorationRate }
+    var valueObservationShape: [Int]? { policy.observationSpace.shape }
     var qNet: DQNPolicy { policy }
     var qNetTarget: DQNPolicy { targetPolicy }
 
@@ -409,7 +412,7 @@ public actor DQN {
         self.gradientSteps = gradientSteps
     }
 
-    private func setupBuffer() throws {
+    func setupBuffer(numEnvs: Int = 1) throws {
         guard buffer == nil else { return }
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: config.bufferSize,
@@ -422,22 +425,22 @@ public actor DQN {
             observationSpace: policy.observationSpace,
             actionSpace: policy.actionSpace,
             config: bufferConfig,
-            numEnvs: 1
+            numEnvs: numEnvs
         )
     }
 
-    private func beginSession() throws {
+    func beginSession() throws {
         guard !isSessionRunning else {
             throw GymnazoError.invalidState("Training or evaluation is already running.")
         }
         isSessionRunning = true
     }
 
-    private func endSession() {
+    func endSession() {
         isSessionRunning = false
     }
 
-    private func updateExplorationRate() {
+    func updateExplorationRate() {
         explorationRate = DQNMath.explorationRate(
             initial: config.explorationInitialEps,
             final: config.explorationFinalEps,
@@ -466,6 +469,12 @@ public actor DQN {
         if action.ndim == 0 { action = action.reshaped([1]) }
         eval(action)
         return action
+    }
+
+    func trainValues(gradientSteps: Int, batchSize: Int, callbacks: LearnCallbacks?) async throws
+        -> Bool
+    {
+        try await train(gradientSteps: gradientSteps, batchSize: batchSize, callbacks: callbacks)
     }
 
     @discardableResult
@@ -506,13 +515,14 @@ public actor DQN {
         }
         buffer = buf
 
+        guard let onTrain = callbacks?.onTrain else { return true }
         let totalLoss = lossArrays.reduce(MLXArray(0.0), +)
         let totalTD = tdArrays.reduce(MLXArray(0.0), +)
         let totalQ = qArrays.reduce(MLXArray(0.0), +)
         let steps = Float(gradientSteps)
         try MLXEval.evaluate(totalLoss, totalTD, totalQ)
 
-        await callbacks?.onTrain?([
+        await onTrain([
             "loss": Double((totalLoss / steps).scalarValue(Float.self)),
             "tdError": Double((totalTD / steps).scalarValue(Float.self)),
             "meanQValue": Double((totalQ / steps).scalarValue(Float.self)),
@@ -564,7 +574,7 @@ public actor DQN {
         }
 
         let step: ([MLXArray]) -> [MLXArray]
-        if p.featuresExtractor is FlattenExtractor {
+        if supportsCompilation(p.featuresExtractor) {
             step = compile(inputs: [p, t, opt], outputs: [p, opt], stepBody)
         } else {
             step = stepBody
@@ -611,7 +621,7 @@ public actor DQN {
     {
         let flattened = Dictionary(uniqueKeysWithValues: gradients.flattened())
         var totalNormSq = MLXArray(0.0)
-        for (_, grad) in flattened {
+        for (_, grad) in flattened.sorted(by: { $0.key < $1.key }) {
             totalNormSq = totalNormSq + MLX.sum(grad ** 2)
         }
         let totalNorm = MLX.sqrt(totalNormSq)

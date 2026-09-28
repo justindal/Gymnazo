@@ -32,10 +32,10 @@ public actor TD3 {
     var gradientSteps: Int = 0
     var progressRemaining: Double = 1.0
 
-    private var shouldContinue: Bool = true
+    var shouldContinue: Bool = true
     private var isSessionRunning = false
-    private var key: MLXArray
-    private var actionNoise: (any TD3ActionNoise)?
+    var key: MLXArray
+    var actionNoise: (any TD3ActionNoise)?
     private var compiledCriticStep: (([MLXArray]) -> [MLXArray])?
     private var compiledActorStep: (([MLXArray]) -> [MLXArray])?
 
@@ -463,7 +463,7 @@ public actor TD3 {
         self.gradientSteps = gradientSteps
     }
 
-    private func setupBuffer() throws {
+    func setupBuffer(numEnvs: Int = 1) throws {
         guard buffer == nil else { return }
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: offPolicyConfig.bufferSize,
@@ -476,11 +476,11 @@ public actor TD3 {
             observationSpace: policy.observationSpace,
             actionSpace: policy.actionSpace,
             config: bufferConfig,
-            numEnvs: 1
+            numEnvs: numEnvs
         )
     }
 
-    private func selectAction(
+    func selectAction(
         obs: MLXArray,
         key: MLXArray? = nil,
         deterministic: Bool = true
@@ -507,7 +507,7 @@ public actor TD3 {
         return MLX.clip(action + noise, min: -1.0, max: 1.0)
     }
 
-    private func actionToMLXArray(_ action: Any) throws -> MLXArray {
+    func actionToMLXArray(_ action: Any) throws -> MLXArray {
         if let arr = action as? MLXArray { return arr }
         if let floats = action as? [Float] { return MLXArray(floats) }
         if let doubles = action as? [Double] {
@@ -522,7 +522,7 @@ public actor TD3 {
     }
 
     @discardableResult
-    private func train(
+    func train(
         gradientSteps: Int,
         batchSize: Int,
         callbacks: LearnCallbacks?
@@ -557,7 +557,6 @@ public actor TD3 {
                 ]
             )
             criticLossArrays.append(criticValues[0])
-            try checkedEval(criticValues[0], critic, policy.criticOptimizer)
 
             self.gradientSteps += 1
             if TD3Math.shouldUpdateActor(step: self.gradientSteps, delay: policyDelay) {
@@ -565,18 +564,24 @@ public actor TD3 {
                 actorLossArrays.append(actorValues[0])
                 try softUpdateTargets()
                 try checkedEval(
+                    criticValues[0],
+                    critic,
+                    policy.criticOptimizer,
                     actorValues[0],
                     actor,
                     targetActor,
                     targetCritic,
                     policy.actorOptimizer
                 )
+            } else {
+                try checkedEval(criticValues[0], critic, policy.criticOptimizer)
             }
         }
 
         buffer = buf
         policy.setTrainingMode(false)
 
+        guard let onTrain = callbacks?.onTrain else { return true }
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
         let totalActorLoss =
             actorLossArrays.isEmpty ? nil : actorLossArrays.reduce(MLXArray(0.0), +)
@@ -601,7 +606,7 @@ public actor TD3 {
             metrics["actorLoss"] = Double(avgActorLoss)
         }
 
-        await callbacks?.onTrain?(metrics)
+        await onTrain(metrics)
         return true
     }
 
@@ -690,9 +695,9 @@ public actor TD3 {
         }
 
         let step: ([MLXArray]) -> [MLXArray]
-        if actor.featuresExtractor is FlattenExtractor,
+        if supportsCompilation(actor.featuresExtractor),
             let criticExtractor = c.featuresExtractor,
-            criticExtractor is FlattenExtractor
+            supportsCompilation(criticExtractor)
         {
             step = compile(
                 inputs: [ta, tc, c, critOpt],
@@ -732,9 +737,9 @@ public actor TD3 {
         }
 
         let step: ([MLXArray]) -> [MLXArray]
-        if a.featuresExtractor is FlattenExtractor,
+        if supportsCompilation(a.featuresExtractor),
             let criticExtractor = c.featuresExtractor,
-            criticExtractor is FlattenExtractor
+            supportsCompilation(criticExtractor)
         {
             step = compile(
                 inputs: [a, c, actOpt],
@@ -837,14 +842,14 @@ public actor TD3 {
         return -MLX.mean(qValue)
     }
 
-    private func beginSession() throws {
+    func beginSession() throws {
         guard !isSessionRunning else {
             throw GymnazoError.invalidState("Training or evaluation is already running.")
         }
         isSessionRunning = true
     }
 
-    private func endSession() {
+    func endSession() {
         isSessionRunning = false
     }
 

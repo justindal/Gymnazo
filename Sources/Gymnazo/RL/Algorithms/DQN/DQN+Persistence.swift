@@ -87,8 +87,9 @@ extension DQN {
             from: directory.appendingPathComponent(CheckpointFiles.target))
         eval(networks.qNet.parameters(), networks.qNetTarget.parameters())
 
-        let optimizer = optimizerConfig.optimizer.make(
-            learningRate: Float(schedule.value(at: checkpoint.currentProgressRemaining))
+        let optimizer = optimizerConfig.optimizer.makeScheduled(
+            learningRate: Float(schedule.value(at: checkpoint.currentProgressRemaining)),
+            schedule: schedule
         )
 
         var buf: ReplayBuffer?

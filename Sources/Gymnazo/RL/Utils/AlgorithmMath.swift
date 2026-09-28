@@ -90,11 +90,17 @@ enum PPOMath {
 
     static func reward(
         _ reward: Float,
+        terminated: Bool,
         truncated: Bool,
         gamma: Double,
         terminalValue: Float
     ) -> Float {
-        truncated ? reward + Float(gamma) * terminalValue : reward
+        shouldBootstrap(terminated: terminated, truncated: truncated)
+            ? reward + Float(gamma) * terminalValue : reward
+    }
+
+    static func shouldBootstrap(terminated: Bool, truncated: Bool) -> Bool {
+        truncated && !terminated
     }
 }
 
@@ -127,10 +133,7 @@ enum TD3Math {
         noise: MLXArray,
         noiseClip: Float
     ) -> MLXArray {
-        let clippedNoise =
-            noiseClip > 0
-            ? MLX.clip(noise, min: -noiseClip, max: noiseClip)
-            : noise
+        let clippedNoise = MLX.clip(noise, min: -noiseClip, max: noiseClip)
         return MLX.clip(actions + clippedNoise, min: -1, max: 1)
     }
 

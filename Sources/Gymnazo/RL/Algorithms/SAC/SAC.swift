@@ -41,9 +41,9 @@ public actor SAC {
     var gradientSteps: Int = 0
     var progressRemaining: Double = 1.0
 
-    private var shouldContinue: Bool = true
+    var shouldContinue: Bool = true
     private var isSessionRunning = false
-    private var key: MLXArray
+    var key: MLXArray
     private var compiledStep: (([MLXArray]) -> [MLXArray])?
 
     /// Creates a SAC agent bound to an environment.
@@ -73,7 +73,7 @@ public actor SAC {
             networksConfig: networksConfig,
             optimizerConfig: optimizerConfig,
             entCoef: entCoef,
-            lr: Float(learningRate.value(at: 1.0)),
+            learningRate: learningRate,
             targetEntropy: targetEntropy,
             initializationSeed: seed
         )
@@ -127,7 +127,7 @@ public actor SAC {
             networksConfig: networksConfig,
             optimizerConfig: optimizerConfig,
             entCoef: entCoef,
-            lr: Float(learningRate.value(at: 1.0)),
+            learningRate: learningRate,
             targetEntropy: targetEntropy,
             initializationSeed: seed
         )
@@ -527,7 +527,7 @@ public actor SAC {
         networksConfig: SACNetworksConfig,
         optimizerConfig: SACOptimizerConfig,
         entCoef: EntropyCoef,
-        lr: Float,
+        learningRate: any LearningRateSchedule,
         targetEntropy: Float?,
         initializationSeed: UInt64? = nil
     ) throws -> NetworkSetup {
@@ -537,11 +537,13 @@ public actor SAC {
             config: networksConfig,
             initializationSeed: initializationSeed
         )
-        let actorOpt = optimizerConfig.actor.make(learningRate: lr)
-        let criticOpt = optimizerConfig.critic.make(learningRate: lr)
+        let lr = Float(learningRate.value(at: 1.0))
+        let actorOpt = optimizerConfig.actor.makeScheduled(learningRate: lr, schedule: learningRate)
+        let criticOpt = optimizerConfig.critic.makeScheduled(
+            learningRate: lr, schedule: learningRate)
         let entOpt: Adam? =
             entCoef.isAuto
-            ? optimizerConfig.entropy?.make(learningRate: lr) : nil
+            ? optimizerConfig.entropy?.makeScheduled(learningRate: lr, schedule: learningRate) : nil
         let actionDim = getActionDim(actionSpace)
         let targetEnt = targetEntropy ?? Float(-actionDim)
         let logEntModule = LogEntropyCoefModule(
@@ -558,7 +560,7 @@ public actor SAC {
         )
     }
 
-    private func setupBuffer() throws {
+    func setupBuffer(numEnvs: Int = 1) throws {
         guard buffer == nil else { return }
         let bufferConfig = ReplayBuffer.Configuration(
             bufferSize: offPolicyConfig.bufferSize,
@@ -571,18 +573,18 @@ public actor SAC {
             observationSpace: policy.observationSpace,
             actionSpace: policy.actionSpace,
             config: bufferConfig,
-            numEnvs: 1
+            numEnvs: numEnvs
         )
     }
 
-    private func selectAction(obs: MLXArray, key: MLXArray? = nil) -> MLXArray {
+    func selectAction(obs: MLXArray, key: MLXArray? = nil) -> MLXArray {
         policy.setTrainingMode(false)
         let (action, _) = policy.actionLogProb(obs: obs, key: key)
         eval(action)
         return action
     }
 
-    private func actionToMLXArray(_ action: Any) throws -> MLXArray {
+    func actionToMLXArray(_ action: Any) throws -> MLXArray {
         if let arr = action as? MLXArray { return arr }
         if let floats = action as? [Float] { return MLXArray(floats) }
         if let doubles = action as? [Double] {
@@ -597,7 +599,7 @@ public actor SAC {
     }
 
     @discardableResult
-    private func train(
+    func train(
         gradientSteps: Int,
         batchSize: Int,
         callbacks: LearnCallbacks?
@@ -635,27 +637,22 @@ public actor SAC {
                     batch.rewards, batch.dones, actionKey,
                 ]
             )
-            try checkedEval(
-                values[0],
-                values[1],
-                policy,
-                critic,
-                criticTarget,
-                actorOptimizer,
-                criticOptimizer,
-                logEntCoefModule
-            )
-            criticLossArrays.append(values[0])
-            actorLossArrays.append(values[1])
-
             if gradientStep % targetUpdateInterval == 0 {
                 try softUpdate()
-                try checkedEval(criticTarget.parameters())
             }
+            var state: [Any] = [
+                values, policy, critic, criticTarget,
+                actorOptimizer, criticOptimizer, logEntCoefModule,
+            ]
+            if let entropyOptimizer { state.append(entropyOptimizer) }
+            try checkedEval(state)
+            criticLossArrays.append(values[0])
+            actorLossArrays.append(values[1])
         }
         self.gradientSteps += gradientSteps
         buffer = buf
 
+        guard let onTrain = callbacks?.onTrain else { return true }
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
         let totalActorLoss = actorLossArrays.reduce(MLXArray(0.0), +)
         try MLXEval.evaluate(totalCriticLoss, totalActorLoss)
@@ -680,7 +677,7 @@ public actor SAC {
         }
 
         if !metrics.isEmpty {
-            await callbacks?.onTrain?(metrics)
+            await onTrain(metrics)
         }
         return true
     }
@@ -819,7 +816,10 @@ public actor SAC {
         }
 
         let step: ([MLXArray]) -> [MLXArray]
-        if policy.useSDE || !(c.featuresExtractor is FlattenExtractor) {
+        let criticSupportsCompilation = c.featuresExtractor.map(supportsCompilation) ?? false
+        if policy.useSDE || !supportsCompilation(policy.featuresExtractor)
+            || !criticSupportsCompilation
+        {
             step = stepBody
         } else {
             var compileInputs: [any Updatable] = [
@@ -888,14 +888,14 @@ public actor SAC {
         return [loss, MLX.stopGradient(logProb)]
     }
 
-    private func beginSession() throws {
+    func beginSession() throws {
         guard !isSessionRunning else {
             throw GymnazoError.invalidState("Training or evaluation is already running.")
         }
         isSessionRunning = true
     }
 
-    private func endSession() {
+    func endSession() {
         isSessionRunning = false
     }
 

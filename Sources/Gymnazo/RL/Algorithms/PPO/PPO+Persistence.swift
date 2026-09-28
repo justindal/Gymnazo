@@ -80,8 +80,9 @@ extension PPO {
         eval(policy.parameters())
 
         let optimizerConfig: OptimizerConfig = .adam()
-        let optimizer = optimizerConfig.make(
-            learningRate: Float(learningRate.value(at: checkpoint.currentProgressRemaining))
+        let optimizer = optimizerConfig.makeScheduled(
+            learningRate: Float(learningRate.value(at: checkpoint.currentProgressRemaining)),
+            schedule: learningRate
         )
 
         let agent = PPO(

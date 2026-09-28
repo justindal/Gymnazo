@@ -131,57 +131,27 @@ public struct RolloutBuffer: RolloutBuffering {
     }
 
     func batches(batchSize: Int, generator: inout SeededGenerator) -> [RolloutBatch] {
-        guard count > 0 else { return [] }
+        guard let rollout = prepared() else { return [] }
+        return Array(rollout.batches(batchSize: batchSize, generator: &generator))
+    }
+
+    func prepared() -> PreparedRollout? {
+        guard count > 0 else { return nil }
         let sampleCount = count * numEnvs
-        let safeBatchSize = max(1, min(batchSize, sampleCount))
-        var permutation = Array(0..<sampleCount)
-        if sampleCount > 1 {
-            for index in stride(from: sampleCount - 1, through: 1, by: -1) {
-                let next = Int(generator.next() % UInt64(index + 1))
-                permutation.swapAt(index, next)
-            }
-        }
-        let observationShape = observationSpace.shape ?? []
-        let flatObservations = MLX.stacked(Array(observations.prefix(count)), axis: 0)
-            .reshaped([sampleCount] + observationShape)
-        let flatActions = MLX.stacked(Array(actions.prefix(count)), axis: 0)
-            .reshaped([sampleCount, actionDim])
-        let flatValues = MLX.stacked(Array(values.prefix(count)), axis: 0)
-            .reshaped([sampleCount])
-        let flatLogProbs = MLX.stacked(Array(logProbs.prefix(count)), axis: 0)
-            .reshaped([sampleCount])
-        let flatAdvantages = MLX.stacked(Array(advantages.prefix(count)), axis: 0)
-            .reshaped([sampleCount])
-        let flatReturns = MLX.stacked(Array(returns.prefix(count)), axis: 0)
-            .reshaped([sampleCount])
-        var result: [RolloutBatch] = []
-        result.reserveCapacity((sampleCount + safeBatchSize - 1) / safeBatchSize)
-
-        var start = 0
-        while start < sampleCount {
-            let end = min(start + safeBatchSize, sampleCount)
-            let indices = MLXArray(permutation[start..<end].map(Int32.init))
-            let obsBatch = flatObservations[indices]
-            let actionBatch = flatActions[indices]
-            let valuesBatch = flatValues[indices]
-            let logProbsBatch = flatLogProbs[indices]
-            let advantagesBatch = flatAdvantages[indices]
-            let returnsBatch = flatReturns[indices]
-            eval(obsBatch, actionBatch, valuesBatch, logProbsBatch, advantagesBatch, returnsBatch)
-            result.append(
-                RolloutBatch(
-                    observations: obsBatch,
-                    actions: actionBatch,
-                    values: valuesBatch,
-                    logProbs: logProbsBatch,
-                    advantages: advantagesBatch,
-                    returns: returnsBatch
-                )
-            )
-            start = end
-        }
-
-        return result
+        let batch = RolloutBatch(
+            observations: MLX.stacked(observations, axis: 0)
+                .reshaped([sampleCount] + (observationSpace.shape ?? [])),
+            actions: MLX.stacked(actions, axis: 0).reshaped([sampleCount, actionDim]),
+            values: MLX.stacked(values, axis: 0).reshaped([sampleCount]),
+            logProbs: MLX.stacked(logProbs, axis: 0).reshaped([sampleCount]),
+            advantages: MLX.stacked(advantages, axis: 0).reshaped([sampleCount]),
+            returns: MLX.stacked(returns, axis: 0).reshaped([sampleCount])
+        )
+        eval(
+            batch.observations, batch.actions, batch.values,
+            batch.logProbs, batch.advantages, batch.returns
+        )
+        return PreparedRollout(batch: batch)
     }
 
     public func valuesAndReturns() -> (values: [Float], returns: [Float]) {

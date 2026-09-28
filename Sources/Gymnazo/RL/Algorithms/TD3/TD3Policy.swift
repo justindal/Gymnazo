@@ -268,8 +268,10 @@ public final class TD3Policy: Module, Policy {
         )
 
         let lr = Float(learningRateSchedule.value(at: 1.0))
-        let actorOptimizer = actorOptimizerConfig.make(learningRate: lr)
-        let criticOptimizer = criticOptimizerConfig.make(learningRate: lr)
+        let actorOptimizer = actorOptimizerConfig.makeScheduled(
+            learningRate: lr, schedule: learningRateSchedule)
+        let criticOptimizer = criticOptimizerConfig.makeScheduled(
+            learningRate: lr, schedule: learningRateSchedule)
 
         return PolicySetup(
             actor: actor,

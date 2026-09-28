@@ -75,9 +75,18 @@ struct AlgorithmFormulaTests {
         #expect(abs(values[5] - 1) < 0.000_001)
         #expect(PPOMath.shouldStop(approxKL: 0.031, targetKL: 0.02))
         #expect(!PPOMath.shouldStop(approxKL: 0.03, targetKL: 0.02))
-        #expect(PPOMath.reward(1, truncated: false, gamma: 0.9, terminalValue: 4) == 1)
         #expect(
-            abs(PPOMath.reward(1, truncated: true, gamma: 0.9, terminalValue: 4) - 4.6) < 0.000_001)
+            PPOMath.reward(1, terminated: false, truncated: false, gamma: 0.9, terminalValue: 4)
+                == 1)
+        #expect(
+            abs(
+                PPOMath.reward(1, terminated: false, truncated: true, gamma: 0.9, terminalValue: 4)
+                    - 4.6) < 0.000_001)
+        #expect(
+            PPOMath.reward(1, terminated: true, truncated: false, gamma: 0.9, terminalValue: 4) == 1
+        )
+        #expect(
+            PPOMath.reward(1, terminated: true, truncated: true, gamma: 0.9, terminalValue: 4) == 1)
     }
 
     @Test
@@ -132,5 +141,22 @@ struct AlgorithmFormulaTests {
         #expect(TD3Math.shouldUpdateActor(step: 2, delay: 2))
         #expect(!TD3Math.shouldUpdateActor(step: 3, delay: 2))
         #expect(weights.asArray(Float.self) == [0.5, 2.5])
+    }
+
+    @Test
+    func zeroTD3NoiseClipRemovesTargetNoise() {
+        let action = TD3Math.targetActions(
+            MLXArray([Float(0.2)]), noise: MLXArray([Float(0.5)]), noiseClip: 0
+        )
+        eval(action)
+        #expect(action.asArray(Float.self) == [0.2])
+    }
+
+    @Test
+    func explainedVarianceIgnoresConstantPredictionBias() {
+        #expect(PPO.explainedVariance(values: [0, 1, 2], returns: [1, 2, 3]) == 1)
+        #expect(PPO.explainedVariance(values: [1, 2, 3], returns: [1, 2, 3]) == 1)
+        #expect(PPO.explainedVariance(values: [3, 2, 1], returns: [1, 2, 3]) == -3)
+        #expect(PPO.explainedVariance(values: [1, 1, 1], returns: [1, 1, 1]) == 0)
     }
 }

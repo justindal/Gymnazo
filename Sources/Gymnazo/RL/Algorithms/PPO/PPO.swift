@@ -31,9 +31,9 @@ public actor PPO {
     var updates: Int = 0
     var progressRemaining: Double = 1.0
 
-    private var shouldContinue: Bool = true
+    var shouldContinue: Bool = true
     private var isSessionRunning = false
-    private var key: MLXArray
+    var key: MLXArray
     private var batchGenerator: SeededGenerator
     private var compiledTrainStep: (([MLXArray]) -> [MLXArray])?
 
@@ -106,8 +106,8 @@ public actor PPO {
             seed: (seed ?? UInt64.random(in: 0..<UInt64.max)) ^ 0xA24B_AED4_963E_E407)
 
         let optimizerConfig: OptimizerConfig = .adam()
-        self.optimizer = optimizerConfig.make(
-            learningRate: Float(learningRate.value(at: 1.0))
+        self.optimizer = optimizerConfig.makeScheduled(
+            learningRate: Float(learningRate.value(at: 1.0)), schedule: learningRate
         )
     }
 
@@ -217,7 +217,7 @@ public actor PPO {
                 let step = try environment.step(envAction)
 
                 var terminalValue: Float = 0
-                if step.truncated {
+                if PPOMath.shouldBootstrap(terminated: step.terminated, truncated: step.truncated) {
                     let finalObservation =
                         step.info[EnvInfoKey.finalObservation]?.cast(MLXArray.self) ?? step.obs
                     let bootstrapValue = policy.predictValues(obs: finalObservation)
@@ -225,6 +225,7 @@ public actor PPO {
                 }
                 let adjustedReward = PPOMath.reward(
                     Float(step.reward),
+                    terminated: step.terminated,
                     truncated: step.truncated,
                     gamma: config.gamma,
                     terminalValue: terminalValue
@@ -382,7 +383,10 @@ public actor PPO {
             deterministic: deterministic,
             key: nil
         ).actions
-        let count = observations.count
+        return try policyActions(raw, count: observations.count)
+    }
+
+    func policyActions(_ raw: MLXArray, count: Int) throws -> [PolicyAction] {
 
         if let box = boxSpace(from: policy.actionSpace) {
             var actions = raw.asType(.float32)
@@ -504,105 +508,74 @@ public actor PPO {
         self.updates = updates
     }
 
-    private func train(
+    func train(
         rolloutBuffer: RolloutBuffer,
         callbacks: LearnCallbacks?
     ) async {
         guard rolloutBuffer.count > 0 else { return }
 
         policy.setTrainingMode(true)
+        defer { policy.setTrainingMode(false) }
         let lr = Float(learningRate.value(at: progressRemaining))
         optimizer.learningRate = lr
         let step = buildTrainStep()
 
-        var lossValues: [Float] = []
-        var policyLossValues: [Float] = []
-        var valueLossValues: [Float] = []
-        var entropyLossValues: [Float] = []
-        var approxKLValues: [Float] = []
-        var clipFractionValues: [Float] = []
-        lossValues.reserveCapacity(config.nEpochs)
-        policyLossValues.reserveCapacity(config.nEpochs)
-        valueLossValues.reserveCapacity(config.nEpochs)
-        entropyLossValues.reserveCapacity(config.nEpochs)
-        approxKLValues.reserveCapacity(config.nEpochs)
-        clipFractionValues.reserveCapacity(config.nEpochs)
-
+        guard let rollout = rolloutBuffer.prepared() else { return }
+        var metricRows: [MLXArray] = []
         var continueTraining = true
         for _ in 0..<config.nEpochs {
-            let batches = rolloutBuffer.batches(
-                batchSize: config.batchSize, generator: &batchGenerator)
-            for batch in batches {
-                var advantages = batch.advantages
-                if config.normalizeAdvantage && advantages.size > 1 {
-                    advantages = Self.normalizeAdvantages(advantages)
-                }
+            for batch in rollout.batches(batchSize: config.batchSize, generator: &batchGenerator) {
                 let values = step(
                     [
-                        batch.observations,
-                        batch.actions,
-                        batch.values,
-                        batch.logProbs,
-                        advantages,
-                        batch.returns,
+                        batch.observations, batch.actions, batch.values,
+                        batch.logProbs, batch.advantages, batch.returns,
                     ]
                 )
-                eval(
-                    values[0],
-                    values[1],
-                    values[2],
-                    values[3],
-                    values[4],
-                    values[5],
-                    policy,
-                    optimizer
-                )
+                let metrics = MLX.stacked(values)
+                if config.targetKL != nil {
+                    eval(metrics, values[4], policy, optimizer)
+                } else {
+                    eval(metrics, policy, optimizer)
+                }
+                metricRows.append(metrics)
 
-                let loss = values[0].scalarValue(Float.self)
-                let policyLoss = values[1].scalarValue(Float.self)
-                let valueLoss = values[2].scalarValue(Float.self)
-                let entropyLoss = values[3].scalarValue(Float.self)
-                let approxKL = values[4].scalarValue(Float.self)
-                let clipFraction = values[5].scalarValue(Float.self)
-
-                lossValues.append(loss)
-                policyLossValues.append(policyLoss)
-                valueLossValues.append(valueLoss)
-                entropyLossValues.append(entropyLoss)
-                approxKLValues.append(approxKL)
-                clipFractionValues.append(clipFraction)
-
-                if PPOMath.shouldStop(approxKL: approxKL, targetKL: config.targetKL) {
+                if let targetKL = config.targetKL,
+                    PPOMath.shouldStop(
+                        approxKL: values[4].scalarValue(Float.self), targetKL: targetKL
+                    )
+                {
                     continueTraining = false
                     break
                 }
             }
             updates += 1
-            if !continueTraining {
-                break
-            }
+            if !continueTraining { break }
         }
+        guard let onTrain = callbacks?.onTrain else { return }
+        let means = MLX.mean(MLX.stacked(metricRows), axis: 0).asArray(Float.self)
 
-        let bufferStats = rolloutBuffer.valuesAndReturns()
+        let bufferStats = (
+            values: rollout.batch.values.asArray(Float.self),
+            returns: rollout.batch.returns.asArray(Float.self)
+        )
         let explainedVariance = Self.explainedVariance(
             values: bufferStats.values,
             returns: bufferStats.returns
         )
 
         let metrics: [String: Double] = [
-            LogKey.Train.loss: Double(Self.mean(lossValues)),
-            LogKey.Train.policyLoss: Double(Self.mean(policyLossValues)),
-            LogKey.Train.valueLoss: Double(Self.mean(valueLossValues)),
-            LogKey.Train.entropyLoss: Double(Self.mean(entropyLossValues)),
+            LogKey.Train.loss: Double(means[0]),
+            LogKey.Train.policyLoss: Double(means[1]),
+            LogKey.Train.valueLoss: Double(means[2]),
+            LogKey.Train.entropyLoss: Double(means[3]),
             LogKey.Train.learningRate: Double(lr),
-            LogKey.Train.approxKL: Double(Self.mean(approxKLValues)),
-            LogKey.Train.clipFraction: Double(Self.mean(clipFractionValues)),
+            LogKey.Train.approxKL: Double(means[4]),
+            LogKey.Train.clipFraction: Double(means[5]),
             LogKey.Train.nUpdates: Double(updates),
             "train/explained_variance": explainedVariance,
         ]
 
-        await callbacks?.onTrain?(metrics)
-        policy.setTrainingMode(false)
+        await onTrain(metrics)
     }
 
     private func buildTrainStep() -> ([MLXArray]) -> [MLXArray] {
@@ -617,6 +590,7 @@ public actor PPO {
         let entCoef = Float(config.entCoef)
         let vfCoef = Float(config.vfCoef)
         let maxGradNorm = Float(config.maxGradNorm)
+        let normalizeAdvantage = config.normalizeAdvantage
 
         let vg = valueAndGrad(model: p) {
             (model: PPOPolicy, args: [MLXArray]) -> [MLXArray] in
@@ -624,7 +598,9 @@ public actor PPO {
             let actions = args[1]
             let oldValues = args[2]
             let oldLogProbs = args[3]
-            let advantages = args[4]
+            let advantages =
+                normalizeAdvantage && args[4].size > 1
+                ? Self.normalizeAdvantages(args[4]) : args[4]
             let returns = args[5]
 
             let (valuesRaw, logProbRaw, entropyRaw) = model.evaluateActions(
@@ -660,8 +636,8 @@ public actor PPO {
 
         let step: ([MLXArray]) -> [MLXArray]
         if p.useSDE
-            || !(p.piFeatureExtractor is FlattenExtractor)
-            || !(p.vfFeatureExtractor is FlattenExtractor)
+            || !supportsCompilation(p.piFeatureExtractor)
+            || !supportsCompilation(p.vfFeatureExtractor)
         {
             step = stepBody
         } else {
@@ -728,14 +704,14 @@ public actor PPO {
         }
     }
 
-    private func beginSession() throws {
+    func beginSession() throws {
         guard !isSessionRunning else {
             throw GymnazoError.invalidState("Training or evaluation is already running.")
         }
         isSessionRunning = true
     }
 
-    private func endSession() {
+    func endSession() {
         isSessionRunning = false
     }
 
@@ -759,7 +735,7 @@ public actor PPO {
     {
         let flattened = Dictionary(uniqueKeysWithValues: gradients.flattened())
         var totalNormSq = MLXArray(0.0)
-        for (_, gradient) in flattened {
+        for (_, gradient) in flattened.sorted(by: { $0.key < $1.key }) {
             totalNormSq = totalNormSq + MLX.sum(gradient ** 2)
         }
         let totalNorm = MLX.sqrt(totalNormSq)
@@ -771,7 +747,7 @@ public actor PPO {
         return ModuleParameters.unflattened(clipped)
     }
 
-    private static func explainedVariance(values: [Float], returns: [Float]) -> Double {
+    static func explainedVariance(values: [Float], returns: [Float]) -> Double {
         guard values.count == returns.count, values.count > 1 else { return 0.0 }
         let n = Double(returns.count)
         let meanReturns = returns.reduce(0.0) { $0 + Double($1) } / n
@@ -784,21 +760,17 @@ public actor PPO {
             return 0.0
         }
 
+        let residuals = zip(returns, values).map { Double($0.0) - Double($0.1) }
+        let meanResidual = residuals.reduce(0.0, +) / n
         let varianceResidual =
-            zip(returns, values).reduce(0.0) { partial, pair in
-                let residual = Double(pair.0 - pair.1)
-                return partial + residual * residual
+            residuals.reduce(0.0) { partial, residual in
+                let centered = residual - meanResidual
+                return partial + centered * centered
             } / n
         let explained = 1.0 - varianceResidual / varianceReturns
         if explained.isFinite {
             return explained
         }
         return 0.0
-    }
-
-    private static func mean(_ values: [Float]) -> Float {
-        guard !values.isEmpty else { return 0.0 }
-        let total = values.reduce(0.0, +)
-        return total / Float(values.count)
     }
 }
