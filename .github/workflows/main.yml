@@ -28,4 +28,5 @@ jobs:
           xcodebuild test \
             -scheme Gymnazo-Package \
             -destination 'platform=macOS,arch=arm64' \
+            -skipPackagePluginValidation \
             -parallel-testing-enabled NO
