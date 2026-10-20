@@ -485,6 +485,7 @@ public actor DQN {
     ) async throws -> Bool {
         guard var buf = buffer, buf.count >= batchSize else { return false }
 
+        await callbacks?.onPhase?(compiledStep == nil ? .compiling : .updating)
         let lr = Float(learningRate.value(at: progressRemaining))
         optimizer.learningRate = lr
 
@@ -515,6 +516,7 @@ public actor DQN {
         }
         buffer = buf
 
+        await callbacks?.onPhase?(.collecting)
         guard let onTrain = callbacks?.onTrain else { return true }
         let totalLoss = lossArrays.reduce(MLXArray(0.0), +)
         let totalTD = tdArrays.reduce(MLXArray(0.0), +)

@@ -514,6 +514,7 @@ public actor PPO {
     ) async {
         guard rolloutBuffer.count > 0 else { return }
 
+        await callbacks?.onPhase?(compiledTrainStep == nil ? .compiling : .updating)
         policy.setTrainingMode(true)
         defer { policy.setTrainingMode(false) }
         let lr = Float(learningRate.value(at: progressRemaining))
@@ -551,6 +552,7 @@ public actor PPO {
             updates += 1
             if !continueTraining { break }
         }
+        await callbacks?.onPhase?(.collecting)
         guard let onTrain = callbacks?.onTrain else { return }
         let means = MLX.mean(MLX.stacked(metricRows), axis: 0).asArray(Float.self)
 
@@ -568,6 +570,7 @@ public actor PPO {
             LogKey.Train.policyLoss: Double(means[1]),
             LogKey.Train.valueLoss: Double(means[2]),
             LogKey.Train.entropyLoss: Double(means[3]),
+            "train/ent_coef": config.entCoef,
             LogKey.Train.learningRate: Double(lr),
             LogKey.Train.approxKL: Double(means[4]),
             LogKey.Train.clipFraction: Double(means[5]),

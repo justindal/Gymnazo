@@ -606,6 +606,7 @@ public actor SAC {
     ) async throws -> Bool {
         guard gradientSteps > 0 else { return false }
         guard var buf = buffer, buf.count >= batchSize else { return false }
+        await callbacks?.onPhase?(compiledStep == nil ? .compiling : .updating)
         let targetUpdateInterval = max(1, offPolicyConfig.targetUpdateInterval)
 
         let lr = Float(learningRate.value(at: progressRemaining))
@@ -652,6 +653,7 @@ public actor SAC {
         self.gradientSteps += gradientSteps
         buffer = buf
 
+        await callbacks?.onPhase?(.collecting)
         guard let onTrain = callbacks?.onTrain else { return true }
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
         let totalActorLoss = actorLossArrays.reduce(MLXArray(0.0), +)

@@ -30,19 +30,22 @@ public struct LearnCallbacks: Sendable {
     public var onSnapshot: OnSnapshotCallback?
     public var onTrain: OnTrainCallback?
     public var onBufferAllocated: OnBufferAllocatedCallback?
+    public var onPhase: (@Sendable (TrainingPhase) async -> Void)?
 
     public init(
         onStep: OnStepCallback? = nil,
         onEpisodeEnd: OnEpisodeEndCallback? = nil,
         onSnapshot: OnSnapshotCallback? = nil,
         onTrain: OnTrainCallback? = nil,
-        onBufferAllocated: OnBufferAllocatedCallback? = nil
+        onBufferAllocated: OnBufferAllocatedCallback? = nil,
+        onPhase: (@Sendable (TrainingPhase) async -> Void)? = nil
     ) {
         self.onStep = onStep
         self.onEpisodeEnd = onEpisodeEnd
         self.onSnapshot = onSnapshot
         self.onTrain = onTrain
         self.onBufferAllocated = onBufferAllocated
+        self.onPhase = onPhase
     }
 }
 

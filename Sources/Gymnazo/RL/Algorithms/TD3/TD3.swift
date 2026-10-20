@@ -530,6 +530,7 @@ public actor TD3 {
         guard gradientSteps > 0 else { return false }
         guard var buf = buffer, buf.count >= batchSize else { return false }
 
+        await callbacks?.onPhase?(compiledCriticStep == nil ? .compiling : .updating)
         policy.updateOptimizers(progressRemaining: progressRemaining)
         policy.setTrainingMode(true)
         let criticStep = buildCriticStep()
@@ -581,6 +582,7 @@ public actor TD3 {
         buffer = buf
         policy.setTrainingMode(false)
 
+        await callbacks?.onPhase?(.collecting)
         guard let onTrain = callbacks?.onTrain else { return true }
         let totalCriticLoss = criticLossArrays.reduce(MLXArray(0.0), +)
         let totalActorLoss =
