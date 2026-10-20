@@ -169,6 +169,18 @@ public actor ValueGymnazoRegistry {
     private func installBundledEnvironmentSpecs() {
         install(
             ValueEnvSpec(
+                id: "MetroRunner-v0",
+                entryPoint: { options in
+                    AnyValueEnvironment(id: "MetroRunner-v0", try MetroRunnerValueEnvironment(
+                        config: MetroRunnerConfig.from(options: options)))
+                },
+                displayName: "Metro Run",
+                description: "Dodge trains and barriers in a three-lane runner approximation.",
+                category: .arcade
+            )
+        )
+        install(
+            ValueEnvSpec(
                 id: "FrozenLake",
                 entryPoint: Self.frozenLakeEntryPoint(id: "FrozenLake"),
                 displayName: "Frozen Lake",

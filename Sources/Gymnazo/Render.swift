@@ -38,6 +38,8 @@ public struct EnvMetadata: Sendable, Codable, Equatable {
 
     static func bundled(id: String) -> EnvMetadata {
         switch id {
+        case "MetroRunner-v0":
+            return EnvMetadata(renderModes: [.human, .ansi], renderFPS: 15)
         case "FrozenLake", "FrozenLake8x8", "Taxi", "CliffWalking":
             return EnvMetadata(renderModes: [.human, .ansi, .rgbArray], renderFPS: 4)
         case "Blackjack":

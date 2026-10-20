@@ -320,6 +320,17 @@ extension GymnazoRegistry {
 
     private func registerArcade() {
         registerIfNeeded(
+            id: "MetroRunner-v0",
+            displayName: "Metro Run",
+            description: "Dodge trains and barriers in a three-lane runner approximation.",
+            category: .arcade,
+            entryPoint: { options in
+                try MetroRunner(renderMode: RegistrationSupport.renderMode(from: options),
+                                config: MetroRunnerConfig.from(options: options))
+            }
+        )
+
+        registerIfNeeded(
             id: "FlappyBird",
             displayName: "Flappy Bird",
             description: "Fly through moving pipe gaps by choosing when to flap.",

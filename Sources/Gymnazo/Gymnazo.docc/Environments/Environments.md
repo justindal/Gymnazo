@@ -25,6 +25,10 @@ Gymnazo includes a growing set of Gymnasium-style environments.
 
 ## Topics
 
+### Arcade
+
+- <doc:MetroRunner>
+
 ### Environment Types
 
 - ``CartPole``
@@ -40,3 +44,5 @@ Gymnazo includes a growing set of Gymnasium-style environments.
 - ``Taxi``
 - ``CliffWalking``
 - ``Blackjack``
+- ``MetroRunner``
+- ``MetroRunnerValueEnvironment``

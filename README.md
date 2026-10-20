@@ -104,6 +104,11 @@ struct Demo {
 
 ## Vector Environments
 
+Gymnazo also includes the native `MetroRunner-v0` environment, ported from the
+supplied Metro_Run simulator with six actions and structured state observations.
+See [Metro Run](Sources/Gymnazo/Gymnazo.docc/Environments/Arcade/MetroRunner.md) for configuration, PPO training,
+data provenance, and fidelity limits.
+
 Gymnazo provides compatibility vector environments plus a typed Swift-value vector boundary. Use the typed boundary when environment state should stay out of MLX and concurrency transfers:
 
 ```swift
