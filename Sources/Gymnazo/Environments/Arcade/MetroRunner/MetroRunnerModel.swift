@@ -7,15 +7,19 @@ struct MetroRunnerModel: Sendable {
     var motor = MetroRunnerMotor()
     var route: MetroRunnerRoute?
     var gameplay = SeededGenerator(seed: 0)
+    var spawnRules: MetroRunnerSpawnRules
     var seedGenerator = SeededGenerator(seed: UInt64.random(in: .min ... .max))
     var routeSeed: UInt64 = 0
     var entities: [MetroRunnerEntity] = []
     var powers: [MetroRunnerEntityKind: Double] = [:]
-    var board = 0.0
+    var flightElapsed = 0.0
+    var flightStartY = 0.0
+    var flightSpeed = 0.0
+    var flightEndZ = 0.0
     var coins = 0
     var keys = 0
+    var mysteryBoxes = 0
     var score = 0
-    var boards = 3
     var jumps = 0
     var travelScore = 0.0
     var dead = false
@@ -34,7 +38,10 @@ struct MetroRunnerModel: Sendable {
         try config.validate()
         self.config = config
         self.curriculum = config.curriculum
-        self.catalog = try MetroRunnerCatalog.bundled.get()
+        let catalog = try MetroRunnerCatalog.bundled.get()
+        self.catalog = catalog
+        self.spawnRules = MetroRunnerSpawnRules(rules: catalog.rules, profile: config.spawnProfile,
+                                                generator: SeededGenerator(seed: 0))
         if let section = config.section, catalog.sections[section] == nil {
             throw GymnazoError.invalidConfiguration("Unknown MetroRunner section: \(section).")
         }
@@ -68,12 +75,15 @@ struct MetroRunnerModel: Sendable {
         routeSeed = selectedSeed ?? seedGenerator.next()
         route = try MetroRunnerRoute(catalog: catalog, seed: routeSeed, section: config.section)
         gameplay = SeededGenerator(seed: routeSeed ^ 0x5EEDC01)
+        spawnRules = MetroRunnerSpawnRules(rules: catalog.rules, profile: config.spawnProfile,
+                                           generator: SeededGenerator(seed: routeSeed ^ 0x5A17A))
         curriculum = selectedCurriculum
         motor = MetroRunnerMotor()
         entities = []
         powers = [:]
-        board = 0
-        coins = 0; keys = 0; score = 0; boards = 3; jumps = 0
+        flightElapsed = 0; flightStartY = 0; flightSpeed = 0; flightEndZ = 0
+        mysteryBoxes = 0
+        coins = 0; keys = 0; score = 0; jumps = 0
         travelScore = 0
         dead = false; deathReason = ""
         invulnerable = 0; stumble = 0; surface = 0; nextChunk = 0
@@ -88,7 +98,7 @@ struct MetroRunnerModel: Sendable {
         try ensureOpen()
         guard !needsReset else { throw GymnazoError.stepBeforeReset }
         guard let command = MetroRunnerAction(rawValue: action) else {
-            throw GymnazoError.invalidAction("MetroRunner actions must be integers from 0 through 5.")
+            throw GymnazoError.invalidAction("MetroRunner actions must be integers from 0 through 4.")
         }
         let oldZ = motor.z, oldCoins = coins
         let limit = max(1, Int(ceil(config.maxEpisodeSeconds * 60)))
@@ -120,8 +130,15 @@ struct MetroRunnerModel: Sendable {
         guard var route else { throw GymnazoError.invalidState("MetroRunner route is not initialized.") }
         while nextChunk < motor.z + 2400 {
             let name = try route.next(at: nextChunk)
-            let (items, length) = try route.instantiate(name, origin: nextChunk, speed: motor.speed)
-            entities.append(contentsOf: items)
+            let (items, length) = try route.instantiate(name, origin: nextChunk, speed: speed)
+            for var item in items.sorted(by: { $0.z < $1.z }) {
+                if item.kind == .pickupAnchor {
+                    guard let kind = spawnRules.choose(at: item.z, group: item.spawnGroup, flying: power(.jetpack) > 0) else { continue }
+                    item.kind = kind
+                }
+                if power(.jetpack) > 0 && flyoverSuppresses(item) { continue }
+                entities.append(item)
+            }
             nextChunk += length
             route.placed(at: nextChunk)
         }
@@ -133,7 +150,7 @@ struct MetroRunnerModel: Sendable {
     private func includes(_ entity: MetroRunnerEntity) -> Bool {
         switch curriculum {
         case .barriers: [.jump, .roll, .coin].contains(entity.kind) && entity.y < 15
-        case .static: [.train, .ramp, .jump, .roll, .gate, .platform, .coin].contains(entity.kind)
+        case .static: (entity.kind.isHazard && entity.kind != .movingTrain) || entity.kind == .ramp || entity.kind == .coin
         case .moving: entity.kind.isHazard || entity.kind == .ramp || entity.kind == .coin
         case .full: true
         }
@@ -144,7 +161,7 @@ struct MetroRunnerModel: Sendable {
             if let carrier = entities[index].carrierZ {
                 let factor = entities[index].motionFactor
                 entities[index].z = (1 + factor) * carrier - factor * z
-                entities[index].velocity = -factor * motor.speed
+                entities[index].velocity = -factor * speed
             }
         }
     }
@@ -153,13 +170,22 @@ struct MetroRunnerModel: Sendable {
         ["route_seed": .text(String(routeSeed)), "distance": .double(motor.z),
          "coins": .discrete(coins), "score": .discrete(score), "death_reason": .text(deathReason),
          "elapsed_seconds": .double(Double(physicsSteps) / 60), "physics_steps": .discrete(physicsSteps),
-         "curriculum": .text(curriculum.rawValue), "observation_version": .discrete(2)]
+         "curriculum": .text(curriculum.rawValue), "observation_version": .discrete(MetroRunnerObservation.version),
+         "original_game_validated": .bool(false), "simulation_status": .text("approximation"),
+         "power_level": .discrete(config.powerLevel), "mystery_boxes": .discrete(mysteryBoxes),
+         "keys": .discrete(keys), "spawn_profile": .dictionary([
+            "active_set": .text("spawnSet_Default"),
+            "unlocked_features": .sequence(config.spawnProfile.unlockedFeatures.sorted().map { .text($0) }),
+            "loot_box_friendly": .bool(config.spawnProfile.lootBoxFriendly),
+         ])]
     }
 
+    var speed: Double { motor.forwardSpeed }
     var snapshot: MetroRunnerSnapshot {
-        MetroRunnerSnapshot(x: motor.worldX, y: motor.y, surface: surface, distance: motor.z, speed: motor.speed,
-                            grounded: motor.grounded, rolling: motor.rolling > 0, coins: coins, score: score,
-                            boards: boards, boardRemaining: board, powers: powers, dead: dead,
+        MetroRunnerSnapshot(x: motor.worldX, y: motor.y, surface: surface, distance: motor.z, speed: speed,
+                            grounded: motor.grounded, rolling: motor.rolling > 0, diving: motor.diving,
+                            pogo: motor.customJump?.source == .pogo, coins: coins, score: score,
+                            mysteryBoxes: mysteryBoxes, powers: powers, dead: dead,
                             entities: entities.filter(\.alive).map(\.snapshot))
     }
 

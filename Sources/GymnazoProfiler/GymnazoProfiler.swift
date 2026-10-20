@@ -28,6 +28,10 @@ enum ProfileError: Error {
 struct GymnazoProfiler {
     static func main() async throws {
         #if arch(arm64) && os(macOS)
+            if CommandLine.arguments.dropFirst().first == "metro-replay" {
+                try MetroRunnerReplayCommand.run(Array(CommandLine.arguments.dropFirst(2)))
+                return
+            }
             Memory.clearCache()
             let vectorEnvironments = 8
             let replay = try await profileReplay(vectorEnvironments: vectorEnvironments)

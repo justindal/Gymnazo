@@ -1,0 +1,17 @@
+{
+  "app_version": "3.70.1",
+  "build": "96703",
+  "unity_version": "2022.3.72f1",
+  "evidence_type": "static supplied artifacts",
+  "files": {
+    "UnityFramework": {
+      "size_bytes": 134010784,
+      "sha256": "90f2c073012f990b53e5cd75f08072c25368c0791ec2bd0c199a4ab600f57b4d"
+    },
+    "global-metadata.dat": {
+      "size_bytes": 16581884,
+      "sha256": "4531c527599fa5b1711e7b9ff80b565a2d102bbebc86de2e99f1a5e4cd715de7"
+    }
+  },
+  "macho_uuid": "4f9aeb54-055f-3708-89f0-6405a08627f9"
+}

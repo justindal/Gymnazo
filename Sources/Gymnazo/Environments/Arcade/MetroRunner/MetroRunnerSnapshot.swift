@@ -1,19 +1,17 @@
 import Foundation
 
-/// Geometry and pickup types in observation-version-two one-hot order.
-public enum MetroRunnerEntityKind: String, Sendable, CaseIterable {
+/// Geometry and pickup types represented by Metro Run.
+public enum MetroRunnerEntityKind: String, Sendable, CaseIterable, Codable {
     case train, movingTrain = "moving_train", jump, roll, gate, ramp, coin
     case magnet, sneakers, multiplier, jetpack, mystery, key, platform
+    case pillar, signal, dumpster, bush, powerbox, pogo, unknown
+    case pickupAnchor = "pickup_anchor"
 
-    var isHazard: Bool { [.train, .movingTrain, .jump, .roll, .gate, .platform].contains(self) }
-    var isSupport: Bool { [.train, .movingTrain, .platform].contains(self) }
-    var powerDuration: Double? {
-        switch self {
-        case .magnet, .sneakers, .multiplier: 15
-        case .jetpack: 12
-        default: nil
-        }
+    var isHazard: Bool {
+        [.train, .movingTrain, .jump, .roll, .gate, .platform, .pillar, .signal, .dumpster, .bush, .powerbox].contains(self)
     }
+    var isSupport: Bool { [.train, .movingTrain, .platform].contains(self) }
+    var isPower: Bool { [.magnet, .sneakers, .multiplier, .jetpack].contains(self) }
 }
 
 /// Immutable geometry suitable for rendering outside an environment actor.
@@ -38,10 +36,11 @@ public struct MetroRunnerSnapshot: Sendable, Equatable {
     public let speed: Double
     public let grounded: Bool
     public let rolling: Bool
+    public let diving: Bool
+    public let pogo: Bool
     public let coins: Int
     public let score: Int
-    public let boards: Int
-    public let boardRemaining: Double
+    public let mysteryBoxes: Int
     public let powers: [MetroRunnerEntityKind: Double]
     public let dead: Bool
     public let entities: [MetroRunnerEntitySnapshot]
@@ -60,6 +59,18 @@ struct MetroRunnerEntity: Sendable, Equatable {
     var rampRun = 0.0
     var carrierZ: Double?
     var motionFactor = 0.0
+    var source = ""
+    var contacted = false
+    var spawnGroup = 0
+    var disableOnFlyover = false
+    var preserveFlyoverDistance = 600.0
+    var curveSpawner = ""
+    var curveT = 0.0
+    var spawnOrigin: SIMD3<Double>?
+    var inAir = false
+
+    var collisionBottom: Double { y + (kind == .roll ? 5 : 0) }
+    var collisionTop: Double { y + (kind == .roll ? 24 : height) }
 
     func surface(at position: Double) -> Double {
         kind == .ramp ? y + height * max(0, min(1, (position - z) / (rampRun > 0 ? rampRun : depth))) : y + height

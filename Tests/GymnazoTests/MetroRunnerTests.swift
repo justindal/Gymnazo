@@ -89,9 +89,9 @@ struct MetroRunnerTests {
         var motor = MetroRunnerMotor()
         let reference: [(Int, Double, Double, Double, Double)] = [
             (0, 0.9382716049382716, 0, 0, 1.8333333333333333),
-            (3, 0.8262491921537374, 0, 0, 7.334357541899442),
-            (8, 0.8834210788483498, 1.4351564294443044, 86.10938576665826, 16.50614525139665),
-            (16, 0.9748960975597295, 10.916407864998742, 59.44271909999162, 31.189882060831792),
+            (3, 0.8765604524449963, 0, 0, 7.334357541899442),
+            (8, 1, 1.4351564294443044, 86.10938576665826, 16.50614525139665),
+            (16, 1, 10.916407864998742, 59.44271909999162, 31.189882060831792),
             (22, 1, 13.481078901109154, -93.33333333333333, 42.209854127870905),
             (39, 1, 0, 0, 73.46648044692739),
         ]
@@ -132,9 +132,41 @@ struct MetroRunnerTests {
         var jump = try empty(frameSkip: 90)
         _ = try jump.step(MetroRunnerAction.jump.rawValue)
         #expect(jump.motor.grounded && jump.jumps == 1)
-        var board = try empty(frameSkip: 40)
-        _ = try board.step(MetroRunnerAction.board.rawValue)
-        #expect(board.boards == 2)
+    }
+
+    @Test
+    func actionsExcludeHoverboardsAndRejectTheFormerBoardIndex() throws {
+        #expect(MetroRunnerAction.allCases.map(\.rawValue) == [0, 1, 2, 3, 4])
+        var legacy = try MetroRunner()
+        var typed = try MetroRunnerValueEnvironment()
+        #expect((legacy.actionSpace as? Discrete)?.n == 5)
+        #expect(typed.valueActionSpace.n == 5)
+        _ = try legacy.reset(seed: 7)
+        _ = try typed.resetValue(seed: 7)
+        let before = legacy.currentSnapshot
+        #expect(throws: GymnazoError.self) { try legacy.step(MLXArray(Int32(5))) }
+        #expect(throws: GymnazoError.self) { try typed.stepValue(5) }
+        #expect(legacy.currentSnapshot == before)
+        #expect(typed.currentSnapshot == before)
+        for action in 0..<5 {
+            #expect(typed.valueActionSpace.containsValue(action))
+        }
+        #expect(!typed.valueActionSpace.containsValue(5))
+    }
+
+    @Test
+    func frontalCrashTerminatesWithoutClearingNearbyHazards() throws {
+        var model = try empty(frameSkip: 4)
+        model.entities = [
+            MetroRunnerEntity(kind: .train, x: 0, y: 0, z: 1, width: 16, depth: 180, height: 30),
+            MetroRunnerEntity(kind: .jump, x: 0, y: 0, z: 100),
+        ]
+        let result = try model.step(MetroRunnerAction.none.rawValue)
+        #expect(result.terminated && !result.truncated)
+        #expect(model.snapshot.dead && model.physicsSteps == 1)
+        #expect(model.entities.allSatisfy { $0.alive })
+        #expect(model.deathReason == "Train collision")
+        #expect(throws: GymnazoError.self) { try model.step(0) }
     }
 
     @Test
@@ -157,11 +189,6 @@ struct MetroRunnerTests {
         train.entities = [MetroRunnerEntity(kind: .train, x: 0, y: 0, z: 8, width: 16, depth: 180, height: 30)]
         try advance(&train, ticks: 20)
         #expect(train.dead)
-        var protected = try empty()
-        protected.entities = train.entities
-        try advance(&protected, ticks: 20, action: MetroRunnerAction.board.rawValue)
-        #expect(!protected.dead)
-        #expect(protected.board == 0 && protected.boards == 2)
         var boundary = try empty(frameSkip: 4, seconds: 0.01)
         boundary.entities = [MetroRunnerEntity(kind: .train, x: 0, y: 0, z: 1, height: 30)]
         let lastTick = try boundary.step(0)
@@ -232,8 +259,8 @@ struct MetroRunnerTests {
             return
         }
         #expect(rows.elements[0] == 1)
-        #expect(rows.elements[16] < 0 && rows.elements[17] > 0)
-        #expect(abs(rows.elements[21] - Float(29.2 / 150)) < 1e-6)
+        #expect(rows.elements[23] < 0 && rows.elements[24] > 0)
+        #expect(abs(rows.elements[28] - Float(29.2 / 150)) < 1e-6)
         #expect(mask.elements.allSatisfy { $0 })
         model.entities = []
         let emptyValue = try model.observation()
@@ -255,10 +282,17 @@ struct MetroRunnerTests {
         a.collect(0); a.collect(1)
         for _ in 0..<120 { _ = try a.step(0); _ = try b.step(0) }
         #expect(a.motor.y > 60)
-        a.entities = []; b.entities = []
-        a.nextChunk = 0; b.nextChunk = 0
-        try a.ensureRoute(); try b.ensureRoute()
-        #expect(a.entities == b.entities)
+        var routeA = try #require(a.route), routeB = try #require(b.route)
+        var origin = 2400.0
+        for _ in 0..<20 {
+            let nameA = try routeA.next(at: origin), nameB = try routeB.next(at: origin)
+            #expect(nameA == nameB)
+            let (itemsA, length) = try routeA.instantiate(nameA, origin: origin, speed: 110)
+            let (itemsB, _) = try routeB.instantiate(nameB, origin: origin, speed: 110)
+            #expect(itemsA == itemsB)
+            origin += length
+            routeA.placed(at: origin); routeB.placed(at: origin)
+        }
     }
 
     @Test
@@ -270,7 +304,7 @@ struct MetroRunnerTests {
         #expect(reset.obs.asArray(Float.self) == (try MetroRunnerObservation.flatten(valueReset.observation).elements))
         #expect(legacy.observationSpace.contains(reset.obs))
         let snapshot = legacy.currentSnapshot
-        for action in [1, 0, 3, 0, 4, 2, 5, 0] {
+        for action in [1, 0, 3, 0, 4, 2, 0] {
             let step = try legacy.step(MLXArray(Int32(action)))
             let valueStep = try typed.stepValue(action)
             #expect(step.obs.asArray(Float.self) == (try MetroRunnerObservation.flatten(valueStep.observation).elements))
@@ -295,7 +329,7 @@ struct MetroRunnerTests {
         var env = try MetroRunner()
         #expect(throws: GymnazoError.self) { try env.step(MLXArray(Int32(0))) }
         _ = try env.reset(seed: 7)
-        for action in [MLXArray(Int32(-1)), MLXArray(Int32(6)), MLXArray(Float(1.5)), MLXArray([Int32(1), 2])] {
+        for action in [MLXArray(Int32(-1)), MLXArray(Int32(5)), MLXArray(Int32(6)), MLXArray(Float(1.5)), MLXArray([Int32(1), 2])] {
             #expect(throws: GymnazoError.self) { try env.step(action) }
         }
         #expect(throws: GymnazoError.self) { try env.reset(options: ["unknown": 1]) }
@@ -314,7 +348,7 @@ struct MetroRunnerTests {
                 #expect(model.entities.allSatisfy { [.jump, .roll, .coin].contains($0.kind) && $0.y < 15 })
             }
             if curriculum == .static { #expect(!model.entities.contains { $0.kind == .movingTrain }) }
-            if curriculum != .full { #expect(!model.entities.contains { $0.kind.powerDuration != nil }) }
+            if curriculum != .full { #expect(!model.entities.contains { $0.kind.isPower }) }
         }
         var first = try MetroRunnerModel(config: MetroRunnerConfig())
         var second = first
@@ -340,11 +374,11 @@ struct MetroRunnerTests {
         #expect(env.spec?.id == "MetroRunner-v0")
         #expect(env.spec?.metadata.renderModes == [.human, .ansi])
         let reset = try env.reset(seed: 7)
-        #expect(env.observationSpace.shape == [1504])
+        #expect(env.observationSpace.shape == [2089])
         #expect(env.observationSpace.contains(reset.obs))
         _ = try env.step(MLXArray(Int32(0)))
         let value = try await Gymnazo.makeValue("MetroRunner-v0")
-        #expect(value.observationSpace.flatDimension == 1504)
+        #expect(value.observationSpace.flatDimension == 2089)
         let vector = try await Gymnazo.makeValueVec("MetroRunner-v0", numEnvs: 2, mode: .parallel,
             options: ["config": MetroRunnerConfig(maxEpisodeSeconds: 0.05)])
         _ = try await vector.reset(seed: 7)
@@ -358,7 +392,7 @@ struct MetroRunnerTests {
     func ppoUpdatesParametersWithFlattenedNativeEnvironments() async throws {
         let model = try PPO(
             observationSpace: Box(low: -1, high: 1, shape: [MetroRunnerObservation.flatCount]),
-            actionSpace: Discrete(n: 6),
+            actionSpace: Discrete(n: 5),
             policyConfig: PPOPolicyConfig(netArch: .shared([16]), featuresExtractor: .flatten),
             config: PPOConfig(nSteps: 4, batchSize: 4, nEpochs: 1), seed: 7)
         let before = await model.policyParameterValues()

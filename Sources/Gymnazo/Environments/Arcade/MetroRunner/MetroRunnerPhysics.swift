@@ -6,20 +6,16 @@ extension MetroRunnerModel {
         let oldZ = motor.z, oldY = motor.y
         let wasFlying = power(.jetpack) > 0
         for key in Array(powers.keys) { powers[key] = max(0, power(key) - dt) }
-        board = max(0, board - dt)
         invulnerable = max(0, invulnerable - dt)
         stumble = max(0, stumble - dt)
+        let flying = power(.jetpack) > 0
+        motor.forwardSpeedOverride = flying ? flightSpeed : nil
+        motor.laneChangeDuration = flying ? catalog.rules.jetpack.laneDuration : 0.27
         motor.jumpHeight = power(.sneakers) > 0 ? 40 : 20
+        motor.jumpCurve = power(.sneakers) > 0 ? catalog.rules.sneakersCurve : nil
         var action = command
-        if action == .board {
-            if boards > 0, board <= 0, power(.jetpack) <= 0 {
-                boards -= 1
-                board = 30
-                event("board")
-            }
-            action = .none
-        }
-        if action == .jump, motor.grounded {
+        if flying && (action == .jump || action == .down) { action = .none }
+        if action == .jump && motor.canJump {
             jumps += 1
             motor.rolling = 0
             event("jump")
@@ -27,10 +23,22 @@ extension MetroRunnerModel {
         for index in entities.indices where entities[index].carrierZ == nil {
             entities[index].z += entities[index].velocity * dt
         }
-        let futureZ = motor.z + motor.speed * dt
+        let futureZ = motor.z + speed * dt
         updateMovingTrains(at: futureZ)
+        updateCoinCurves()
+        if action == .left || action == .right {
+            motor.changeLane(action == .left ? -1 : 1)
+            action = .none
+        }
+        let futureX: Double
+        if motor.laneElapsed < motor.laneDuration {
+            let fraction = min(1, (motor.laneElapsed + dt) / motor.laneDuration)
+            futureX = (motor.laneFrom + (motor.laneTo - motor.laneFrom) * fraction - 1) * 20
+        } else {
+            futureX = motor.worldX
+        }
         var support = 0.0
-        for entity in entities where entity.alive && abs(entity.x - motor.worldX) <= entity.width / 2 + 1 {
+        for entity in entities where entity.alive && abs(entity.x - futureX) <= entity.width / 2 + 1 {
             guard entity.z - 2 <= futureZ, futureZ <= entity.z + entity.depth else { continue }
             let top = entity.surface(at: futureZ)
             if entity.kind == .ramp {
@@ -51,13 +59,16 @@ extension MetroRunnerModel {
         surface = support
         motor.ground = support
         motor.step(action)
-        let flying = power(.jetpack) > 0
         if flying {
-            motor.y += (65 - motor.y) * min(1, dt * 8)
-            motor.vy = 0; motor.grounded = false; motor.rolling = 0
+            flightElapsed += dt
+            let fraction = min(1, flightElapsed / catalog.rules.jetpack.adjustmentTime)
+            let blend = fraction * fraction * (3 - 2 * fraction)
+            motor.y = flightStartY + (catalog.rules.jetpack.height - flightStartY) * blend
+            motor.vy = (motor.y - oldY) / dt
+            motor.grounded = false; motor.rolling = 0; motor.diving = false
         } else if wasFlying {
             invulnerable = max(invulnerable, 2)
-            motor.vy = 0; motor.grounded = false
+            motor.grounded = false
         }
         collide(oldZ: oldZ, oldY: oldY, flying: flying)
         travelScore += (motor.z - oldZ) / 10 * (power(.multiplier) > 0 ? 2 : 1)
@@ -71,7 +82,7 @@ extension MetroRunnerModel {
     func power(_ kind: MetroRunnerEntityKind) -> Double { powers[kind] ?? 0 }
 
     private mutating func collide(oldZ: Double, oldY: Double, flying: Bool) {
-        let bodyHeight = motor.rolling > 0 ? 4.0 : 9.0
+        let bodyHeight = motor.bodyHeight
         let count = entities.count
         for index in 0..<count {
             let entity = entities[index]
@@ -93,53 +104,30 @@ extension MetroRunnerModel {
             if entity.kind.isSupport {
                 let top = entity.y + entity.height
                 if motor.vy <= 0, oldY >= top, motor.y <= top {
-                    motor.y = top; motor.vy = 0; motor.grounded = true; surface = top
+                    motor.y = top
+                    motor.vy = 0
+                    motor.grounded = true
+                    surface = top
                 }
                 if motor.y >= top - 0.5 || motor.y + bodyHeight < entity.y { continue }
             } else if entity.kind == .roll {
-                if motor.y + bodyHeight < entity.y + 5 || motor.y > entity.y + 24 { continue }
+                if motor.y + bodyHeight < entity.collisionBottom || motor.y > entity.collisionTop { continue }
             } else if motor.y >= entity.y + entity.height { continue }
-            hit(entity, side: dx > entity.width / 2 - 1)
-            if dead { break }
-        }
-    }
-
-    mutating func collect(_ index: Int) {
-        let item = entities[index]
-        entities[index].alive = false
-        event(item.kind.rawValue, x: item.x, y: item.y, z: item.z)
-        switch item.kind {
-        case .coin: coins += 1
-        case .key: keys += 1
-        case .mystery:
-            coins += Int.random(in: 20...60, using: &gameplay)
-            boards += 1
-        default:
-            if let duration = item.kind.powerDuration {
-                powers[item.kind] = duration
-                if item.kind == .jetpack {
-                    motor.grounded = false
-                    var lane = 0.0
-                    for index in 0..<48 {
-                        if index % 8 == 0 { lane = Double(Int.random(in: -1...1, using: &gameplay)) * 20 }
-                        entities.append(MetroRunnerEntity(kind: .coin, x: lane, y: 71,
-                            z: motor.z + 60 + Double(index) * 24, width: 3, depth: 3, height: 3))
-                    }
+            if entity.kind == .bush || entity.kind == .powerbox {
+                if !entity.contacted {
+                    entities[index].contacted = true
+                    hit(entity, side: true)
                 }
+            } else {
+                hit(entity, side: dx > entity.width / 2 - 1)
             }
+            if dead { break }
         }
     }
 
     mutating func hit(_ obstacle: MetroRunnerEntity, side: Bool) {
         guard invulnerable <= 0 else { return }
-        if board > 0 {
-            board = 0
-            invulnerable = 2
-            for index in entities.indices where entities[index].kind.isHazard && abs(entities[index].z - motor.z) < 150 {
-                entities[index].alive = false
-            }
-            event("save")
-        } else if side && stumble <= 0 {
+        if side && stumble <= 0 {
             stumble = 5
             invulnerable = 0.8
             event("stumble")

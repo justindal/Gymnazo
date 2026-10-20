@@ -1,9 +1,9 @@
 import MLX
 
-/// A native Metro Run environment with six discrete actions and flattened state observations.
+/// A native Metro Run environment with five discrete actions and flattened state observations.
 ///
 /// The MLX representation concatenates entities, entity_mask, and player in sorted key order.
-/// The observation space is a Box of 1,504 floats suitable for standard MLP policies.
+/// The observation space is a Box of 2,089 floats suitable for standard MLP policies.
 /// This simulator retains the supplied approximation's collision, pickup, and flight limitations.
 public struct MetroRunner: Env {
     public let actionSpace: any Space
@@ -18,7 +18,7 @@ public struct MetroRunner: Env {
         }
         self.environment = try MetroRunnerValueEnvironment(config: config)
         self.renderMode = renderMode
-        self.actionSpace = Discrete(n: 6)
+        self.actionSpace = Discrete(n: MetroRunnerAction.allCases.count)
         self.observationSpace = Box(low: -1, high: 1, shape: [MetroRunnerObservation.flatCount])
     }
 
@@ -39,7 +39,7 @@ public struct MetroRunner: Env {
 
     public mutating func step(_ action: MLXArray) throws -> Step {
         guard action.size == 1, action.dtype.isInteger else {
-            throw GymnazoError.invalidAction("MetroRunner requires one integer action from 0 through 5.")
+            throw GymnazoError.invalidAction("MetroRunner requires one integer action from 0 through 4.")
         }
         eval(action)
         let value = action.item(Int.self)

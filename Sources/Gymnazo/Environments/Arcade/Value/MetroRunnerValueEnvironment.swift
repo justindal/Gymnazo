@@ -1,6 +1,6 @@
 /// A native Swift-state port of the supplied Metro Run training simulator.
 ///
-/// Observations contain player `[32]`, entities `[64, 22]`, and a boolean entity mask `[64]`.
+/// Observations contain version-5 player `[41]`, entities `[64, 31]`, and a boolean entity mask `[64]`.
 /// The default decision applies one command across four 60 Hz ticks. Route and gameplay
 /// randomness are independent. Seeded Swift routes do not match Python's RNG sequence.
 public struct MetroRunnerValueEnvironment: ValueEnvironment {
@@ -11,7 +11,7 @@ public struct MetroRunnerValueEnvironment: ValueEnvironment {
     public init(config: MetroRunnerConfig = MetroRunnerConfig()) throws {
         self.model = try MetroRunnerModel(config: config)
         self.valueObservationSpace = try MetroRunnerObservation.space()
-        self.valueActionSpace = try DiscreteValueSpace(n: 6)
+        self.valueActionSpace = try DiscreteValueSpace(n: MetroRunnerAction.allCases.count)
     }
 
     public mutating func resetValue(seed: UInt64?, options: ValueResetOptions?) throws -> ValueReset<[String: SpaceValue]> {

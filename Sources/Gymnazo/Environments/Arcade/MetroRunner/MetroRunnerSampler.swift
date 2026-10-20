@@ -9,14 +9,15 @@ extension MetroRunnerRoute {
         var entities: [MetroRunnerEntity] = []
         Self.visit(chunk.root, position: .zero, rotation: simd_quatd(angle: 0, axis: SIMD3(0, 1, 0)),
                    scale: SIMD3(repeating: 1), force: true, origin: origin, speed: speed,
-                   length: chunk.length, generator: &generator, entities: &entities)
+                   length: chunk.length, rules: catalog.rules, generator: &generator, entities: &entities)
+        for index in entities.indices { entities[index].source = name }
         return (entities, chunk.length)
     }
 
     private static func visit(
         _ node: MetroRunnerCatalog.Node,
         position: SIMD3<Double>, rotation: simd_quatd, scale: SIMD3<Double>, force: Bool = false,
-        origin: Double, speed: Double, length: Double,
+        origin: Double, speed: Double, length: Double, rules: MetroRunnerRules,
         generator: inout SeededGenerator, entities: inout [MetroRunnerEntity]
     ) {
         guard node.active || force else { return }
@@ -68,6 +69,16 @@ extension MetroRunnerRoute {
                     entities.append(MetroRunnerEntity(kind: .gate, x: (sc.x < 0 ? -1 : 1) * lane,
                         y: 0, z: origin + z, width: 17, depth: 25, height: 60))
                 }
+            } else if let kind = ["obstacle_pillar": MetroRunnerEntityKind.pillar,
+                                  "obstacle_lightSignal": .signal, "obstacle_dumpster": .dumpster,
+                                  "obstacle_bush": .bush, "obstacle_powerBox": .powerbox][node.asset] {
+                for collider in node.colliders {
+                    let center = q.act(vector(collider.center) * sc)
+                    let size = absVector(vector(collider.size) * sc)
+                    entities.append(MetroRunnerEntity(kind: kind, x: x + center.x,
+                        y: y + center.y - size.y / 2, z: origin + z + center.z - size.z / 2,
+                        width: size.x, depth: size.z, height: size.y))
+                }
             }
             if ["Station_Platform", "Platform", "collider_R"].contains(node.name) {
                 for collider in node.colliders {
@@ -79,22 +90,28 @@ extension MetroRunnerRoute {
                 }
             }
             if node.spawn {
-                let name = node.name.lowercased()
-                if name.contains("coin") || node.coin {
-                    let span = number(in: name, pattern: "over_(\\d+)") ?? Double(max(0, (node.coinCount - 1) * 30))
-                    for index in 0..<node.coinCount {
-                        let t = Double(index) / Double(max(1, node.coinCount - 1))
-                        let lift = name.contains("curve") ? sin(.pi * t) * 15 : 0
-                        entities.append(MetroRunnerEntity(kind: .coin, x: x, y: y + lift,
-                            z: origin + z + t * span, width: 3, depth: 3, height: 3))
-                        _ = generator.next()
+                if node.coin {
+                    let name = node.spawner ?? "CoinSingleSpawner"
+                    let spawner = rules.coinSpawners[name]
+                    let count = spawner?.count(speedModifier: speed / 110) ?? 1
+                    for index in 0..<count {
+                        let t = count > 1 ? Double(index) / Double(count - 1) : 0.5
+                        let offset = rules.coinPosition(name, t: t, speedModifier: speed / 110)
+                        entities.append(MetroRunnerEntity(kind: .coin, x: x + offset.x, y: y + offset.y,
+                            z: origin + z + offset.z, width: 3, depth: 3, height: 3,
+                            disableOnFlyover: node.disableOnFlyover,
+                            preserveFlyoverDistance: node.preserveFlyoverDistance,
+                            curveSpawner: spawner?.scalesWithSpeed == true ? name : "", curveT: t,
+                            spawnOrigin: SIMD3(x, y, origin + z), inAir: index > 0 && spawner?.inAir == true))
                     }
-                } else if name.contains("pickup"), Double(generator.uniform(in: 0...1)) < (name.contains("special") ? 0.34 : 0.48) {
-                    let kinds: [MetroRunnerEntityKind] = [.magnet, .sneakers, .multiplier, .jetpack, .mystery, .key]
-                    let index = generator.weightedIndex([28, 25, 25, 12, 8, 2]) ?? 0
-                    entities.append(MetroRunnerEntity(kind: kinds[index], x: x, y: y,
+                } else if node.pickupType == 105 {
+                    entities.append(MetroRunnerEntity(kind: .pogo, x: x, y: y,
                         z: origin + z, width: 5, depth: 5, height: 5))
-                    _ = generator.next()
+                } else if node.spawner == nil {
+                    entities.append(MetroRunnerEntity(kind: .pickupAnchor, x: x, y: y,
+                        z: origin + z, width: 5, depth: 5, height: 5, spawnGroup: node.spawnGroup,
+                        disableOnFlyover: node.disableOnFlyover,
+                        preserveFlyoverDistance: node.preserveFlyoverDistance))
                 }
             }
         }
@@ -108,12 +125,12 @@ extension MetroRunnerRoute {
             if !children.isEmpty, Double(generator.uniform(in: 0...1)) < probability {
                 let child = children[Int.random(in: children.indices, using: &generator)]
                 visit(child, position: world, rotation: q, scale: sc, force: true,
-                      origin: origin, speed: speed, length: length, generator: &generator, entities: &entities)
+                      origin: origin, speed: speed, length: length, rules: rules, generator: &generator, entities: &entities)
             }
         } else {
             for child in children {
                 visit(child, position: world, rotation: q, scale: sc,
-                      origin: origin, speed: speed, length: length, generator: &generator, entities: &entities)
+                      origin: origin, speed: speed, length: length, rules: rules, generator: &generator, entities: &entities)
             }
         }
     }
