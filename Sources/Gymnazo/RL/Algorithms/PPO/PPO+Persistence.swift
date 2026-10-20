@@ -27,9 +27,13 @@ extension PPO {
         try checkpoint.write(to: directory)
     }
 
+    /// Loads learned weights and counters, optionally replacing learning settings.
+    /// Optimizer state is initialized anew. Policy architecture is retained from the checkpoint.
     public static func load(
         from directory: URL,
-        env: sending (any Env)? = nil
+        env: sending (any Env)? = nil,
+        config overrideConfig: PPOConfig? = nil,
+        learningRate overrideLearningRate: (any LearningRateSchedule)? = nil
     ) async throws -> PPO {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
@@ -39,10 +43,10 @@ extension PPO {
             )
         }
 
-        let config = checkpoint.ppoConfig ?? PPOConfig()
+        let config = overrideConfig ?? checkpoint.ppoConfig ?? PPOConfig()
         let policyConfig = checkpoint.ppoPolicyConfig ?? PPOPolicyConfig()
         let learningRate =
-            checkpoint.learningRateSchedule?.makeSchedule()
+            overrideLearningRate ?? checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(3e-4)
 
         let observationSpace: any Space

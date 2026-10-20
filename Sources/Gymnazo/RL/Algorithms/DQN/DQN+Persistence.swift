@@ -36,10 +36,15 @@ extension DQN {
         try checkpoint.write(to: directory)
     }
 
+    /// Loads learned weights and counters, optionally replacing learning settings.
+    /// Optimizer state is initialized anew. Policy architecture is retained from the checkpoint.
+    /// Restoring replay data requires unchanged capacity, storage mode and frame stacking.
     public static func load(
         from directory: URL,
         env: sending (any Env)? = nil,
-        includeBuffer: Bool = true
+        includeBuffer: Bool = true,
+        config overrideConfig: DQNConfig? = nil,
+        learningRate overrideLearningRate: (any LearningRateSchedule)? = nil
     ) async throws -> DQN {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
@@ -48,7 +53,15 @@ extension DQN {
                 "Expected DQN checkpoint, got \(checkpoint.algorithmKind)")
         }
 
-        guard let dqnConfig = checkpoint.dqnConfig else {
+        if includeBuffer, let proposed = overrideConfig, let saved = checkpoint.dqnConfig {
+            guard proposed.bufferSize == saved.bufferSize,
+                proposed.optimizeMemoryUsage == saved.optimizeMemoryUsage,
+                proposed.handleTimeoutTermination == saved.handleTimeoutTermination,
+                proposed.replayFrameStack == saved.replayFrameStack else {
+                throw PersistenceError.invalidCheckpoint("Replay layout changes require loading without replay data.")
+            }
+        }
+        guard let dqnConfig = overrideConfig ?? checkpoint.dqnConfig else {
             throw PersistenceError.invalidCheckpoint("Missing DQN config")
         }
         let policyConfig = checkpoint.dqnPolicyConfig ?? DQNPolicyConfig()
@@ -72,7 +85,7 @@ extension DQN {
         }
 
         let schedule =
-            checkpoint.learningRateSchedule?.makeSchedule()
+            overrideLearningRate ?? checkpoint.learningRateSchedule?.makeSchedule()
             ?? ConstantLearningRate(1e-4)
 
         let networks = try DQNNetworks(

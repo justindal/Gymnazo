@@ -35,9 +35,11 @@ extension TabularAgent {
         try checkpoint.write(to: directory)
     }
 
+    /// Loads learned weights and counters, optionally replacing learning settings.
     public static func load(
         from directory: URL,
-        env: sending (any Env)? = nil
+        env: sending (any Env)? = nil,
+        config overrideConfig: TabularConfig? = nil
     ) throws -> TabularAgent {
         let checkpoint = try AlgorithmCheckpoint.read(from: directory)
 
@@ -46,7 +48,7 @@ extension TabularAgent {
                 "Expected tabular checkpoint, got \(checkpoint.algorithmKind)")
         }
 
-        guard let savedConfig = checkpoint.tabularConfig else {
+        guard let savedConfig = overrideConfig ?? checkpoint.tabularConfig else {
             throw PersistenceError.invalidCheckpoint("Missing tabular config")
         }
 
