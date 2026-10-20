@@ -46,6 +46,7 @@ Then add it to your target:
 xcodebuild \
   -scheme Gymnazo-Package \
   -destination 'platform=macOS,arch=arm64' \
+  -skipPackagePluginValidation \
   -parallel-testing-enabled NO \
   test
 ```
@@ -103,12 +104,6 @@ struct Demo {
 ```
 
 ## Vector Environments
-
-Gymnazo also includes the native `MetroRunner-v0` environment, ported from the
-supplied Metro_Run simulator with six actions and structured state observations.
-See [Metro Run](Sources/Gymnazo/Gymnazo.docc/Environments/Arcade/MetroRunner.md) for configuration, PPO training,
-data provenance, and fidelity limits.
-
 Gymnazo provides compatibility vector environments plus a typed Swift-value vector boundary. Use the typed boundary when environment state should stay out of MLX and concurrency transfers:
 
 ```swift
@@ -180,7 +175,7 @@ Gymnazo currently contains the following environments:
 | Category            | Environments                                                                 |
 | ------------------- | ---------------------------------------------------------------------------- |
 | **Classic Control** | `CartPole`, `MountainCar`, `MountainCarContinuous`, `Acrobot`, `Pendulum`    |
-| **Arcade**          | `FlappyBird`, `Snake`, `2048`                                                 |
+| **Arcade**          | `FlappyBird`, `Snake`, `2048`, `MetroRunner-v0`                                |
 | **Box2D**           | `LunarLander`, `LunarLanderContinuous`, `CarRacing`, `CarRacingDiscrete`     |
 | **ToyText**         | `FrozenLake`, `Taxi`, `CliffWalking`, `Blackjack`                            |
 
@@ -220,8 +215,18 @@ try await ppo.learn(totalTimesteps: 50_000, callbacks: nil)
 // save and load checkpoints
 let url = URL.documentsDirectory.appending(path: "my-agent")
 try await model.save(to: url)
-let loaded = try DQN.load(from: url, env: env)
+let loaded = try await DQN.load(from: url, env: env)
 ```
+
+Checkpoint loaders accept replacement learning settings while preserving learned
+weights, policy architecture, and step counters. Continue toward a new total step
+target with `learn(totalTimesteps:callbacks:resetProgress:)`, passing
+`resetProgress: false`. Loading creates fresh optimizer state; restoring replay
+data for DQN, SAC, or TD3 requires an unchanged replay layout.
+
+`LearnCallbacks(onPhase:)` reports compilation, updating, and collection phases
+during DQN, PPO, SAC, and TD3 training. PPO also reports its entropy coefficient
+as `train/ent_coef` in training metrics.
 
 See the [Reinforcement Learning guide](https://swiftpackageindex.com/justindal/Gymnazo/main/documentation/gymnazo/reinforcement-learning) for detailed usage, configuration, and callbacks.
 
